@@ -24,7 +24,11 @@ fn greet(name: &str) -> String {
     format!("Hello, {name}! You are talking to Workhorse Assistant.")
 }
 
-#[tauri::command]
+// Runs off the main (event-loop) thread: on Windows the ConPTY spawn
+// (CreatePseudoConsole + launching the child) is heavy enough to stall the GUI
+// message loop and trip IsHungAppWindow. `(async)` makes Tauri dispatch this
+// synchronous body to a worker thread so the window keeps pumping messages.
+#[tauri::command(async)]
 fn pty_spawn(
     app: AppHandle,
     registry: State<'_, SessionRegistry>,
@@ -54,7 +58,9 @@ fn pty_resize(
     registry.resize(&session_id, cols, rows)
 }
 
-#[tauri::command]
+// Off the main thread: kill() joins the reader thread, which can block until the
+// child's PTY closes — never do that on the GUI thread.
+#[tauri::command(async)]
 fn pty_kill(registry: State<'_, SessionRegistry>, session_id: String) -> Result<(), PtyError> {
     registry.kill(&session_id)
 }
@@ -64,21 +70,6 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(SessionRegistry::default())
-        .setup(|app| {
-            // Windows 11: a borderless (`decorations: false`) window is NOT
-            // rounded by DWM and keeps a square region, so the corners outside
-            // the renderer's CSS radius get painted with the system backdrop (a
-            // grey "toolbar" colour) instead of being clipped. Opt the OS window
-            // region into rounded corners so the corners are truly cut and the
-            // drop shadow follows — matching the rounded look Linux/WSL already
-            // gets from the transparent surface. No-op on other platforms.
-            #[cfg(target_os = "windows")]
-            if let Some(window) = app.get_webview_window("main") {
-                round_window_corners(&window);
-            }
-            let _ = &app;
-            Ok(())
-        })
         .invoke_handler(tauri::generate_handler![
             app_info,
             greet,
@@ -102,39 +93,4 @@ pub fn run() {
                 app_handle.state::<SessionRegistry>().kill_all();
             }
         });
-}
-
-/// Round the OS window region on Windows 11 via the DWM corner preference.
-/// Linked directly against `dwmapi` to avoid pulling in the heavy `windows`
-/// crate for a single call. The HWND is taken as `isize` so it stays correct
-/// whether Tauri's `HWND.0` is a raw pointer or an integer.
-#[cfg(target_os = "windows")]
-fn round_window_corners(window: &tauri::WebviewWindow) {
-    use std::ffi::c_void;
-
-    // DWMWA_WINDOW_CORNER_PREFERENCE = 33; DWMWCP_ROUND = 2.
-    const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
-    const DWMWCP_ROUND: u32 = 2;
-
-    #[link(name = "dwmapi")]
-    extern "system" {
-        fn DwmSetWindowAttribute(
-            hwnd: isize,
-            attribute: u32,
-            value: *const c_void,
-            value_size: u32,
-        ) -> i32;
-    }
-
-    if let Ok(hwnd) = window.hwnd() {
-        let preference: u32 = DWMWCP_ROUND;
-        unsafe {
-            DwmSetWindowAttribute(
-                hwnd.0 as isize,
-                DWMWA_WINDOW_CORNER_PREFERENCE,
-                &preference as *const u32 as *const c_void,
-                std::mem::size_of::<u32>() as u32,
-            );
-        }
-    }
 }
