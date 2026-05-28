@@ -1,6 +1,6 @@
 import { createContext, useEffect, useState } from 'react';
 import { PanelRightOpen } from 'lucide-react';
-import Sidebar from './components/Sidebar';
+import AgentRail from './components/AgentRail';
 import TerminalWorkspace from './components/terminal/TerminalWorkspace';
 import RightPanel from './components/RightPanel';
 import TitleBar from './components/TitleBar';
@@ -40,7 +40,7 @@ export default function App() {
       <TitleBar maximized={maximized} />
 
       <div className="flex-1 min-h-0 w-full flex p-3.5 gap-3.5 overflow-hidden">
-        <Sidebar isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
+        <AgentRail isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
         <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
           <TerminalWorkspace />
         </div>

@@ -35,6 +35,17 @@ Do not delete rows; the history is the asset.
       [`../DESIGN.md`](../DESIGN.md). Decide whether to extend DESIGN.md with
       a documented grey scale or to migrate these usages to existing role
       tokens. — discovered 2026-05-25 in initial scaffold
+- [ ] Token **value drift**: `src/index.css`'s hand-written `@theme` block has
+      diverged from `docs/DESIGN.md` values (e.g. `outline` `#C4CCD3`→`#e5e7eb`,
+      `surface-dark` `#101012`→`#161618`) and adds CSS-only tokens (`canvas-dark`,
+      `surface-dark-elevated`, `outline-strong`) absent from DESIGN.md. Tailwind
+      resolves the CSS, so DESIGN.md is no longer authoritative at runtime. Needs a
+      dedicated token-audit change to reconcile the two (keeping DESIGN.md as the
+      nominal source). — discovered 2026-05-29 in add-three-pane-shell — see
+      [`../../openspec/changes/add-three-pane-shell/design.md`](../../openspec/changes/add-three-pane-shell/design.md) (D8)
+- [ ] Delete orphan `src/components/MainChat.tsx` (never imported since initial
+      commit `edbfeb6`, contains invalid `p-4.5`). — discovered 2026-05-29 in
+      add-three-pane-shell review — see `src/components/MainChat.tsx`
 
 ## Closed
 

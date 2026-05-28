@@ -21,6 +21,9 @@ src/
 ├── main.tsx            # ReactDOM bootstrap
 ├── App.tsx             # 3-pane shell; routing + theme switch live here
 ├── components/         # Feature components; one component per file
+│   ├── AgentRail.tsx   # Left pane — task composer, search, task list
+│   ├── FileTree.tsx    # Right-pane file tree (recursive, collapsible, mock)
+│   ├── RightPanel.tsx  # Right pane — task details / files / preview
 │   ├── Terminal.tsx    # S0 single embedded PTY (xterm leaf)
 │   └── terminal/       # S1 multi-terminal workspace: TerminalWorkspace
 │                       #  (useReducer + keyboard shortcuts) + TabBar +

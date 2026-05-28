@@ -39,8 +39,9 @@ explicitly exposed as a command.
 │   ├── main.tsx                  # React entry
 │   ├── App.tsx                   # Top-level layout (3-pane shell)
 │   ├── components/               # Presentational components
-│   │   ├── Sidebar.tsx
-│   │   ├── RightPanel.tsx
+│   │   ├── AgentRail.tsx         # Left pane — task composer, search, task list, dark-mode toggle
+│   │   ├── FileTree.tsx          # Recursive collapsible file tree (mock data)
+│   │   ├── RightPanel.tsx        # Right pane — task details, files, preview
 │   │   ├── Terminal.tsx          # S0 single embedded PTY (xterm leaf)
 │   │   └── terminal/             # S1 multi-terminal workspace (renderer-only)
 │   │       ├── TerminalWorkspace.tsx   # useReducer state tree + keyboard shortcuts
