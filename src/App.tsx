@@ -61,8 +61,8 @@ export default function App() {
         )}
       </div>
 
-      {floating && <WindowResizeHandles />}
     </div>
+    {floating && <WindowResizeHandles />}
     </DarkModeCtx>
   );
 }
