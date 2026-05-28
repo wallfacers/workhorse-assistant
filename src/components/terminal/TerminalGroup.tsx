@@ -161,7 +161,7 @@ export default function TerminalGroup({
   return (
     <div ref={containerRef} className="relative h-full w-full">
       {/* Geometry layer: resizable placeholders + separators, no terminals. */}
-      <div className="absolute inset-1.5">
+      <div className="absolute inset-1">
         {root.kind === 'pane' ? (
           // Single pane: a bare placeholder — `<Panel>` needs a `<Group>`
           // ancestor (group context) and a lone pane has nothing to resize.

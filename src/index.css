@@ -133,16 +133,34 @@
    * its thickness must come from width/height (flex-basis:auto reads them), not
    * `flex`; size the cross dimension per `aria-orientation`. */
   [data-separator].separator-handle {
+    position: relative;
     background: transparent;
   }
   [data-separator].separator-handle[aria-orientation='horizontal'] {
-    height: 6px;
+    height: 4px;
   }
   [data-separator].separator-handle[aria-orientation='vertical'] {
-    width: 6px;
+    width: 4px;
   }
-  [data-separator].separator-handle:hover,
-  [data-separator].separator-handle:active {
+  /* The visible teal line (hover/drag) is a pseudo-element inset from both ends
+   * by the pane corner radius (--radius-md), so it spans only the cards' straight
+   * edges and never overshoots their rounded corners. The handle itself stays
+   * full-length so the whole edge remains grabbable. */
+  [data-separator].separator-handle::before {
+    content: '';
+    position: absolute;
+    border-radius: 9999px;
+    background: transparent;
+    transition: background-color 0.15s;
+  }
+  [data-separator].separator-handle[aria-orientation='vertical']::before {
+    inset: var(--radius-md) 0;
+  }
+  [data-separator].separator-handle[aria-orientation='horizontal']::before {
+    inset: 0 var(--radius-md);
+  }
+  [data-separator].separator-handle:hover::before,
+  [data-separator].separator-handle:active::before {
     background: var(--color-primary-container);
   }
 }
