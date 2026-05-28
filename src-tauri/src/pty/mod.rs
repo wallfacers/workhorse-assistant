@@ -101,6 +101,17 @@ fn resolve_profile(profile_id: &str) -> Option<LaunchProfile> {
     }
 }
 
+/// Fail fast with a clean `NotFound` when a profile's command is not on PATH.
+/// portable-pty resolves PATH itself and reports a missing command as a generic
+/// error carrying the *entire* PATH (not an `io::NotFound`), which would surface
+/// to the renderer as a multi-KB `internal` dump. Checking up front yields a
+/// tidy `command not found: <cmd>` the renderer can show inline (task 4.5).
+fn ensure_command_available(command: &str) -> Result<(), PtyError> {
+    which::which(command)
+        .map(|_| ())
+        .map_err(|_| PtyError::not_found(format!("command not found: {command}")))
+}
+
 #[derive(Serialize, Clone)]
 struct OutputPayload {
     data: String,
@@ -139,6 +150,7 @@ impl SessionRegistry {
     ) -> Result<String, PtyError> {
         let profile = resolve_profile(profile_id)
             .ok_or_else(|| PtyError::validation(format!("unknown profile id: {profile_id}")))?;
+        ensure_command_available(&profile.command)?;
 
         let cols = cols.unwrap_or(DEFAULT_COLS);
         let rows = rows.unwrap_or(DEFAULT_ROWS);
@@ -163,14 +175,12 @@ impl SessionRegistry {
             cmd.cwd(dir);
         }
 
-        let child = pair.slave.spawn_command(cmd).map_err(|e| {
-            if let Some(io) = e.downcast_ref::<std::io::Error>() {
-                if io.kind() == std::io::ErrorKind::NotFound {
-                    return PtyError::not_found(format!("command not found: {}", profile.command));
-                }
-            }
-            PtyError::internal(format!("spawn failed: {e}"))
-        })?;
+        // `ensure_command_available` already guaranteed the command resolves on
+        // PATH, so a failure here is a genuine internal spawn error.
+        let child = pair
+            .slave
+            .spawn_command(cmd)
+            .map_err(|e| PtyError::internal(format!("spawn failed: {e}")))?;
         // Drop the slave in the parent so the master reader sees EOF on child exit.
         drop(pair.slave);
 
@@ -411,5 +421,28 @@ mod tests {
         }
         let _ = child.wait();
         assert!(out.contains("PTYOK"), "expected child output, got: {out:?}");
+    }
+
+    // A missing command must surface as a clean `NotFound` ("command not
+    // found: <cmd>"), not portable-pty's generic PATH-dump error. Guards the
+    // backend half of manual task 4.5 (broken profile path → inline error).
+    #[test]
+    fn missing_command_is_reported_not_found() {
+        let err = ensure_command_available("workhorse-definitely-not-a-real-binary-xyz")
+            .expect_err("a command that is not on PATH must be NotFound");
+        assert!(matches!(err.kind, ErrorKind::NotFound));
+        assert!(
+            err.message.contains("command not found"),
+            "message should be tidy, got: {}",
+            err.message
+        );
+    }
+
+    // The shell profile's command is what the app actually launches, so it must
+    // resolve on the host for the embedded terminal to work at all.
+    #[test]
+    fn resolvable_command_is_available() {
+        let shell = resolve_profile("shell").expect("shell profile exists");
+        assert!(ensure_command_available(&shell.command).is_ok());
     }
 }

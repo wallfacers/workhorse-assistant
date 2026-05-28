@@ -217,9 +217,14 @@ hashes, IDs, and the assistant's tool-call previews.
 ## Layout
 
 - **Frameless window:** the app fills the OS window edge-to-edge — no outer
-  padding, no gradient frame. The window is opaque; rounded corners come from
-  the OS window manager (Windows 11 DWM rounds top-level windows), so the
-  renderer paints a square `surface-muted` ground and does not round the root.
+  padding, no gradient frame. The window is **transparent**; while floating
+  (not maximized/fullscreen) the renderer rounds the root with `rounded-xl` so
+  the area outside the radius reveals the desktop — real rounded corners with no
+  frame. A borderless window is *not* auto-rounded by Windows 11 DWM, so on
+  Windows the app also opts the OS window region into rounded corners via the
+  DWM corner preference (`round_window_corners` in `src-tauri/src/lib.rs`); on
+  Linux/WSL the transparent surface alone produces the rounding. The root goes
+  flush and square when the OS reports the window maximized or fullscreen.
 - **Inner shell padding:** `14px` (≈ `{spacing.sm}` × 1.75). The three panes sit
   directly on the `surface-muted` ground with a `14px` gap, tight enough that
   they read as one object.
@@ -243,9 +248,10 @@ to separate surfaces of the same elevation.
 
 ## Shapes
 
-- **Window corners:** provided by the OS on the frameless window (e.g. Windows
-  11 DWM); the renderer keeps the root square — an opaque window would otherwise
-  show square corners poking out beyond a CSS radius.
+- **Window corners:** the floating window is rounded — the renderer rounds the
+  root (`rounded-xl`) over the transparent surface, with Windows 11 also
+  rounding the OS window region (DWM corner preference) so the corners are truly
+  clipped. Flush/square when maximized or fullscreen.
 - **Panes:** `{rounded.lg}` (24px).
 - **Cards / message bubbles:** `{rounded.md}` (16px).
 - **Inputs / buttons / chips:** `{rounded.sm}` (8px).

@@ -91,11 +91,15 @@
       the child; the explicit `kill_all` covers graceful window-close.)
 - [ ] 4.5 Trigger a spawn failure (temporarily break a profile path) and confirm
       the error shows inline in the terminal area
-      — Operator-pending (visual). The code path is in place (rejected
-      `pty_spawn` → red `term.writeln`, not a blank pane); unknown-profile →
-      `validation` error is unit-tested at resolution. Remaining: eyeball the
-      inline message in the running window.
+      — Operator-pending (visual). Backend hardened: a missing command now
+      pre-flights via `which` and returns a clean `not_found`
+      (`command not found: <cmd>`) instead of portable-pty's generic `internal`
+      error that dumped the entire `$PATH` into the pane. Covered by
+      `missing_command_is_reported_not_found` + `resolvable_command_is_available`;
+      unknown-profile → `validation` also unit-tested. Rejected `pty_spawn` →
+      red `term.writeln` (not a blank pane). Remaining: eyeball the inline
+      message in the running window.
 - [x] 4.6 `npm run lint` passes (repository gate) — `tsc --noEmit` clean. Rust
-      `cargo build` + `cargo test` (5 tests) also green.
+      `cargo build` + `cargo test` (7 tests) also green.
 - [ ] 4.7 (operator) Windows: `cargo build` succeeds and a PowerShell-based
       profile smoke-tests under ConPTY
