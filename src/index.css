@@ -1,0 +1,92 @@
+@import "tailwindcss";
+@custom-variant dark (&:is(.dark *));
+
+/* Frameless transparent window (for real rounded corners): keep the page
+ * surfaces transparent so the app's own rounded root is the only visible
+ * background and the area outside its radius reveals the desktop. */
+@layer base {
+  html,
+  body,
+  #root {
+    background: transparent;
+    height: 100%;
+  }
+}
+
+/* ----------------------------------------------------------------
+ * Design tokens — mirror docs/DESIGN.md (Google DESIGN.md format).
+ * Edit DESIGN.md first; this block is the runtime materialisation.
+ * Once `npm run design:export:css` is wired into the build, this
+ * @theme block will be regenerated.
+ * ---------------------------------------------------------------- */
+@theme {
+  /* Colors — role tokens */
+  --color-primary: #024a44;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #0b6477;
+  --color-on-primary-container: #e6f1f2;
+
+  --color-secondary: #0b6477;
+  --color-on-secondary: #ffffff;
+
+  --color-tertiary: #144272;
+  --color-on-tertiary: #ffffff;
+
+  --color-canvas: #eceff2;
+  --color-on-canvas: #101012;
+  --color-surface-muted: #f4f6f8;
+
+  --color-canvas-dark: #101012;
+  --color-on-canvas-dark: #eceff2;
+  --color-surface-dark: #161618;
+  --color-surface-dark-muted: #1a202c;
+  --color-surface-dark-elevated: #1e1e22;
+
+  --color-outline: #e5e7eb;
+  --color-outline-strong: #c4ccd3;
+  --color-outline-dark: #2a2f36;
+
+  --color-accent-warm: #b8422e;
+  --color-on-accent-warm: #ffffff;
+
+  --color-success: #1f7a5a;
+  --color-warning: #b4731b;
+  --color-danger: #a6342b;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 28px;
+
+  /* Spacing — Tailwind ships a spacing scale already; we only add
+   * a token for "shell padding" used by App.tsx. */
+  --spacing-shell: 14px;
+
+  /* Fonts */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Consolas,
+    monospace;
+}
+
+/* ----------------------------------------------------------------
+ * Project-specific utilities. Keep this list short — if a utility
+ * is generally useful, prefer adding it to the design system above.
+ * ---------------------------------------------------------------- */
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-neutral-600 rounded-full;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-neutral-500;
+  }
+
+}
