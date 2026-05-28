@@ -17,9 +17,13 @@ renderer-only — no new Rust, IPC, or capability grant.
 
 - **BREAKING (renderer state):** a group's panes change from a flat
   `panes: Pane[]` to a **binary split tree** (`SplitNode` /`PaneNode`). The
-  reducer gains `splitPane(paneId, direction)` and reworks `closePane` to
-  collapse a split node and promote the surviving sibling. The `√n` auto grid is
-  removed.
+  reducer gains `splitPane(paneId, direction)`, **removes the `addPane` action**
+  (all new panes now go through `splitPane`, so the flat-append path that could
+  break the tree invariant is gone), and reworks `closePane` to collapse a split
+  node and promote the surviving sibling. The `√n` auto grid is removed.
+- **Adapt the pane-count reads:** `Group.panes.length` (used by the tab-bar count
+  badge and the old grid) is replaced by a `countLeaves(layout)` helper, since
+  `Group.panes` no longer exists.
 - Add **directional split**: split the active pane **right** (row) or **down**
   (column); the new pane inherits the source pane's profile.
 - Add **drag-to-resize**: every divider between two children is draggable to

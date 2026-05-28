@@ -43,11 +43,12 @@ explicitly exposed as a command.
 │   │   ├── RightPanel.tsx
 │   │   ├── Terminal.tsx          # S0 single embedded PTY (xterm leaf)
 │   │   └── terminal/             # S1 multi-terminal workspace (renderer-only)
-│   │       ├── TerminalWorkspace.tsx   # useReducer state tree + shell
+│   │       ├── TerminalWorkspace.tsx   # useReducer state tree + keyboard shortcuts
 │   │       ├── TabBar.tsx              # group tabs + `+▾` picker
-│   │       ├── ProfileMenu.tsx         # profile picker (yields ProfileId)
-│   │       ├── TerminalGroup.tsx       # in-group pane grid
-│   │       ├── workspaceReducer.ts     # Workspace/Group/Pane reducer
+│   │       ├── ProfileMenu.tsx         # profile picker (new-group only)
+│   │       ├── TerminalGroup.tsx       # recursive binary-split renderer
+│   │       ├── PaneCard.tsx            # clean pane card + hover controls
+│   │       ├── workspaceReducer.ts     # Workspace/Group/LayoutNode reducer
 │   │       └── profiles.ts             # PROFILE_LABELS / PROFILE_ORDER
 │   ├── types.ts                  # Renderer-only shared types
 │   └── index.css                 # Tailwind v4 entry; imports design tokens
@@ -125,15 +126,17 @@ a `profileId`). The PTY backend lives in `src-tauri/src/pty/`.
 ### Multi-terminal workspace (renderer-only)
 
 The center pane is a **terminal workspace** (`src/components/terminal/`) that
-composes the S0 PTY contract above — tabbed **groups**, an in-group grid
-**split**, and a profile picker. It adds **no Rust, no IPC, and no capability**:
-each pane is an S0 `Terminal` leaf that owns its own `pty_*` calls and
-per-session `pty://…` subscription, so N terminals are pure composition. State
-is a renderer-only `useReducer` tree (`workspaceReducer.ts`); the client-side
-ids are React/lookup keys, never PTY session ids. Inactive groups stay mounted
-but hidden (`display:none`) so their agents keep running; only mount/unmount
-(create/close) ends a session. See the S1 change
-`openspec/changes/add-multi-terminal-workspace`.
+composes the S0 PTY contract above — tabbed **groups** with a **resizable
+directional binary-split tree** layout, and a new-group profile picker. It adds
+**no Rust, no IPC, and no capability**: each pane is an S0 `Terminal` leaf that
+owns its own `pty_*` calls and per-session `pty://…` subscription, so N
+terminals are pure composition. State is a renderer-only `useReducer` tree
+(`workspaceReducer.ts`) with a binary split tree (`SplitNode`/`PaneNode`); the
+client-side ids are React/lookup keys, never PTY session ids. Inactive groups
+stay mounted but hidden (`display:none`) so their agents keep running; only
+mount/unmount (create/close) ends a session. Split/close via hover controls or
+keyboard shortcuts (`Alt+Shift+±`). See the change
+`openspec/changes/add-resizable-split-layout`.
 
 ## Permissions & capabilities
 

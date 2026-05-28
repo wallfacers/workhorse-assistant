@@ -79,11 +79,17 @@
       the window):** confirm `vim`/`htop` alternate-screen redraw and smooth
       drag-resize visually.
 - [ ] 4.2 profile=`claude-glm`: the claude TUI launches and a prompt round-trips
-      — Operator-pending: switch the profile to `claude-glm` (S1 adds the UI; for
-      now change the literal in `App.tsx`), needs an installed/authed `claude`
-      plus human observation of the TUI + a prompt round-trip.
-- [ ] 4.3 profile=`codex`: the codex TUI launches
-      — Operator-pending: same as 4.2 with `codex` on PATH.
+      — Launch half VERIFIED by Claude headlessly: spawning the real
+      `claude --settings …/settings.json.glm_w` profile path in a PTY renders
+      the full TUI (2166 bytes of ANSI captured, no spawn error). The prompt
+      round-trip half stays operator-pending — it needs a live network + an
+      authed GLM token + human observation, which is not verifiable headlessly.
+      Remaining: send a prompt and confirm the GLM reply.
+- [x] 4.3 profile=`codex`: the codex TUI launches
+      — Verified by Claude headlessly: spawning `codex` in a PTY launches and
+      renders a full ANSI TUI (898 bytes captured after warm-up; no spawn
+      error). Confirms the codex profile boots through the same openpty/spawn
+      path the app uses.
 - [x] 4.4 Close the terminal, then confirm via `ps` that no child process remains
       — Verified: after terminating the live app, the spawned `/bin/bash` (pid on
       `pts/6`) was gone — no orphan. (SIGTERM bypasses the `RunEvent::Exit`
@@ -101,5 +107,11 @@
       message in the running window.
 - [x] 4.6 `npm run lint` passes (repository gate) — `tsc --noEmit` clean. Rust
       `cargo build` + `cargo test` (7 tests) also green.
-- [ ] 4.7 (operator) Windows: `cargo build` succeeds and a PowerShell-based
+- [x] 4.7 (operator) Windows: `cargo build` succeeds and a PowerShell-based
       profile smoke-tests under ConPTY
+      — Verified by the operator (2026-05-28): the Windows build runs and the
+      window is responsive with correct rounded chrome / custom title bar. The
+      startup ConPTY spawn of the `shell` profile (powershell.exe) now completes
+      without hanging the GUI thread after `pty_spawn`/`pty_kill` were made
+      `#[tauri::command(async)]` (commit 9d1cae1) — i.e. the PowerShell/ConPTY
+      path smoke-tests clean.

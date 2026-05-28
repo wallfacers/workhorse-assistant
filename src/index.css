@@ -89,4 +89,28 @@
     @apply bg-gray-400 dark:bg-neutral-500;
   }
 
+  /* Resize handle (react-resizable-panels Separator).
+   * Rest: faint outline hairline (theme-aware).
+   * Hover/active: primary-container teal tint (design D5). */
+  [data-separator] {
+    background: var(--color-outline);
+    transition: background-color 0.15s;
+  }
+  [data-separator]:hover,
+  [data-separator]:active {
+    background: var(--color-primary-container);
+  }
+  .dark [data-separator] {
+    background: var(--color-outline-dark);
+  }
+  .dark [data-separator]:hover,
+  .dark [data-separator]:active {
+    background: var(--color-primary-container);
+  }
+
+  /* Horizontal separator (between vertical/column panels): thin horizontal bar */
+  [data-separator].separator-handle {
+    flex: 0 0 4px;
+  }
+  /* Vertical separator (between horizontal/row panels) gets height set by the Group flex layout */
 }

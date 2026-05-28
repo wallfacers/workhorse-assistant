@@ -85,5 +85,9 @@
       groups, split, switch tabs, confirm background process keeps running and
       the shown group refits with no 0-size glitch, then `ps` for orphans.
 - [ ] 5.5 (operator) Re-confirm on Windows alongside the S0 operator checks
-      — Operator-pending: ConPTY parity for multi-group/split, batched with the
-      S0 Windows smoke (S0 tasks 4.2/4.3/4.5/4.7).
+      — Windows baseline CONFIRMED by the operator (2026-05-28): the app builds,
+      runs and is responsive with correct rounded chrome / title bar (no native
+      Windows chrome), and the startup ConPTY shell spawn no longer hangs the
+      GUI thread (async-command fix, commit 9d1cae1; see S0 task 4.7). Still
+      open: exercising multi-group / split-pane ConPTY parity on Windows, which
+      rides on the interactive checks in 5.4.

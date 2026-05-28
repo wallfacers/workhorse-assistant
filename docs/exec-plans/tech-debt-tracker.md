@@ -27,6 +27,9 @@ Do not delete rows; the history is the asset.
 - [ ] Run `npm run tauri:dev` end-to-end on the target platforms to confirm
       the scaffold boots. (Tracked here so the next contributor knows it has
       not yet been verified.) — discovered 2026-05-25 in initial scaffold
+- [ ] Configurable/custom terminal keyboard shortcuts (this round hard-codes
+      `Alt+Shift+±`). — discovered 2026-05-28 in add-resizable-split-layout
+      — see [`../../openspec/changes/add-resizable-split-layout/design.md`](../../openspec/changes/add-resizable-split-layout/design.md)
 - [ ] Three components still carry Tailwind-palette greys / neutrals
       (`text-gray-*`, `bg-neutral-*`) that have no role-token in
       [`../DESIGN.md`](../DESIGN.md). Decide whether to extend DESIGN.md with

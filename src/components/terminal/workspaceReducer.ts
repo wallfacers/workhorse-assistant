@@ -1,22 +1,30 @@
 import type { ProfileId } from '../../ipc';
 import { PROFILE_LABELS } from './profiles';
 
-/**
- * Renderer-only workspace state (design D1). Ids are client-side
- * (`crypto.randomUUID()`) and used only as React keys / lookup keys — they are
- * NOT PTY session ids (those stay owned by each `Terminal` leaf).
- */
+// ---------------------------------------------------------------------------
+// Split-tree types (design D1)
+// ---------------------------------------------------------------------------
 
-export interface Pane {
+export interface PaneNode {
+  kind: 'pane';
   id: string;
   profileId: ProfileId;
 }
 
+export interface SplitNode {
+  kind: 'split';
+  id: string;
+  direction: 'row' | 'column';
+  children: [LayoutNode, LayoutNode];
+}
+
+export type LayoutNode = SplitNode | PaneNode;
+
 export interface Group {
   id: string;
-  /** Fixed at creation from the creation profile; never changes (review B). */
+  /** Fixed at creation from the creation profile; never changes. */
   label: string;
-  panes: Pane[];
+  layout: LayoutNode;
   activePaneId: string;
 }
 
@@ -26,16 +34,123 @@ export interface Workspace {
   activeGroupId: string;
 }
 
+// ---------------------------------------------------------------------------
+// Tree helpers
+// ---------------------------------------------------------------------------
+
+/** Return the first leaf (in-order) of a subtree. */
+export function firstLeaf(node: LayoutNode): PaneNode {
+  if (node.kind === 'pane') return node;
+  return firstLeaf(node.children[0]);
+}
+
+/** Count leaf (pane) nodes in a subtree. Replaces `Group.panes.length`. */
+export function countLeaves(node: LayoutNode): number {
+  if (node.kind === 'pane') return 1;
+  return countLeaves(node.children[0]) + countLeaves(node.children[1]);
+}
+
+/** All leaf panes of a subtree, left-to-right (in-order). */
+export function flattenLeaves(node: LayoutNode): PaneNode[] {
+  if (node.kind === 'pane') return [node];
+  return [...flattenLeaves(node.children[0]), ...flattenLeaves(node.children[1])];
+}
+
+/** Find a PaneNode by id inside a subtree. */
+function findPane(node: LayoutNode, id: string): PaneNode | null {
+  if (node.kind === 'pane') return node.id === id ? node : null;
+  return findPane(node.children[0], id) ?? findPane(node.children[1], id);
+}
+
+/**
+ * Pure replace: return a new tree with the node whose `id` matches `targetId`
+ * replaced by `replacement`. Returns the original tree if not found.
+ */
+function replaceNode(
+  tree: LayoutNode,
+  targetId: string,
+  replacement: LayoutNode,
+): LayoutNode {
+  if (tree.id === targetId) return replacement;
+  if (tree.kind === 'pane') return tree;
+  return {
+    ...tree,
+    children: [
+      replaceNode(tree.children[0], targetId, replacement),
+      replaceNode(tree.children[1], targetId, replacement),
+    ],
+  };
+}
+
+/**
+ * For `closePane`: remove the leaf at `targetId`. Its parent `SplitNode`
+ * collapses — the surviving sibling is promoted into the parent's slot.
+ * Returns the new root and the surviving sibling subtree (for active-pane
+ * reassignment), or `null` if the target was not found.
+ */
+function removeLeaf(
+  tree: LayoutNode,
+  targetId: string,
+): { root: LayoutNode; survivor: LayoutNode } | null {
+  if (tree.kind === 'pane') {
+    // Caller guards against "last pane" with countLeaves <= 1 check.
+    // If we somehow reach here for a non-matching leaf, it means the target
+    // doesn't exist in this subtree.
+    return null;
+  }
+
+  const [left, right] = tree.children;
+
+  // Left child is the target leaf → promote right sibling.
+  if (left.kind === 'pane' && left.id === targetId) {
+    return { root: right, survivor: right };
+  }
+  // Right child is the target leaf → promote left sibling.
+  if (right.kind === 'pane' && right.id === targetId) {
+    return { root: left, survivor: left };
+  }
+
+  // Recurse into whichever side contains the target.
+  const inLeft =
+    left.kind === 'pane'
+      ? left.id === targetId
+      : !!findPane(left, targetId);
+
+  if (inLeft) {
+    const result = removeLeaf(left, targetId);
+    if (!result) return null;
+    // Always restructure: replace the left child with the result root,
+    // keeping the right sibling intact.
+    return {
+      root: { ...tree, children: [result.root, right] },
+      survivor: result.survivor,
+    };
+  }
+
+  const result = removeLeaf(right, targetId);
+  if (!result) return null;
+  // Always restructure: replace the right child with the result root,
+  // keeping the left sibling intact.
+  return {
+    root: { ...tree, children: [left, result.root] },
+    survivor: result.survivor,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
+
 export type WorkspaceAction =
   | { type: 'addGroup'; profileId: ProfileId }
   | { type: 'closeGroup'; groupId: string }
   | { type: 'activateGroup'; groupId: string }
-  | { type: 'addPane'; groupId: string; profileId: ProfileId }
+  | { type: 'splitPane'; groupId: string; paneId: string; direction: 'row' | 'column' }
   | { type: 'closePane'; groupId: string; paneId: string }
   | { type: 'activatePane'; groupId: string; paneId: string };
 
-function createPane(profileId: ProfileId): Pane {
-  return { id: crypto.randomUUID(), profileId };
+function createPane(profileId: ProfileId): PaneNode {
+  return { kind: 'pane', id: crypto.randomUUID(), profileId };
 }
 
 function createGroup(profileId: ProfileId): Group {
@@ -43,7 +158,7 @@ function createGroup(profileId: ProfileId): Group {
   return {
     id: crypto.randomUUID(),
     label: PROFILE_LABELS[profileId],
-    panes: [pane],
+    layout: pane,
     activePaneId: pane.id,
   };
 }
@@ -75,22 +190,31 @@ export function workspaceReducer(
       const groups = state.groups.filter((g) => g.id !== action.groupId);
       let { activeGroupId } = state;
       if (action.groupId === activeGroupId) {
-        // Reassign to the right neighbour, else the left, else empty
-        // (invariant: no dangling active id). After the filter, the element
-        // that was at idx+1 now sits at idx.
         const next = groups[idx] ?? groups[idx - 1];
         activeGroupId = next ? next.id : '';
       }
       return { groups, activeGroupId };
     }
 
-    case 'addPane': {
+    case 'splitPane': {
       return {
         ...state,
         groups: state.groups.map((g) => {
           if (g.id !== action.groupId) return g;
-          const pane = createPane(action.profileId);
-          return { ...g, panes: [...g.panes, pane], activePaneId: pane.id };
+          const target = findPane(g.layout, action.paneId);
+          if (!target) return g;
+          const newPane = createPane(target.profileId);
+          const splitNode: SplitNode = {
+            kind: 'split',
+            id: crypto.randomUUID(),
+            direction: action.direction,
+            children: [target, newPane],
+          };
+          return {
+            ...g,
+            layout: replaceNode(g.layout, action.paneId, splitNode),
+            activePaneId: newPane.id,
+          };
         }),
       };
     }
@@ -98,23 +222,26 @@ export function workspaceReducer(
     case 'closePane': {
       const group = state.groups.find((g) => g.id === action.groupId);
       if (!group) return state;
-      const remaining = group.panes.filter((p) => p.id !== action.paneId);
-      // Last pane → close the group (delegates the active-group reassignment).
-      if (remaining.length === 0) {
+      // Last pane → close the group.
+      if (countLeaves(group.layout) <= 1) {
         return workspaceReducer(state, {
           type: 'closeGroup',
           groupId: action.groupId,
         });
       }
-      // Reassign focus to the first remaining pane if the active one closed.
+      const result = removeLeaf(group.layout, action.paneId);
+      if (!result) return state;
+      // Reassign focus: first leaf of the surviving subtree.
       const activePaneId =
         action.paneId === group.activePaneId
-          ? remaining[0].id
+          ? firstLeaf(result.survivor).id
           : group.activePaneId;
       return {
         ...state,
         groups: state.groups.map((g) =>
-          g.id === action.groupId ? { ...g, panes: remaining, activePaneId } : g,
+          g.id === action.groupId
+            ? { ...g, layout: result.root, activePaneId }
+            : g,
         ),
       };
     }

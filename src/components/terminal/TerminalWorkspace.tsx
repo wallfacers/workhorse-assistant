@@ -1,4 +1,4 @@
-import { useReducer } from 'react';
+import { useEffect, useReducer } from 'react';
 import type { ProfileId } from '../../ipc';
 import {
   initWorkspace,
@@ -20,6 +20,52 @@ export default function TerminalWorkspace() {
   const addGroup = (profileId: ProfileId) =>
     dispatch({ type: 'addGroup', profileId });
 
+  // Keyboard shortcuts: Alt+Shift++ split, Alt+Shift+- close (design D4).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!e.altKey || !e.shiftKey) return;
+
+      if (e.code === 'Equal') {
+        e.preventDefault();
+        // Find the active group and pane.
+        const group = state.groups.find((g) => g.id === state.activeGroupId);
+        if (!group) return;
+
+        // Auto-pick direction from the active pane's longer edge.
+        const el = document.querySelector(
+          `[data-pane-id="${group.activePaneId}"]`,
+        );
+        let direction: 'row' | 'column' = 'row';
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          direction = rect.width >= rect.height ? 'row' : 'column';
+        }
+
+        dispatch({
+          type: 'splitPane',
+          groupId: group.id,
+          paneId: group.activePaneId,
+          direction,
+        });
+        return;
+      }
+
+      if (e.code === 'Minus') {
+        e.preventDefault();
+        const group = state.groups.find((g) => g.id === state.activeGroupId);
+        if (!group) return;
+        dispatch({
+          type: 'closePane',
+          groupId: group.id,
+          paneId: group.activePaneId,
+        });
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [state.groups, state.activeGroupId]);
+
   return (
     <div className="flex flex-col h-full w-full min-h-0 rounded-lg border border-outline dark:border-neutral-800 bg-surface-muted dark:bg-surface-dark overflow-hidden">
       <TabBar
@@ -34,7 +80,7 @@ export default function TerminalWorkspace() {
         {state.groups.length === 0 ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gray-500 dark:text-gray-400">
             <p className="text-[13px]">暂无终端</p>
-            <ProfileMenu variant="tab" label="新建终端" onSelect={addGroup} />
+            <ProfileMenu label="新建终端" onSelect={addGroup} />
           </div>
         ) : (
           state.groups.map((g) => (
@@ -46,8 +92,8 @@ export default function TerminalWorkspace() {
             >
               <TerminalGroup
                 group={g}
-                onAddPane={(profileId) =>
-                  dispatch({ type: 'addPane', groupId: g.id, profileId })
+                onSplitPane={(paneId, direction) =>
+                  dispatch({ type: 'splitPane', groupId: g.id, paneId, direction })
                 }
                 onClosePane={(paneId) =>
                   dispatch({ type: 'closePane', groupId: g.id, paneId })

@@ -23,7 +23,9 @@ src/
 ├── components/         # Feature components; one component per file
 │   ├── Terminal.tsx    # S0 single embedded PTY (xterm leaf)
 │   └── terminal/       # S1 multi-terminal workspace: TerminalWorkspace
-│                       #  (useReducer) + TabBar + ProfileMenu + TerminalGroup;
+│                       #  (useReducer + keyboard shortcuts) + TabBar +
+│                       #  ProfileMenu + TerminalGroup (recursive split) +
+│                       #  PaneCard (clean card + hover controls);
 │                       #  composes the S0 Terminal leaf, no new IPC
 ├── ipc/                # typed wrappers around tauri `invoke` (Result-shaped)
 ├── state/              # (TBD) cross-pane state (start with Context; only

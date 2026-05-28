@@ -1,78 +1,189 @@
-import { X } from 'lucide-react';
-import type { ProfileId } from '../../ipc';
-import type { Group } from './workspaceReducer';
-import Terminal from '../Terminal';
-import ProfileMenu from './ProfileMenu';
-import { PROFILE_LABELS } from './profiles';
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+import { Group, Panel, Separator } from 'react-resizable-panels';
+import type { Group as GroupType, LayoutNode } from './workspaceReducer';
+import { flattenLeaves } from './workspaceReducer';
+import PaneCard from './PaneCard';
 
 interface TerminalGroupProps {
-  group: Group;
-  onAddPane: (profileId: ProfileId) => void;
+  group: GroupType;
+  onSplitPane: (paneId: string, direction: 'row' | 'column') => void;
   onClosePane: (paneId: string) => void;
   onActivatePane: (paneId: string) => void;
 }
 
+interface Rect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+function rectsEqual(
+  a: Record<string, Rect>,
+  b: Record<string, Rect>,
+): boolean {
+  const ak = Object.keys(a);
+  if (ak.length !== Object.keys(b).length) return false;
+  for (const k of ak) {
+    const x = a[k];
+    const y = b[k];
+    if (
+      !y ||
+      x.left !== y.left ||
+      x.top !== y.top ||
+      x.width !== y.width ||
+      x.height !== y.height
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /**
- * A group's panes tiled in an equal-cell grid (design D5). Each pane carries a
- * thin chrome with a `+` split button (opens the picker → `addPane`) and a `×`
- * close button (→ `closePane`). The S0 `Terminal` is the leaf, keyed by pane id
- * so React mounts/unmounts the right xterm+PTY; a split whose spawn fails keeps
- * its pane showing the S0 inline error (no auto-remove).
+ * Renders a group as two decoupled layers:
+ *
+ *  - **Geometry layer** — the resizable split tree (`Group`/`Panel`/
+ *    `Separator`) whose leaves are *empty* placeholder boxes. This layer is
+ *    free to restructure (and remount) on every split/close.
+ *  - **Terminal layer** — a flat, stably-keyed list of `<PaneCard>`s (each
+ *    owning one live `<Terminal>`), absolutely positioned over the placeholder
+ *    boxes. Because every terminal is a sibling under one parent that is never
+ *    restructured, splitting/closing/resizing never remounts a surviving pane,
+ *    so its PTY session is preserved — including the pane being split, which a
+ *    terminal-in-tree layout would otherwise restart when its `<Panel>` becomes
+ *    a `<Group>`.
+ *
+ * The flat layer is `pointer-events-none`; only the cards are
+ * `pointer-events-auto`, so the gaps between cards leave the underlying
+ * `Separator` drag handles reachable.
  */
 export default function TerminalGroup({
   group,
-  onAddPane,
+  onSplitPane,
   onClosePane,
   onActivatePane,
 }: TerminalGroupProps) {
-  const n = group.panes.length;
-  const cols = Math.ceil(Math.sqrt(n));
-  const rows = Math.ceil(n / cols);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const placeholderRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const [rects, setRects] = useState<Record<string, Rect>>({});
+
+  const leaves = flattenLeaves(group.layout);
+  const paneIds = leaves.map((p) => p.id);
+
+  const register = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) placeholderRefs.current.set(id, el);
+    else placeholderRefs.current.delete(id);
+  }, []);
+
+  const measure = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const base = container.getBoundingClientRect();
+    const next: Record<string, Rect> = {};
+    for (const [id, el] of placeholderRefs.current) {
+      const r = el.getBoundingClientRect();
+      next[id] = {
+        left: r.left - base.left,
+        top: r.top - base.top,
+        width: r.width,
+        height: r.height,
+      };
+    }
+    setRects((prev) => (rectsEqual(prev, next) ? prev : next));
+  }, []);
+
+  // Re-measure after every commit: catches structural and position-only shifts
+  // (e.g. a sibling moving without changing size) that a ResizeObserver misses.
+  // Guarded by `rectsEqual`, so it converges in one extra pass with no loop.
+  useLayoutEffect(() => {
+    measure();
+  });
+
+  // Continuous re-measure during divider drags, container resizes, and the
+  // hidden→shown tab transition. Re-bound when the set of panes changes so new
+  // placeholders are observed.
+  const idsKey = paneIds.join('|');
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(container);
+    for (const el of placeholderRefs.current.values()) ro.observe(el);
+    return () => ro.disconnect();
+  }, [idsKey, measure]);
+
+  const renderGeometry = useCallback(
+    (node: LayoutNode): ReactNode => {
+      if (node.kind === 'pane') {
+        return (
+          <Panel id={node.id} key={node.id} minSize={10}>
+            <div
+              ref={(el) => register(node.id, el)}
+              className="h-full w-full"
+            />
+          </Panel>
+        );
+      }
+      const orientation = node.direction === 'row' ? 'horizontal' : 'vertical';
+      return (
+        <Group id={node.id} key={node.id} orientation={orientation}>
+          {renderGeometry(node.children[0])}
+          <Separator className="separator-handle" />
+          {renderGeometry(node.children[1])}
+        </Group>
+      );
+    },
+    [register],
+  );
+
+  const root = group.layout;
 
   return (
-    <div
-      className="grid h-full w-full gap-1.5 p-1.5"
-      style={{
-        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-      }}
-    >
-      {group.panes.map((pane) => {
-        const focused = pane.id === group.activePaneId;
-        return (
-          <div
-            key={pane.id}
-            onMouseDown={() => onActivatePane(pane.id)}
-            className={`relative flex flex-col min-w-0 min-h-0 rounded-md overflow-hidden border transition-colors ${
-              focused && n > 1
-                ? 'border-primary-container'
-                : 'border-outline dark:border-neutral-800'
-            }`}
-          >
-            <div className="flex items-center justify-between h-6 px-2 flex-shrink-0 bg-surface-dark-elevated text-[11px] text-gray-400 select-none">
-              <span className="truncate">{PROFILE_LABELS[pane.profileId]}</span>
-              <div className="flex items-center gap-0.5">
-                <ProfileMenu variant="pane" onSelect={onAddPane} title="分屏" />
-                <button
-                  type="button"
-                  aria-label="关闭分屏"
-                  title="关闭"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onClosePane(pane.id);
-                  }}
-                  className="flex items-center justify-center w-6 h-6 rounded-md text-gray-400 hover:bg-neutral-700/60 hover:text-gray-200 transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
+    <div ref={containerRef} className="relative h-full w-full">
+      {/* Geometry layer: resizable placeholders + separators, no terminals. */}
+      <div className="absolute inset-1.5">
+        {root.kind === 'pane' ? (
+          // Single pane: a bare placeholder — `<Panel>` needs a `<Group>`
+          // ancestor (group context) and a lone pane has nothing to resize.
+          <div ref={(el) => register(root.id, el)} className="h-full w-full" />
+        ) : (
+          renderGeometry(root)
+        )}
+      </div>
+
+      {/* Terminal layer: flat, stably-keyed cards positioned over placeholders. */}
+      <div className="pointer-events-none absolute inset-0">
+        {leaves.map((pane) => {
+          const r = rects[pane.id];
+          const style: CSSProperties = {
+            position: 'absolute',
+            left: r?.left ?? 0,
+            top: r?.top ?? 0,
+            width: r?.width ?? 0,
+            height: r?.height ?? 0,
+          };
+          return (
+            <div key={pane.id} style={style} className="pointer-events-auto">
+              <PaneCard
+                node={pane}
+                isActive={pane.id === group.activePaneId}
+                totalPanes={leaves.length}
+                onSplit={(dir) => onSplitPane(pane.id, dir)}
+                onClose={() => onClosePane(pane.id)}
+                onActivate={() => onActivatePane(pane.id)}
+              />
             </div>
-            <div className="flex-1 min-h-0">
-              <Terminal key={pane.id} profileId={pane.profileId} />
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
