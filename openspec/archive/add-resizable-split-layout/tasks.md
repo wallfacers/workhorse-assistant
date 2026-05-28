@@ -115,7 +115,7 @@
       that scale decision is out of scope here (#5 stays open).
 - [x] 7.3 `npm run design:lint` → 0 errors and `npm run lint` (`tsc --noEmit`) →
       clean; `npm run build` (tsc + vite) green.
-- [ ] 7.4 (WSL) `tauri:dev` verification: split right/down (mouse + `Alt+Shift++`),
+- [x] 7.4 (WSL) `tauri:dev` verification: split right/down (mouse + `Alt+Shift++`),
       drag dividers to resize, close panes (mouse + `Alt+Shift+-`); confirm a
       running agent in one pane survives splitting/resizing/closing a sibling;
       switch tabs and confirm the hidden→shown split layout refits with no 0-size
@@ -123,5 +123,7 @@
       PIDs/PPIDs of the children the app spawned — do **not** `pkill`/pattern-kill
       `claude`/`codex` (the user runs many long-lived sessions); teardown is the
       app's own `pty_kill` path, and verification only observes it.
+      — Operator-confirmed (2026-05-29): all split/resize/close/switch scenarios
+      verified interactively.
 - [x] 7.5 Run `openspec validate add-resizable-split-layout` and fix any errors.
       (Passes: "Change 'add-resizable-split-layout' is valid".)

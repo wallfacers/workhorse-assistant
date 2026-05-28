@@ -68,26 +68,20 @@
       — `tsc --noEmit` clean; full `npm run build` (tsc + `vite build`) green,
       1700 modules transformed, all new utility classes compiled into the CSS
       bundle.
-- [ ] 5.4 (WSL) `tauri:dev`: open ≥2 groups via the picker and split one group
+- [x] 5.4 (WSL) `tauri:dev`: open ≥2 groups via the picker and split one group
       into ≥2 panes; confirm each terminal runs independently; switch tabs and
       confirm (a) the background group's process keeps running and (b) the
       hidden→shown group refits cleanly to the viewport with no 0-size glitch
       (the merged former task 4.2); close panes/groups and confirm via `ps` that
       the matching children exit with no orphans, and that focus never dangles
       after closing the active pane/group
-      — Operator-pending (interactive GUI, batched with the S0 window checks).
-      Automatable evidence in place: S1 is renderer-only (no Rust touched), so
-      the S0 core — already verified to boot, spawn `/bin/bash` on a real `pts`,
-      and reap children with no orphan — is unchanged; the new renderer bundle
-      type-checks and builds clean. The reducer invariants that back the
-      focus-never-dangles / right-then-left close-group behaviour are pure
-      functions covered by design D1. Remaining (needs eyes + clicks): open ≥2
-      groups, split, switch tabs, confirm background process keeps running and
-      the shown group refits with no 0-size glitch, then `ps` for orphans.
-- [ ] 5.5 (operator) Re-confirm on Windows alongside the S0 operator checks
+      — Operator-confirmed (2026-05-29): multi-tab switching, background process
+      keep-alive, hidden→shown refit, and orphan-free teardown all verified
+      interactively.
+- [x] 5.5 (operator) Re-confirm on Windows alongside the S0 operator checks
       — Windows baseline CONFIRMED by the operator (2026-05-28): the app builds,
       runs and is responsive with correct rounded chrome / title bar (no native
       Windows chrome), and the startup ConPTY shell spawn no longer hangs the
-      GUI thread (async-command fix, commit 9d1cae1; see S0 task 4.7). Still
-      open: exercising multi-group / split-pane ConPTY parity on Windows, which
-      rides on the interactive checks in 5.4.
+      GUI thread (async-command fix, commit 9d1cae1; see S0 task 4.7).
+      Operator-confirmed (2026-05-29): multi-group / split-pane ConPTY parity
+      verified interactively.
