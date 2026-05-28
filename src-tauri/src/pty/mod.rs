@@ -63,14 +63,14 @@ struct LaunchProfile {
 
 /// Resolve a `profile_id` to its launch profile. Settings paths are built from
 /// the real home directory (never a literal `~`, since the child is spawned
-/// without a shell). See design D4.
+/// without a terminal). See design D4.
 fn resolve_profile(profile_id: &str) -> Option<LaunchProfile> {
     let home = dirs::home_dir();
     let settings = |file: &str| -> Option<String> {
         home.as_ref().map(|h| h.join(".claude").join(file).to_string_lossy().into_owned())
     };
     match profile_id {
-        "shell" => {
+        "terminal" => {
             // Default profile: the user's login shell, for raw terminal use and
             // verification (ls/vim/htop). Always available, no auth needed.
             #[cfg(windows)]
@@ -378,8 +378,8 @@ mod tests {
 
     #[test]
     fn profiles_resolve_core_side() {
-        let shell = resolve_profile("shell").expect("shell profile exists");
-        assert!(!shell.command.is_empty());
+        let term = resolve_profile("terminal").expect("terminal profile exists");
+        assert!(!term.command.is_empty());
 
         let glm = resolve_profile("claude-glm").expect("glm profile exists");
         assert_eq!(glm.command, "claude");
@@ -438,11 +438,11 @@ mod tests {
         );
     }
 
-    // The shell profile's command is what the app actually launches, so it must
+    // The terminal profile's command is what the app actually launches, so it must
     // resolve on the host for the embedded terminal to work at all.
     #[test]
     fn resolvable_command_is_available() {
-        let shell = resolve_profile("shell").expect("shell profile exists");
-        assert!(ensure_command_available(&shell.command).is_ok());
+        let term = resolve_profile("terminal").expect("terminal profile exists");
+        assert!(ensure_command_available(&term.command).is_ok());
     }
 }

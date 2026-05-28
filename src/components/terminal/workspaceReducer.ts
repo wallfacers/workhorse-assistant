@@ -163,9 +163,9 @@ function createGroup(profileId: ProfileId): Group {
   };
 }
 
-/** Initial state: one group with one `shell` pane (parity with S0 default). */
+/** Initial state: one group with one `terminal` pane (parity with S0 default). */
 export function initWorkspace(): Workspace {
-  const group = createGroup('shell');
+  const group = createGroup('terminal');
   return { groups: [group], activeGroupId: group.id };
 }
 

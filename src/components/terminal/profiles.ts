@@ -7,7 +7,7 @@ import type { ProfileId } from '../../ipc';
  * and the reducer receive the hyphenated id the core's profile map expects.
  */
 export const PROFILE_LABELS: Record<ProfileId, string> = {
-  shell: 'shell',
+  terminal: 'terminal',
   'claude-opus': 'claude+opus',
   'claude-glm': 'claude+GLM',
   codex: 'codex',
@@ -15,7 +15,7 @@ export const PROFILE_LABELS: Record<ProfileId, string> = {
 
 /** Order the picker lists profiles in. */
 export const PROFILE_ORDER: ProfileId[] = [
-  'shell',
+  'terminal',
   'claude-opus',
   'claude-glm',
   'codex',

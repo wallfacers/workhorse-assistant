@@ -34,6 +34,8 @@
 
   --color-canvas: #eceff2;
   --color-on-canvas: #101012;
+  --color-surface: #ffffff;
+  --color-on-surface: #101012;
   --color-surface-muted: #f4f6f8;
 
   --color-canvas-dark: #101012;
@@ -60,8 +62,8 @@
   --radius-xl: 28px;
 
   /* Spacing — Tailwind ships a spacing scale already; we only add
-   * a token for "shell padding" used by App.tsx. */
-  --spacing-shell: 14px;
+   * a token for "terminal padding" used by App.tsx. */
+  --spacing-terminal: 14px;
 
   /* Fonts */
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
@@ -89,6 +91,23 @@
     @apply bg-gray-400 dark:bg-neutral-500;
   }
 
+  /* xterm v6 ships a Monaco-style DOM scrollbar (plain divs), not a native one,
+   * so it ignores `::-webkit-scrollbar`. Slim its 14px default to the project's
+   * 6px and round the slider; colours come from the xterm theme `scrollbarSlider*`
+   * tokens (Terminal.tsx). `!important` overrides the width the library writes
+   * inline. */
+  .xterm .xterm-scrollable-element > .scrollbar.vertical,
+  .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+    width: 6px !important;
+  }
+  .xterm .xterm-scrollable-element > .scrollbar.horizontal,
+  .xterm .xterm-scrollable-element > .scrollbar.horizontal > .slider {
+    height: 6px !important;
+  }
+  .xterm .xterm-scrollable-element > .scrollbar > .slider {
+    border-radius: 9999px !important;
+  }
+
   /* Resize handle (react-resizable-panels Separator).
    * Rest: faint outline hairline (theme-aware).
    * Hover/active: primary-container teal tint (design D5). */
@@ -108,9 +127,22 @@
     background: var(--color-primary-container);
   }
 
-  /* Horizontal separator (between vertical/column panels): thin horizontal bar */
+  /* Split gap: the handle is a transparent gutter at rest (so the ground shows
+   * between pane cells as a clean gap, both row and column), tinting teal only
+   * on hover/drag. The library pins the Separator to `flex: 0 0 auto` inline, so
+   * its thickness must come from width/height (flex-basis:auto reads them), not
+   * `flex`; size the cross dimension per `aria-orientation`. */
   [data-separator].separator-handle {
-    flex: 0 0 4px;
+    background: transparent;
   }
-  /* Vertical separator (between horizontal/row panels) gets height set by the Group flex layout */
+  [data-separator].separator-handle[aria-orientation='horizontal'] {
+    height: 6px;
+  }
+  [data-separator].separator-handle[aria-orientation='vertical'] {
+    width: 6px;
+  }
+  [data-separator].separator-handle:hover,
+  [data-separator].separator-handle:active {
+    background: var(--color-primary-container);
+  }
 }

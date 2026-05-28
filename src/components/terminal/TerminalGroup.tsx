@@ -16,6 +16,7 @@ interface TerminalGroupProps {
   onSplitPane: (paneId: string, direction: 'row' | 'column') => void;
   onClosePane: (paneId: string) => void;
   onActivatePane: (paneId: string) => void;
+  onPaneTitle: (paneId: string, title: string) => void;
 }
 
 interface Rect {
@@ -70,6 +71,7 @@ export default function TerminalGroup({
   onSplitPane,
   onClosePane,
   onActivatePane,
+  onPaneTitle,
 }: TerminalGroupProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const placeholderRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -120,7 +122,12 @@ export default function TerminalGroup({
     return () => ro.disconnect();
   }, [idsKey, measure]);
 
-  const renderGeometry = useCallback(
+  // Render one child slot of a parent `<Group>`. v4 only treats *direct* Group
+  // children carrying `data-panel` as resizable (it scans `group.children` for
+  // that attribute), so a nested split must live *inside* a `<Panel>` — a bare
+  // `<Group>` placed beside its siblings is ignored by the layout engine and
+  // collapses to zero size, which is why deeper splits used to vanish.
+  const renderChild = useCallback(
     (node: LayoutNode): ReactNode => {
       if (node.kind === 'pane') {
         return (
@@ -133,12 +140,17 @@ export default function TerminalGroup({
         );
       }
       const orientation = node.direction === 'row' ? 'horizontal' : 'vertical';
+      // The inner Group needs an id distinct from the wrapping Panel's: both
+      // write their id to the DOM `id` attribute, so reusing `node.id` would
+      // emit a duplicate. Group already defaults to 100% × 100%.
       return (
-        <Group id={node.id} key={node.id} orientation={orientation}>
-          {renderGeometry(node.children[0])}
-          <Separator className="separator-handle" />
-          {renderGeometry(node.children[1])}
-        </Group>
+        <Panel id={node.id} key={node.id} minSize={10}>
+          <Group id={`${node.id}:group`} orientation={orientation}>
+            {renderChild(node.children[0])}
+            <Separator className="separator-handle" />
+            {renderChild(node.children[1])}
+          </Group>
+        </Panel>
       );
     },
     [register],
@@ -155,7 +167,16 @@ export default function TerminalGroup({
           // ancestor (group context) and a lone pane has nothing to resize.
           <div ref={(el) => register(root.id, el)} className="h-full w-full" />
         ) : (
-          renderGeometry(root)
+          // Root split: the top-level Group is rendered directly (it has no
+          // parent Group, so it must not be wrapped in a Panel).
+          <Group
+            id={root.id}
+            orientation={root.direction === 'row' ? 'horizontal' : 'vertical'}
+          >
+            {renderChild(root.children[0])}
+            <Separator className="separator-handle" />
+            {renderChild(root.children[1])}
+          </Group>
         )}
       </div>
 
@@ -179,6 +200,7 @@ export default function TerminalGroup({
                 onSplit={(dir) => onSplitPane(pane.id, dir)}
                 onClose={() => onClosePane(pane.id)}
                 onActivate={() => onActivatePane(pane.id)}
+                onTitle={onPaneTitle}
               />
             </div>
           );

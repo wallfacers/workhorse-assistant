@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react';
+import { useCallback, useEffect, useReducer, useState } from 'react';
 import type { ProfileId } from '../../ipc';
 import {
   initWorkspace,
@@ -17,6 +17,7 @@ import ProfileMenu from './ProfileMenu';
  */
 export default function TerminalWorkspace() {
   const [state, dispatch] = useReducer(workspaceReducer, undefined, initWorkspace);
+  const [titles, setTitles] = useState<Record<string, string>>({});
   const addGroup = (profileId: ProfileId) =>
     dispatch({ type: 'addGroup', profileId });
 
@@ -66,10 +67,23 @@ export default function TerminalWorkspace() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [state.groups, state.activeGroupId]);
 
+  const handlePaneTitle = useCallback(
+    (paneId: string, title: string) => {
+      setTitles((prev) => prev[paneId] === title ? prev : { ...prev, [paneId]: title });
+    },
+    [],
+  );
+
+  const groupTitles = state.groups.map((g) => {
+    const activeTitle = titles[g.activePaneId];
+    return activeTitle ?? g.label;
+  });
+
   return (
-    <div className="flex flex-col h-full w-full min-h-0 rounded-lg border border-outline dark:border-neutral-800 bg-surface-muted dark:bg-surface-dark overflow-hidden">
+    <div className="flex flex-col h-full w-full min-h-0 overflow-hidden">
       <TabBar
         groups={state.groups}
+        groupTitles={groupTitles}
         activeGroupId={state.activeGroupId}
         onActivate={(id) => dispatch({ type: 'activateGroup', groupId: id })}
         onClose={(id) => dispatch({ type: 'closeGroup', groupId: id })}
@@ -101,6 +115,7 @@ export default function TerminalWorkspace() {
                 onActivatePane={(paneId) =>
                   dispatch({ type: 'activatePane', groupId: g.id, paneId })
                 }
+                onPaneTitle={handlePaneTitle}
               />
             </div>
           ))

@@ -1,11 +1,11 @@
 import { X } from 'lucide-react';
 import type { ProfileId } from '../../ipc';
 import type { Group } from './workspaceReducer';
-import { countLeaves } from './workspaceReducer';
 import ProfileMenu from './ProfileMenu';
 
 interface TabBarProps {
   groups: Group[];
+  groupTitles: string[];
   activeGroupId: string;
   onActivate: (groupId: string) => void;
   onClose: (groupId: string) => void;
@@ -13,53 +13,57 @@ interface TabBarProps {
 }
 
 /**
- * One tab per group. The tab shows the group's fixed `label` (set at creation)
- * plus a pane-count badge once the group holds more than one pane (D6/B). The
- * `+▾` trailing trigger opens the profile picker to create a new group.
+ * One tab per group, rendered as a segmented-capsule control (mirrors the work
+ * panel's 工作日志/产出物/预览 tabs): the whole strip sits in a quiet pill and the
+ * active tab lifts onto a white/elevated chip. No header strip or divider — the
+ * capsule is the only chrome, floating on the workspace ground. The close
+ * affordance stays hidden until hover/active so a resting row reads as quiet
+ * labels. The trailing `+` opens the new-group picker.
  */
 export default function TabBar({
   groups,
+  groupTitles,
   activeGroupId,
   onActivate,
   onClose,
   onAddGroup,
 }: TabBarProps) {
   return (
-    <div className="flex items-center gap-1 px-2 py-1 flex-shrink-0 border-b border-outline dark:border-outline-dark bg-surface-muted dark:bg-surface-dark overflow-x-auto custom-scrollbar">
-      {groups.map((g) => {
-        const active = g.id === activeGroupId;
-        const paneCount = countLeaves(g.layout);
-        return (
-          <div
-            key={g.id}
-            onClick={() => onActivate(g.id)}
-            className={`flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-sm text-[12.5px] cursor-pointer whitespace-nowrap transition-colors ${
-              active
-                ? 'bg-white dark:bg-surface-dark-elevated text-gray-900 dark:text-gray-100 font-medium'
-                : 'text-gray-500 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-surface-dark-elevated/70'
-            }`}
-          >
-            <span className="truncate max-w-[160px]">{g.label}</span>
-            {paneCount > 1 && (
-              <span className="px-1.5 rounded-full bg-outline/60 dark:bg-outline-dark text-[10px] leading-tight text-gray-700 dark:text-gray-200">
-                {paneCount}
-              </span>
-            )}
-            <button
-              type="button"
-              aria-label="关闭终端组"
-              title="关闭"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClose(g.id);
-              }}
-              className="ml-0.5 p-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-outline/40 dark:hover:bg-outline-dark/40 transition-colors"
+    <div className="flex flex-shrink-0 items-center gap-1.5 px-2 py-2">
+      <div className="flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl bg-outline/50 p-1 custom-scrollbar dark:bg-neutral-800/70">
+        {groups.map((g, i) => {
+          const active = g.id === activeGroupId;
+          return (
+            <div
+              key={g.id}
+              onClick={() => onActivate(g.id)}
+              className={`group/tab flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg py-1.5 pl-4 pr-2.5 text-xs font-semibold transition-all duration-150 ${
+                active
+                  ? 'bg-white text-gray-950 shadow-sm dark:bg-neutral-700 dark:text-gray-100'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
             >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        );
-      })}
+              <span className="max-w-[200px] truncate">{groupTitles[i]}</span>
+              <button
+                type="button"
+                aria-label="关闭终端组"
+                title="关闭"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose(g.id);
+                }}
+                className={`flex h-4 w-4 items-center justify-center rounded transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
+                  active
+                    ? 'opacity-60 hover:opacity-100'
+                    : 'opacity-0 group-hover/tab:opacity-60 hover:!opacity-100'
+                }`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
       <ProfileMenu onSelect={onAddGroup} title="新建终端组" />
     </div>
   );

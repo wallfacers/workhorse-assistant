@@ -15,22 +15,61 @@ import { DarkModeCtx } from '../App';
 
 const RESIZE_DEBOUNCE_MS = 80;
 
+// xterm v6 renders its own Monaco-style DOM scrollbar (`.xterm-scrollable-element
+// > .scrollbar > .slider`), not a native one — so `::-webkit-scrollbar` /
+// `scrollbar-width` never reach it. The slider colour comes from these theme
+// tokens (matching the project `custom-scrollbar` palette); its 6px width and
+// radius are set in index.css.
+const SCROLLBAR_LIGHT = {
+  scrollbarSliderBackground: '#d1d5db',
+  scrollbarSliderHoverBackground: '#9ca3af',
+  scrollbarSliderActiveBackground: '#9ca3af',
+};
+const SCROLLBAR_DARK = {
+  scrollbarSliderBackground: '#525252',
+  scrollbarSliderHoverBackground: '#737373',
+  scrollbarSliderActiveBackground: '#737373',
+};
+
 const DARK_THEME = {
   background: '#161618',
   foreground: '#eceff2',
   cursor: '#0b6477',
   selectionBackground: '#0b647755',
+  ...SCROLLBAR_DARK,
 };
 
 const LIGHT_THEME = {
   background: '#f4f6f8',
   foreground: '#101012',
   cursor: '#0b6477',
-  selectionBackground: '#0b647730',
+  cursorAccent: '#f4f6f8',
+  selectionBackground: '#0b647733',
+  // ANSI palette tuned for a light background: xterm's default yellows and
+  // whites are near-invisible on light, so they're darkened to readable,
+  // maritime-leaning tones (e.g. `ls`/`dir` directory yellow → dark amber).
+  black: '#1b1f24',
+  red: '#b81e1e',
+  green: '#1f7a5a',
+  yellow: '#8a5a00',
+  blue: '#144272',
+  magenta: '#7b3fb8',
+  cyan: '#0b6477',
+  white: '#5b6470',
+  brightBlack: '#6e7781',
+  brightRed: '#cf3030',
+  brightGreen: '#2a8f6a',
+  brightYellow: '#9a6a00',
+  brightBlue: '#1f5aa0',
+  brightMagenta: '#8f51c8',
+  brightCyan: '#0e7d92',
+  brightWhite: '#1b1f24',
+  ...SCROLLBAR_LIGHT,
 };
 
 interface TerminalProps {
   profileId: ProfileId;
+  onTitle?: (title: string) => void;
 }
 
 /**
@@ -38,7 +77,7 @@ interface TerminalProps {
  * Spawns the launch profile, streams output in, forwards keystrokes out,
  * keeps the PTY sized to the viewport, and tears the child down on unmount.
  */
-export default function Terminal({ profileId }: TerminalProps) {
+export default function Terminal({ profileId, onTitle }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const isDark = useContext(DarkModeCtx);
@@ -126,6 +165,8 @@ export default function Terminal({ profileId }: TerminalProps) {
       term.onData((data) => {
         if (sessionId) void ptyWrite(sessionId, data);
       });
+
+      term.onTitleChange((title) => onTitle?.(title));
 
       resizeObserver = new ResizeObserver(() => {
         window.clearTimeout(resizeTimer);

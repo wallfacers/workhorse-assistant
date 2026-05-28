@@ -12,7 +12,7 @@ import { isTauri } from './runtime';
  */
 
 /** S0 launch profiles resolved core-side. */
-export type ProfileId = 'shell' | 'claude-opus' | 'claude-glm' | 'codex';
+export type ProfileId = 'terminal' | 'claude-opus' | 'claude-glm' | 'codex';
 
 /** Payload of `pty://output/{session_id}`. */
 export interface PtyOutput {
