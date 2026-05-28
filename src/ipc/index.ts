@@ -12,6 +12,7 @@ export { getAppInfo, greet } from './app';
 export type { IpcError, IpcErrorKind, Result } from './result';
 export { ok, err } from './result';
 export { isTauri } from './runtime';
+export { writeClipboardText, readClipboardText } from './clipboard';
 export {
   minimizeWindow,
   toggleMaximizeWindow,

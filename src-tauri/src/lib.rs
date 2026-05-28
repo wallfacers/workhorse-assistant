@@ -69,6 +69,7 @@ fn pty_kill(registry: State<'_, SessionRegistry>, session_id: String) -> Result<
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(SessionRegistry::default())
         .invoke_handler(tauri::generate_handler![
             app_info,

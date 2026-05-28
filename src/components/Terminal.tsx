@@ -9,6 +9,8 @@ import {
   ptyKill,
   onPtyOutput,
   onPtyExit,
+  readClipboardText,
+  writeClipboardText,
   type ProfileId,
 } from '../ipc';
 import { DarkModeCtx } from '../App';
@@ -116,6 +118,34 @@ export default function Terminal({ profileId, onTitle }: TerminalProps) {
     termRef.current = term;
     const fit = new FitAddon();
     term.loadAddon(fit);
+
+    // Clipboard (Windows-Terminal semantics): Ctrl+C copies the current
+    // selection then clears it, and falls through to the normal SIGINT when
+    // nothing is selected; Ctrl+V pastes. `preventDefault` stops the browser's
+    // own copy/paste so xterm's textarea `paste` event can't fire a second,
+    // duplicate paste; returning false stops xterm from echoing the key.
+    term.attachCustomKeyEventHandler((event) => {
+      if (event.type !== 'keydown') return true;
+      const mod =
+        event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+      if (!mod) return true;
+      if (event.code === 'KeyC' && term.hasSelection()) {
+        event.preventDefault();
+        void writeClipboardText(term.getSelection());
+        term.clearSelection();
+        return false;
+      }
+      if (event.code === 'KeyV') {
+        event.preventDefault();
+        void (async () => {
+          const res = await readClipboardText();
+          if (res.ok && res.value) term.paste(res.value);
+        })();
+        return false;
+      }
+      return true;
+    });
+
     term.open(container);
     // Force viewport background on first paint (xterm.css defaults to #000).
     const vp = container.querySelector('.xterm-viewport') as HTMLElement | null;
