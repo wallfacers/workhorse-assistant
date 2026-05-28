@@ -32,5 +32,8 @@ src-tauri/target/
 src-tauri/gen/schemas/
 # Cargo.lock IS committed for applications (Tauri's recommendation).
 
+# Playwright MCP
+.playwright-mcp/
+
 # Generated design tokens (when `npm run design:export:css` is wired in)
 src/design-tokens.generated.css

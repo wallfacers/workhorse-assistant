@@ -6,7 +6,8 @@ What we are building and — more importantly — what we are not.
 
 **Workhorse Assistant** is a desktop AI assistant for people who think in long
 sessions: writers, researchers, engineers, analysts. It optimises for *one*
-person working with *one* agent for *hours*, not for casual one-shot prompts.
+person working with *one or more* concurrent agent sessions for *hours*, not for
+casual one-shot prompts.
 
 It is **not**:
 

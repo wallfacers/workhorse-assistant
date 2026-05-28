@@ -7,7 +7,7 @@ prescribe implementation; that lives in `docs/exec-plans/`.
 
 | Spec | State | Last reviewed | Owner |
 | --- | --- | --- | --- |
-| _none yet_ | — | — | — |
+| [Agent Workspace](agent-workspace.md) | draft | 2026-05-29 | wallfacers |
 
 ## How to write a spec
 
