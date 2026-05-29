@@ -90,6 +90,9 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     @apply bg-gray-400 dark:bg-neutral-500;
   }
+  .custom-scrollbar::-webkit-scrollbar-button {
+    display: none;
+  }
 
   /* xterm v6 ships a Monaco-style DOM scrollbar (plain divs), not a native one,
    * so it ignores `::-webkit-scrollbar`. Slim its 14px default to the project's

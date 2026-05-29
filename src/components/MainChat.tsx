@@ -1,3 +1,5 @@
+// Design reference for bubble/input markup — not currently imported.
+// Retained for R4 (add-agent-task-flow) evaluation; delete then if unused.
 import {
   FileText,
   Copy,
@@ -33,7 +35,7 @@ export default function MainChat() {
 
           {/* Assistant Message (Logo + Bubble + Actions) */}
           <div className="flex gap-3 items-start">
-            <div className="w-8 h-8 flex-shrink-0 rounded-xl bg-gradient-to-br from-primary via-secondary to-tertiary text-white font-bold text-[13px] flex items-center justify-center shadow-sm">
+            <div className="w-8 h-8 flex-shrink-0 rounded-xl bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-[13px] flex items-center justify-center shadow-sm">
               M
             </div>
             <div className="flex-1 min-w-0">

@@ -3,27 +3,27 @@
   Workhorse Assistant — source icon.
   Square 1024×1024. Background rounded so the marque survives both
   square- and rounded-platform rasterizers.
-  Palette pulls from docs/DESIGN.md (primary, secondary, tertiary).
+  Gradient: orange-400 → pink-500 → indigo-500 (matches the in-app avatar).
   To regenerate the binary icon set:
       npx @tauri-apps/cli icon src-tauri/icons/source.svg
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#024a44"/>
-      <stop offset="55%" stop-color="#0b6477"/>
-      <stop offset="100%" stop-color="#144272"/>
+      <stop offset="0%"   stop-color="#fb923c"/>
+      <stop offset="50%"  stop-color="#ec4899"/>
+      <stop offset="100%" stop-color="#6366f1"/>
     </linearGradient>
     <linearGradient id="mark" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
-      <stop offset="0%" stop-color="#ECEFF2"/>
-      <stop offset="100%" stop-color="#FFFFFF"/>
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#FDEEFF"/>
     </linearGradient>
   </defs>
 
   <!-- Rounded square canvas -->
   <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bg)"/>
 
-  <!-- Stylised "W" — built from three downward strokes meeting at two valleys -->
+  <!-- Stylised "W" -->
   <g fill="url(#mark)" stroke="none">
     <path d="
       M 200 256
@@ -42,7 +42,4 @@
       Z
     "/>
   </g>
-
-  <!-- Single warm accent dot (DESIGN.md: accent-warm) — used sparingly -->
-  <circle cx="824" cy="824" r="40" fill="#B8422E"/>
 </svg>
