@@ -7,6 +7,7 @@ import {
 import TabBar from './TabBar';
 import TerminalGroup from './TerminalGroup';
 import ProfileMenu from './ProfileMenu';
+import { useAgentTabTools } from './useAgentTabTools';
 
 /**
  * The center-pane workspace (design D1/D3). Holds the whole reducer tree and
@@ -18,6 +19,9 @@ import ProfileMenu from './ProfileMenu';
 export default function TerminalWorkspace() {
   const [state, dispatch] = useReducer(workspaceReducer, undefined, initWorkspace);
   const [titles, setTitles] = useState<Record<string, string>>({});
+
+  // Expose tab open/focus and tab-list reads to the agent (task 2.6).
+  useAgentTabTools(state, dispatch);
   const addGroup = (profileId: ProfileId) =>
     dispatch({ type: 'addGroup', profileId });
 

@@ -43,6 +43,8 @@ export default function ProfileMenu({
     <div className="relative flex-shrink-0" ref={ref}>
       <button
         type="button"
+        data-testid="new-terminal-group"
+        data-agent-clickable
         title={title ?? '新建终端'}
         onClick={(e) => {
           e.stopPropagation();

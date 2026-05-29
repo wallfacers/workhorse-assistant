@@ -5,7 +5,8 @@ import TerminalWorkspace from './components/terminal/TerminalWorkspace';
 import RightPanel from './components/RightPanel';
 import TitleBar from './components/TitleBar';
 import WindowResizeHandles from './components/WindowResizeHandles';
-import { isTauri, useWindowState } from './ipc';
+import { isTauri, useWindowState, useAgentConnection } from './ipc';
+import { registerFallbackTools, republishCatalog } from './agent';
 
 export const DarkModeCtx = createContext(false);
 
@@ -14,6 +15,7 @@ export default function App() {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const tauri = isTauri();
   const { maximized, fullscreen } = useWindowState();
+  const agent = useAgentConnection();
 
   // Frameless window: rounded with a hairline border while floating; flush and
   // square when the OS has it maximized/fullscreen (or in a plain browser).
@@ -32,6 +34,17 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
 
+  // Register the generic data-testid fallback tools once for the app lifetime
+  // (task 2.6). Components register their semantic tools separately.
+  useEffect(() => {
+    const unregister = registerFallbackTools();
+    void republishCatalog();
+    return () => {
+      unregister();
+      void republishCatalog();
+    };
+  }, []);
+
   return (
     <DarkModeCtx value={isDarkMode}>
     <div
@@ -40,7 +53,11 @@ export default function App() {
       <TitleBar maximized={maximized} />
 
       <div className="flex-1 min-h-0 w-full flex p-3.5 gap-3.5 overflow-hidden">
-        <AgentRail isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
+        <AgentRail
+          isDarkMode={isDarkMode}
+          setIsDarkMode={setIsDarkMode}
+          agent={agent}
+        />
         <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
           <TerminalWorkspace />
         </div>
@@ -50,6 +67,8 @@ export default function App() {
           <div className="flex-shrink-0 flex items-start pt-4 px-1">
             <button
               type="button"
+              data-testid="open-work-panel"
+              data-agent-clickable
               onClick={() => setRightPanelOpen(true)}
               aria-label="Open work panel"
               title="展开工作台"

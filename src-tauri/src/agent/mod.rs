@@ -1,0 +1,403 @@
+//! Agent bridge — segment 2 of the renderer ↔ Go-sidecar transport.
+//!
+//! The renderer never talks to the workhorse-agent sidecar directly (the
+//! `AGENTS.md` "no network from renderer" rule). Instead this module owns the
+//! HTTP/SSE connection and mirrors the proven PTY pattern:
+//!
+//!   * downstream `tool_use` arrives on a per-session SSE reader thread and is
+//!     relayed to the renderer as the Tauri event `agent://tooluse/{sessionId}`
+//!     (cf. PTY's `pty://output/{session_id}`), each stamped with a monotonic
+//!     per-session `seq` because Tauri event order is not guaranteed;
+//!   * upstream `tool_result` and the tool catalog are POSTed to the sidecar.
+//!
+//! V1 **attaches** to an already-running sidecar (default `127.0.0.1:7821`); it
+//! never spawns or supervises it — the user owns that process lifecycle
+//! (`feedback_never-kill-user-processes`). The agent session id is allocated by
+//! the sidecar (`POST /v1/sessions`).
+//!
+//! HTTP surface — the **real** workhorse-agent Streamable-HTTP protocol
+//! (`internal/api/stream_post.go`, `sessions.go`; `add-frontend-tool-bridge`):
+//!
+//! - `POST /v1/sessions` `{provider, model, workdir}` → `{ "id": "..." }`
+//! - `GET /v1/sessions/{id}/stream` → text/event-stream
+//! - `POST /v1/sessions/{id}/stream` ← `ClientMessage` envelopes
+//!   `{type:"frontend_tool_result", tool_use_id, result}` and
+//!   `{type:"publish_frontend_tools", catalog}`. Both ack with `202`; a
+//!   publish's registered/rejected breakdown is **not** in the response body —
+//!   it arrives asynchronously as the `frontend_tools_published` event below.
+//! - server events relayed to the renderer:
+//!   `frontend_tool_use {tool_use_id, name, input}` → `agent://tooluse/{id}`;
+//!   `frontend_tools_published {registered, rejected}` → `agent://published/{id}`
+
+use std::collections::HashMap;
+use std::io::{BufRead, BufReader};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
+
+use serde::Serialize;
+use serde_json::{json, Value};
+use tauri::{AppHandle, Emitter};
+
+const DEFAULT_ENDPOINT: &str = "http://127.0.0.1:7821";
+const ENDPOINT_ENV: &str = "WORKHORSE_AGENT_ENDPOINT";
+// POST /v1/sessions requires provider+model+workdir. Provider/model default to
+// these and are env-overridable; workdir is supplied by the renderer (the
+// current project dir), falling back to the app process cwd when empty.
+const DEFAULT_PROVIDER: &str = "anthropic";
+const DEFAULT_MODEL: &str = "claude-sonnet-4-6";
+const PROVIDER_ENV: &str = "WORKHORSE_AGENT_PROVIDER";
+const MODEL_ENV: &str = "WORKHORSE_AGENT_MODEL";
+const HTTP_TIMEOUT: Duration = Duration::from_secs(10);
+const RECONNECT_MAX_ATTEMPTS: u32 = 5;
+const RECONNECT_BASE_DELAY_MS: u64 = 250;
+const SHUTDOWN_DRAIN_BUDGET: Duration = Duration::from_millis(500);
+
+/// Renderer-facing error mirroring `src/ipc/result.ts`'s `IpcError`. Note the
+/// kind set is the Rust half of the taxonomy: `forbidden` is produced only by
+/// the TS control surface and never crosses this boundary; `transient` is
+/// produced only here (sidecar unreachable / SSE dropped).
+#[derive(Debug, Serialize)]
+pub struct AgentError {
+    pub kind: ErrorKind,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorKind {
+    // Reserved for argument validation on future bridge commands; kept for
+    // parity with the documented taxonomy even though nothing emits it yet.
+    #[allow(dead_code)]
+    Validation,
+    NotFound,
+    Transient,
+    Internal,
+}
+
+impl AgentError {
+    fn not_found(message: impl Into<String>) -> Self {
+        Self { kind: ErrorKind::NotFound, message: message.into() }
+    }
+    fn transient(message: impl Into<String>) -> Self {
+        Self { kind: ErrorKind::Transient, message: message.into() }
+    }
+    fn internal(message: impl Into<String>) -> Self {
+        Self { kind: ErrorKind::Internal, message: message.into() }
+    }
+}
+
+/// Payload of `agent://tooluse/{sessionId}`. Field names are camelCase to match
+/// the TS `ToolUsePayload` interface in `src/agent/contract.ts`.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ToolUsePayload {
+    session_id: String,
+    seq: u64,
+    tool_use_id: String,
+    name: String,
+    input: Value,
+}
+
+/// Payload of `agent://published/{sessionId}` — the async outcome of a
+/// `publish_frontend_tools`, relayed from the agent's `frontend_tools_published`
+/// server event. Field names are camelCase to match the TS
+/// `CatalogPublishedPayload` interface.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PublishedPayload {
+    session_id: String,
+    registered: Value,
+    rejected: Value,
+}
+
+/// One attached agent session: a stop flag and the SSE reader thread relaying
+/// downstream `tool_use`. The seq counter lives inside the reader thread.
+struct SessionHandle {
+    stop: Arc<AtomicBool>,
+    reader: Option<JoinHandle<()>>,
+}
+
+struct BridgeInner {
+    endpoint: String,
+    sessions: HashMap<String, SessionHandle>,
+}
+
+impl Default for BridgeInner {
+    fn default() -> Self {
+        let endpoint =
+            std::env::var(ENDPOINT_ENV).unwrap_or_else(|_| DEFAULT_ENDPOINT.to_string());
+        Self { endpoint, sessions: HashMap::new() }
+    }
+}
+
+/// App-managed bridge. Registered via `Builder::manage` and reached in command
+/// handlers through `tauri::State<'_, AgentBridge>`.
+#[derive(Default)]
+pub struct AgentBridge {
+    inner: Mutex<BridgeInner>,
+    /// Count of upstream POSTs currently in flight, so shutdown can best-effort
+    /// drain them before exit (mirrors PTY `kill_all`, design D-shutdown).
+    in_flight: Arc<AtomicU64>,
+}
+
+impl AgentBridge {
+    fn endpoint(&self) -> String {
+        self.inner.lock().unwrap().endpoint.clone()
+    }
+
+    /// Attach to a sidecar session: allocate it (`POST /v1/sessions` with the
+    /// required `{provider, model, workdir}` body), spawn the SSE reader, and
+    /// return the sidecar-allocated session id (`id` field). `workdir` comes
+    /// from the renderer; empty falls back to the app process cwd. Lazy — the
+    /// first attach is the first network touch. Unreachable ⇒ `transient`.
+    pub fn attach(&self, app: &AppHandle, workdir: String) -> Result<String, AgentError> {
+        let endpoint = self.endpoint();
+        let provider =
+            std::env::var(PROVIDER_ENV).unwrap_or_else(|_| DEFAULT_PROVIDER.to_string());
+        let model = std::env::var(MODEL_ENV).unwrap_or_else(|_| DEFAULT_MODEL.to_string());
+        let workdir = if workdir.trim().is_empty() {
+            std::env::current_dir()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_else(|_| ".".to_string())
+        } else {
+            workdir
+        };
+        let resp = ureq::post(&format!("{endpoint}/v1/sessions"))
+            .timeout(HTTP_TIMEOUT)
+            .send_json(json!({
+                "provider": provider,
+                "model": model,
+                "workdir": workdir,
+            }))
+            .map_err(|e| AgentError::transient(format!("sidecar unreachable: {e}")))?;
+        let body: Value = resp
+            .into_json()
+            .map_err(|e| AgentError::internal(format!("bad /v1/sessions response: {e}")))?;
+        let session_id = body
+            .get("id")
+            .or_else(|| body.get("session_id"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| AgentError::internal("response missing id"))?
+            .to_string();
+
+        let seq = Arc::new(AtomicU64::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let reader = spawn_sse_reader(
+            app.clone(),
+            endpoint,
+            session_id.clone(),
+            seq,
+            Arc::clone(&stop),
+        );
+
+        self.inner.lock().unwrap().sessions.insert(
+            session_id.clone(),
+            SessionHandle { stop, reader: Some(reader) },
+        );
+        Ok(session_id)
+    }
+
+    /// Forward a renderer `tool_result` upstream, correlated by `tool_use_id`.
+    pub fn forward_result(
+        &self,
+        session_id: &str,
+        tool_use_id: &str,
+        result: Value,
+    ) -> Result<(), AgentError> {
+        let endpoint = self.session_endpoint(session_id)?;
+        let url = format!("{endpoint}/v1/sessions/{session_id}/stream");
+        let body = json!({
+            "type": "frontend_tool_result",
+            "tool_use_id": tool_use_id,
+            "result": result,
+        });
+        self.in_flight.fetch_add(1, Ordering::SeqCst);
+        let outcome = ureq::post(&url)
+            .timeout(HTTP_TIMEOUT)
+            .send_json(body)
+            .map(|_| ())
+            .map_err(|e| AgentError::transient(format!("forward tool_result failed: {e}")));
+        self.in_flight.fetch_sub(1, Ordering::SeqCst);
+        outcome
+    }
+
+    /// Publish (or re-publish) the session's tool catalog upstream as a
+    /// `publish_frontend_tools` client message. The POST acks with `202` and an
+    /// empty body — the per-entry registered/rejected breakdown is delivered
+    /// asynchronously as the `frontend_tools_published` server event (relayed to
+    /// the renderer on `agent://published/{id}`), so this returns `()` on ack.
+    pub fn publish_catalog(
+        &self,
+        session_id: &str,
+        catalog: Value,
+    ) -> Result<(), AgentError> {
+        let endpoint = self.session_endpoint(session_id)?;
+        let url = format!("{endpoint}/v1/sessions/{session_id}/stream");
+        ureq::post(&url)
+            .timeout(HTTP_TIMEOUT)
+            .send_json(json!({ "type": "publish_frontend_tools", "catalog": catalog }))
+            .map(|_| ())
+            .map_err(|e| AgentError::transient(format!("publish catalog failed: {e}")))
+    }
+
+    fn session_endpoint(&self, session_id: &str) -> Result<String, AgentError> {
+        let inner = self.inner.lock().unwrap();
+        if !inner.sessions.contains_key(session_id) {
+            return Err(AgentError::not_found(format!("unknown session: {session_id}")));
+        }
+        Ok(inner.endpoint.clone())
+    }
+
+    /// Detach one session: stop its reader thread.
+    pub fn detach(&self, session_id: &str) {
+        let handle = self.inner.lock().unwrap().sessions.remove(session_id);
+        if let Some(handle) = handle {
+            stop_session(handle);
+        }
+    }
+
+    /// Stop every session and best-effort drain in-flight upstream POSTs, e.g.
+    /// on app exit — independent of any renderer teardown (mirrors PTY
+    /// `kill_all`). Bounded so shutdown never blocks indefinitely.
+    pub fn shutdown(&self) {
+        let drained: Vec<SessionHandle> =
+            self.inner.lock().unwrap().sessions.drain().map(|(_, s)| s).collect();
+        for handle in drained {
+            stop_session(handle);
+        }
+        let deadline = Instant::now() + SHUTDOWN_DRAIN_BUDGET;
+        while self.in_flight.load(Ordering::SeqCst) > 0 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+}
+
+/// Signal a session's reader thread to stop and join it.
+fn stop_session(mut handle: SessionHandle) {
+    handle.stop.store(true, Ordering::SeqCst);
+    if let Some(reader) = handle.reader.take() {
+        let _ = reader.join();
+    }
+}
+
+/// SSE reader thread: subscribe to the session's event stream, parse `tool_use`
+/// server events, stamp a monotonic `seq`, and relay each to the renderer.
+/// Bounded reconnect on stream drop; any `tool_use` emitted during a reconnect
+/// gap is lost (SSE has no replay) and covered by the agent's tool timeout.
+fn spawn_sse_reader(
+    app: AppHandle,
+    endpoint: String,
+    session_id: String,
+    seq: Arc<AtomicU64>,
+    stop: Arc<AtomicBool>,
+) -> JoinHandle<()> {
+    std::thread::spawn(move || {
+        let url = format!("{endpoint}/v1/sessions/{session_id}/stream");
+        let mut attempts: u32 = 0;
+
+        while !stop.load(Ordering::SeqCst) {
+            match ureq::get(&url).call() {
+                Ok(resp) => {
+                    attempts = 0;
+                    let reader = BufReader::new(resp.into_reader());
+                    let mut data = String::new();
+                    for line in reader.lines() {
+                        if stop.load(Ordering::SeqCst) {
+                            return;
+                        }
+                        let line = match line {
+                            Ok(l) => l,
+                            Err(_) => break, // stream error → reconnect
+                        };
+                        if line.is_empty() {
+                            // Blank line terminates an SSE event.
+                            relay_event(&app, &session_id, &seq, &data);
+                            data.clear();
+                        } else if let Some(rest) = line.strip_prefix("data:") {
+                            data.push_str(rest.trim_start());
+                        }
+                        // Other SSE fields (event:, id:, :comment) are ignored.
+                    }
+                    // Stream closed cleanly; loop to resubscribe unless stopping.
+                }
+                Err(_) => {
+                    attempts += 1;
+                    if attempts > RECONNECT_MAX_ATTEMPTS {
+                        return; // give up; renderer attach can retry later
+                    }
+                    std::thread::sleep(Duration::from_millis(
+                        RECONNECT_BASE_DELAY_MS * attempts as u64,
+                    ));
+                }
+            }
+        }
+    })
+}
+
+/// Parse one accumulated SSE `data` payload and relay the two event types the
+/// renderer cares about: `frontend_tool_use` (stamped with the next `seq`, to
+/// `agent://tooluse/{id}`) and `frontend_tools_published` (to
+/// `agent://published/{id}`). All other server events are ignored here.
+fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &str) {
+    if data.is_empty() {
+        return;
+    }
+    let Ok(event) = serde_json::from_str::<Value>(data) else {
+        return; // non-JSON keep-alive or malformed frame → skip
+    };
+    match event.get("type").and_then(Value::as_str) {
+        Some("frontend_tool_use") => {
+            let payload = ToolUsePayload {
+                session_id: session_id.to_string(),
+                seq: seq.fetch_add(1, Ordering::SeqCst),
+                tool_use_id: event
+                    .get("tool_use_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                name: event.get("name").and_then(Value::as_str).unwrap_or_default().to_string(),
+                input: event.get("input").cloned().unwrap_or(Value::Null),
+            };
+            let _ = app.emit(&format!("agent://tooluse/{session_id}"), payload);
+        }
+        Some("frontend_tools_published") => {
+            // The agent emits nil slices as JSON `null` when empty; normalise to
+            // [] so the renderer always sees arrays.
+            let arr = |v: Option<&Value>| match v {
+                Some(x) if !x.is_null() => x.clone(),
+                _ => json!([]),
+            };
+            let payload = PublishedPayload {
+                session_id: session_id.to_string(),
+                registered: arr(event.get("registered")),
+                rejected: arr(event.get("rejected")),
+            };
+            let _ = app.emit(&format!("agent://published/{session_id}"), payload);
+        }
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn endpoint_defaults_to_loopback() {
+        // With the env var unset, the bridge targets the documented default.
+        // (We can't unset process env safely in parallel tests, so assert the
+        // constant the default falls back to.)
+        assert_eq!(DEFAULT_ENDPOINT, "http://127.0.0.1:7821");
+    }
+
+    #[test]
+    fn unknown_session_is_not_found() {
+        let bridge = AgentBridge::default();
+        let err = bridge
+            .forward_result("nope", "tu-1", serde_json::json!({"ok": true}))
+            .expect_err("unknown session must be NotFound");
+        assert!(matches!(err.kind, ErrorKind::NotFound));
+    }
+}

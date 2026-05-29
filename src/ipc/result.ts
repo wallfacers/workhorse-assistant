@@ -7,7 +7,12 @@
  * defined in docs/RELIABILITY.md.
  */
 
-export type IpcErrorKind = 'validation' | 'not_found' | 'transient' | 'internal';
+export type IpcErrorKind =
+  | 'validation'
+  | 'not_found'
+  | 'transient'
+  | 'internal'
+  | 'forbidden';
 
 export interface IpcError {
   kind: IpcErrorKind;
@@ -67,6 +72,7 @@ function isIpcErrorKind(value: unknown): value is IpcErrorKind {
     value === 'validation' ||
     value === 'not_found' ||
     value === 'transient' ||
-    value === 'internal'
+    value === 'internal' ||
+    value === 'forbidden'
   );
 }

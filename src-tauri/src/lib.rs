@@ -1,8 +1,11 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tauri::{AppHandle, Manager, RunEvent, State};
 
+mod agent;
 mod pty;
 
+use agent::{AgentBridge, AgentError};
 use pty::{PtyError, SessionRegistry};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -65,19 +68,62 @@ fn pty_kill(registry: State<'_, SessionRegistry>, session_id: String) -> Result<
     registry.kill(&session_id)
 }
 
+// --- Agent bridge (segment 2: Rust ↔ Go sidecar) ---------------------------
+// All async: each does blocking HTTP to the sidecar, which must never run on
+// the GUI thread. Custom commands like these need no `capabilities` entries
+// (only plugin/core permissions do), same as the PTY commands above.
+
+#[tauri::command(async)]
+fn agent_attach(
+    app: AppHandle,
+    bridge: State<'_, AgentBridge>,
+    workdir: String,
+) -> Result<String, AgentError> {
+    bridge.attach(&app, workdir)
+}
+
+#[tauri::command(async)]
+fn agent_forward_result(
+    bridge: State<'_, AgentBridge>,
+    session_id: String,
+    tool_use_id: String,
+    result: Value,
+) -> Result<(), AgentError> {
+    bridge.forward_result(&session_id, &tool_use_id, result)
+}
+
+#[tauri::command(async)]
+fn agent_publish_catalog(
+    bridge: State<'_, AgentBridge>,
+    session_id: String,
+    catalog: Value,
+) -> Result<(), AgentError> {
+    bridge.publish_catalog(&session_id, catalog)
+}
+
+#[tauri::command(async)]
+fn agent_detach(bridge: State<'_, AgentBridge>, session_id: String) {
+    bridge.detach(&session_id);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(SessionRegistry::default())
+        .manage(AgentBridge::default())
         .invoke_handler(tauri::generate_handler![
             app_info,
             greet,
             pty_spawn,
             pty_write,
             pty_resize,
-            pty_kill
+            pty_kill,
+            agent_attach,
+            agent_forward_result,
+            agent_publish_catalog,
+            agent_detach
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
@@ -86,12 +132,14 @@ pub fn run() {
             // destroyed, even if no renderer unmount fired (design D10).
             if let RunEvent::Exit = event {
                 app_handle.state::<SessionRegistry>().kill_all();
+                app_handle.state::<AgentBridge>().shutdown();
             } else if let RunEvent::WindowEvent {
                 event: tauri::WindowEvent::Destroyed,
                 ..
             } = event
             {
                 app_handle.state::<SessionRegistry>().kill_all();
+                app_handle.state::<AgentBridge>().shutdown();
             }
         });
 }

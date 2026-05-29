@@ -4,17 +4,33 @@ import { MOCK_MESSAGES, MOCK_TASKS } from './agent-rail.mock';
 import type { MockTask } from './agent-rail.mock';
 import TaskListModal from './TaskListModal';
 import SettingsModal from './SettingsModal';
+import type { AgentConnection } from '../ipc';
+
+/** Footer dot colour + label per connection status. */
+const AGENT_STATUS_UI: Record<
+  AgentConnection['status'],
+  { dot: string; label: string }
+> = {
+  idle: { dot: 'bg-gray-400', label: '连接 Agent' },
+  connecting: { dot: 'bg-amber-400 animate-pulse', label: '连接中…' },
+  connected: { dot: 'bg-green-500', label: '已连接' },
+  error: { dot: 'bg-red-500', label: '重试连接' },
+};
 
 export default function AgentRail({
   isDarkMode,
   setIsDarkMode,
+  agent,
 }: {
   isDarkMode: boolean;
   setIsDarkMode: (dark: boolean) => void;
+  agent: AgentConnection;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [activeTask, setActiveTask] = useState<MockTask>(
+  // The selected task is tracked for the task-list modal; its value is not yet
+  // surfaced in the rail itself (mock UI), so only the setter is read.
+  const [, setActiveTask] = useState<MockTask>(
     MOCK_TASKS.find((t) => t.active) ?? MOCK_TASKS[0]
   );
 
@@ -94,6 +110,29 @@ export default function AgentRail({
           <span className="text-[12.5px] font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[120px]">wallfacers</span>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() =>
+              agent.status === 'connected' ? agent.disconnect() : agent.connect()
+            }
+            disabled={agent.status === 'connecting'}
+            title={
+              agent.status === 'connected'
+                ? `已连接（session ${agent.sessionId}）— 点击断开`
+                : agent.status === 'error'
+                  ? `连接失败：${agent.error ?? ''}`
+                  : '连接到本地 workhorse-agent'
+            }
+            aria-label="Agent 连接状态"
+            data-testid="agent-connection-toggle"
+            data-agent-clickable
+            className="flex items-center gap-1.5 mr-1 px-2 py-1 rounded-full border border-outline dark:border-neutral-700 hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-600 dark:text-gray-300 text-[11px] font-semibold transition-colors disabled:opacity-60"
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${AGENT_STATUS_UI[agent.status].dot}`}
+            />
+            <span>{AGENT_STATUS_UI[agent.status].label}</span>
+          </button>
           <button
             type="button"
             onClick={() => setModalOpen(true)}

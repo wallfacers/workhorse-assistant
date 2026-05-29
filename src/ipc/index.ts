@@ -33,3 +33,6 @@ export {
   onPtyOutput,
   onPtyExit,
 } from './pty';
+export { attachAgentSession, detachAgentSession } from './agent';
+export { useAgentConnection } from './useAgentConnection';
+export type { AgentStatus, AgentConnection } from './useAgentConnection';
