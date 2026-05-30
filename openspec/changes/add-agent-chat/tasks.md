@@ -32,4 +32,4 @@
 
 - [x] 5.1 `npm run lint` 通过
 - [x] 5.2 `cargo check` 通过
-- [ ] 5.3 手动: 连接 sidecar → 发送消息 → 助手文本流式回显、工具块 running→done — 需 Windows 实机 + 运行中的 sidecar
+- [ ] 5.3 真机验证（部分完成，端到端未通过）: POST `{type:"user_message"}` 返回 **202**（上行通），SSE 流确实回流了事件（回流通道工作）。但**完整助手文本往返未跑通**：运行中的 sidecar 回 `provider_invalid_request: model "claude-sonnet-4-6" is not supported`——前端 `DEFAULT_MODEL` 与该 sidecar 实例不匹配。`assistant_text_delta/done` 流式回显与工具块 running→done 的端到端验证，待 model 不匹配修复后在桌面窗口实操确认

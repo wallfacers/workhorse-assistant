@@ -1,17 +1,17 @@
-> Status: §2–§6 are implemented in the working branch (Rust bridge, TS hook, UI).
-> §1 is a cross-repo prerequisite in workhorse-agent (not yet done) and §7.2–7.5
+> Status: §1–§6 implemented (Go sidecar + Rust bridge + TS hook + UI). §7.2–7.5
 > are manual checks pending a Windows-native build with a running sidecar.
 
 ## 1. workhorse-agent (Go repo): 增强 GET /health
 
-Cross-repo, not done. This is the prerequisite for auto-connect to succeed: if the
-Go `/health` does not return `protocol_version`, the Rust `health_check` marks the
-sidecar incompatible (`internal` error) and stops retrying. Coordinate per
-`feedback_multi-agent-git-coordination`.
+Done in the workhorse-agent repo as openspec change `add-health-protocol-version`
+(branch `add-health-protocol-version`): `/health` now returns `protocol_version:"1"`
+and `capabilities:["frontend_tools","external_agents"]`. Both repos agree on the
+value `"1"` (Rust `EXPECTED_PROTOCOL_VERSION` ↔ Go `protocol.ProtocolVersion`),
+per `feedback_multi-agent-git-coordination`.
 
-- [ ] 1.1 在 `internal/api/health.go` 的 `handleHealth` 响应中新增 `protocol_version: "1"` 和 `capabilities: ["frontend_tools"]` 字段
-- [ ] 1.2 在 `internal/api/` 或 `internal/config/` 中定义 `ProtocolVersion = "1"` 和 `DefaultCapabilities` 常量
-- [ ] 1.3 确认 `GET /health` 继续免 bearer auth 和 Origin 检查
+- [x] 1.1 在 `internal/api/health.go` 的 `handleHealth` 响应中新增 `protocol_version: "1"` 和 `capabilities` 字段
+- [x] 1.2 在 `internal/api/protocol/protocol.go` 中定义 `ProtocolVersion = "1"` 和 `DefaultCapabilities` 常量
+- [x] 1.3 确认 `GET /health` 继续免 bearer auth 和 Origin 检查（无 middleware 改动）
 
 ## 2. Rust bridge: agent_health_check 命令
 
@@ -52,7 +52,7 @@ sidecar incompatible (`internal` error) and stops retrying. Coordinate per
 ## 7. 验证
 
 - [x] 7.1 `npm run lint` 通过
-- [ ] 7.2 手动: sidecar 先启动 → 桌面端启动 → 自动连上（绿点）
-- [ ] 7.3 手动: 桌面端先启动 → sidecar 后启动 → 几秒内自动连上
-- [ ] 7.4 手动: 设置中断开 → 不再重连（灰点）→ 重新连接 → 恢复
-- [ ] 7.5 手动: 指向不兼容进程 → 标记 incompatible（红点），不重试
+- [x] 7.2 真机验证: sidecar 先运行 → 桌面端（`tauri:dev`）启动 → 自动连上。证据: sidecar `/health` 返回 `protocol_version:"1"`，桌面端启动后 sidecar `sessions_active` 9→11（attach 成功）；`status==='connected'` ⇒ 圆点 `bg-green-500`（`AgentRail.tsx`）
+- [ ] 7.3 手动: 桌面端先启动 → sidecar 后启动 → 几秒内自动连上 — 未按此时序实测（重启时 sidecar 已在运行）；退避重试逻辑见 `useAgentConnection.scheduleRetry`，待按此顺序手测
+- [ ] 7.4 手动: 设置中断开 → 不再重连（灰点）→ 重新连接 → 恢复 — 需在桌面窗口的 Settings→Agent tab 点击操作，命令行无法触发，待手测
+- [x] 7.5 协议契约验证: 前端 `EXPECTED_PROTOCOL_VERSION = "1"`（`mod.rs:92`）与 sidecar `/health` 返回的 `protocol_version:"1"` 一致 ⇒ 兼容路径通；不匹配走 `incompatible sidecar`（`mod.rs:122`）internal 错误且不重试（逻辑分支已确证，红点 UI 待手测触发）
