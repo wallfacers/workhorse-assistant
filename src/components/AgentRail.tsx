@@ -10,6 +10,7 @@ import { sendAgentMessage, activeSessionId } from '../ipc';
 import { useAutoScroll } from '../hooks/use-auto-scroll';
 import MarkdownContent from './chat/MarkdownContent';
 import ToolCallBlock from './chat/ToolCallBlock';
+import ReasoningPart from './chat/ReasoningPart';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,6 +18,7 @@ import ToolCallBlock from './chat/ToolCallBlock';
 
 type MessagePart =
   | { type: 'text'; content: string }
+  | { type: 'reasoning'; text: string; status: 'streaming' | 'done'; redacted?: boolean; startedAt?: number; endedAt?: number }
   | { type: 'tool_call'; id: string; name: string; input: unknown; status: 'running' | 'done' | 'error'; output?: unknown };
 
 interface ChatMessage {
@@ -102,10 +104,14 @@ export default function AgentRail({
   isDarkMode,
   setIsDarkMode,
   agent,
+  autoExpandReasoning,
+  setAutoExpandReasoning,
 }: {
   isDarkMode: boolean;
   setIsDarkMode: (dark: boolean) => void;
   agent: AgentConnection;
+  autoExpandReasoning: boolean;
+  setAutoExpandReasoning: (v: boolean) => void;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -200,6 +206,65 @@ export default function AgentRail({
         }));
       }));
 
+      // --- reasoning start (a thinking block began) ---
+      // Reasoning arrives before the assistant's text, so this may be the first
+      // event of an assistant turn: ensure an assistant message exists (mirroring
+      // the text-delta path) and append a fresh streaming reasoning part.
+      // Rust relays camelCase: `reasoningType` is "thinking" | "redacted".
+      unlistens.push(await listen<{ reasoningType: string }>(`agent://reasoning_start/${sid}`, (e) => {
+        if (!assistantIdRef.current) {
+          assistantIdRef.current = `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          deltaRef.current = '';
+          setStreamingIds((prev) => new Set(prev).add(assistantIdRef.current));
+        }
+        const id = assistantIdRef.current;
+        const redacted = e.payload.reasoningType === 'redacted';
+        const part: MessagePart = { type: 'reasoning', text: '', status: 'streaming', redacted, startedAt: Date.now() };
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === 'assistant' && last.id === id) {
+            return [...prev.slice(0, -1), { ...last, parts: [...last.parts, part] }];
+          }
+          return [...prev, { id, role: 'assistant', parts: [part] }];
+        });
+      }));
+
+      // --- reasoning delta (thinking-text increment, regular thinking only) ---
+      unlistens.push(await listen<{ delta: string }>(`agent://reasoning_delta/${sid}`, (e) => {
+        const id = assistantIdRef.current;
+        if (!id) return;
+        setMessages((prev) => prev.map((msg) => {
+          if (msg.role !== 'assistant' || msg.id !== id) return msg;
+          const parts = [...msg.parts];
+          for (let i = parts.length - 1; i >= 0; i--) {
+            const p = parts[i];
+            if (p.type === 'reasoning' && p.status === 'streaming') {
+              parts[i] = { ...p, text: p.text + e.payload.delta };
+              break;
+            }
+          }
+          return { ...msg, parts };
+        }));
+      }));
+
+      // --- reasoning end (thinking block finished) ---
+      unlistens.push(await listen<Record<string, never>>(`agent://reasoning_end/${sid}`, () => {
+        const id = assistantIdRef.current;
+        if (!id) return;
+        setMessages((prev) => prev.map((msg) => {
+          if (msg.role !== 'assistant' || msg.id !== id) return msg;
+          const parts = [...msg.parts];
+          for (let i = parts.length - 1; i >= 0; i--) {
+            const p = parts[i];
+            if (p.type === 'reasoning' && p.status === 'streaming') {
+              parts[i] = { ...p, status: 'done', endedAt: Date.now() };
+              break;
+            }
+          }
+          return { ...msg, parts };
+        }));
+      }));
+
       // --- error from sidecar (model not found, provider error, etc.) ---
       unlistens.push(await listen<{ code: string; message: string; recoverable: boolean }>(`agent://error/${sid}`, (e) => {
         assistantIdRef.current = '';
@@ -289,6 +354,19 @@ export default function AgentRail({
                     <div className="flex-1 min-w-0">
                       <div className="min-h-[36px] bg-surface-muted dark:bg-surface-dark rounded-xl px-3.5 py-2.5 text-gray-800 dark:text-gray-200 text-[12.5px] leading-relaxed border border-outline/50 dark:border-neutral-800/60">
                         {msg.parts.map((part, i) => {
+                          if (part.type === 'reasoning') {
+                            return (
+                              <ReasoningPart
+                                key={`reasoning-${i}`}
+                                text={part.text}
+                                status={part.status}
+                                redacted={part.redacted}
+                                startedAt={part.startedAt}
+                                endedAt={part.endedAt}
+                                autoExpand={autoExpandReasoning}
+                              />
+                            );
+                          }
                           if (part.type === 'text') {
                             const isStreaming = streamingIds.has(msg.id) && i === msg.parts.length - 1;
                             return (
@@ -363,7 +441,7 @@ export default function AgentRail({
       </div>
 
       {modalOpen && <TaskListModal onClose={() => setModalOpen(false)} onSelect={handleSelectTask} />}
-      {settingsOpen && <SettingsModal isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onClose={() => setSettingsOpen(false)} agent={agent} />}
+      {settingsOpen && <SettingsModal isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onClose={() => setSettingsOpen(false)} agent={agent} autoExpandReasoning={autoExpandReasoning} setAutoExpandReasoning={setAutoExpandReasoning} />}
     </div>
   );
 }

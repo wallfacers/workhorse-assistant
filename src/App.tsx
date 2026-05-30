@@ -12,6 +12,16 @@ export const DarkModeCtx = createContext(false);
 
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
+  // Display-only preference: auto-expand the reasoning ("thinking") section while
+  // it streams. Persisted across sessions; does NOT enable/disable thinking
+  // (that is the sidecar's config). Defaults collapsed.
+  const [autoExpandReasoning, setAutoExpandReasoning] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('workhorse:autoExpandReasoning') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const tauri = isTauri();
   const { maximized, fullscreen } = useWindowState();
@@ -33,6 +43,16 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
+
+  // Persist the reasoning display preference across sessions.
+  useEffect(() => {
+    try {
+      localStorage.setItem('workhorse:autoExpandReasoning', String(autoExpandReasoning));
+    } catch {
+      // localStorage unavailable (private mode / sandbox) — preference stays
+      // in-memory for this session only.
+    }
+  }, [autoExpandReasoning]);
 
   // Register the generic data-testid fallback tools once for the app lifetime
   // (task 2.6). Components register their semantic tools separately.
@@ -57,6 +77,8 @@ export default function App() {
           isDarkMode={isDarkMode}
           setIsDarkMode={setIsDarkMode}
           agent={agent}
+          autoExpandReasoning={autoExpandReasoning}
+          setAutoExpandReasoning={setAutoExpandReasoning}
         />
         <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
           <TerminalWorkspace />

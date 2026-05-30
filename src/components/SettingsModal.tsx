@@ -10,6 +10,8 @@ interface SettingsModalProps {
   setIsDarkMode: (dark: boolean) => void;
   onClose: () => void;
   agent: AgentConnection;
+  autoExpandReasoning: boolean;
+  setAutoExpandReasoning: (v: boolean) => void;
 }
 
 const SHORTCUTS: { key: string; desc: string }[] = [
@@ -39,7 +41,7 @@ const STATUS_DOT: Record<AgentConnection['status'], string> = {
   error: 'bg-red-500',
 };
 
-export default function SettingsModal({ isDarkMode, setIsDarkMode, onClose, agent }: SettingsModalProps) {
+export default function SettingsModal({ isDarkMode, setIsDarkMode, onClose, agent, autoExpandReasoning, setAutoExpandReasoning }: SettingsModalProps) {
   const [activeNav, setActiveNav] = useState<NavItem>('主题');
 
   return (
@@ -89,7 +91,7 @@ export default function SettingsModal({ isDarkMode, setIsDarkMode, onClose, agen
               <ThemeSection isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
             )}
             {activeNav === '快捷键' && <ShortcutsSection />}
-            {activeNav === 'Agent' && <AgentSection agent={agent} />}
+            {activeNav === 'Agent' && <AgentSection agent={agent} autoExpandReasoning={autoExpandReasoning} setAutoExpandReasoning={setAutoExpandReasoning} />}
           </div>
         </div>
       </div>
@@ -97,7 +99,15 @@ export default function SettingsModal({ isDarkMode, setIsDarkMode, onClose, agen
   );
 }
 
-function AgentSection({ agent }: { agent: AgentConnection }) {
+function AgentSection({
+  agent,
+  autoExpandReasoning,
+  setAutoExpandReasoning,
+}: {
+  agent: AgentConnection;
+  autoExpandReasoning: boolean;
+  setAutoExpandReasoning: (v: boolean) => void;
+}) {
   const isConnecting = agent.status === 'connecting';
   const isConnected = agent.status === 'connected';
 
@@ -159,6 +169,27 @@ function AgentSection({ agent }: { agent: AgentConnection }) {
             {isConnecting ? '连接中…' : '重新连接'}
           </button>
         )}
+      </div>
+
+      {/* Reasoning display preference — display-only, never toggles thinking on
+          the sidecar (whether thinking runs is decided by the sidecar config). */}
+      <div className="mt-6 pt-4 border-t border-outline/40 dark:border-neutral-800/40">
+        <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-3">推理显示</p>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={autoExpandReasoning}
+          onClick={() => setAutoExpandReasoning(!autoExpandReasoning)}
+          className="w-full flex items-center justify-between gap-3"
+        >
+          <span className="text-left">
+            <span className="block text-[12.5px] font-medium text-gray-800 dark:text-gray-200">自动展开思考过程</span>
+            <span className="block text-[10.5px] text-gray-400 dark:text-gray-500 mt-0.5">流式推理时自动展开，完成后自动折叠</span>
+          </span>
+          <span className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${autoExpandReasoning ? 'bg-gray-800 dark:bg-gray-200' : 'bg-gray-300 dark:bg-neutral-700'}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-900 shadow transition-transform ${autoExpandReasoning ? 'translate-x-4' : 'translate-x-0.5'}`} />
+          </span>
+        </button>
       </div>
     </div>
   );

@@ -201,6 +201,39 @@ struct ErrorPayload {
     recoverable: bool,
 }
 
+/// Payload of `agent://reasoning_start/{sessionId}` — a thinking block began,
+/// relayed from the sidecar's `reasoning_start` SSE event. `reasoningType` is
+/// `"thinking"` (carries deltas) or `"redacted"` (no deltas follow). `blockIndex`
+/// is forwarded for forward-compat; the V1 renderer keeps one reasoning part per
+/// assistant message and may ignore it. The thinking block's `signature` is never
+/// present in this event (the sidecar excludes it).
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ReasoningStartPayload {
+    session_id: String,
+    block_index: i64,
+    reasoning_type: String,
+}
+
+/// Payload of `agent://reasoning_delta/{sessionId}` — a thinking-text increment,
+/// relayed from the sidecar's `reasoning_delta` SSE event (regular thinking only).
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ReasoningDeltaPayload {
+    session_id: String,
+    block_index: i64,
+    delta: String,
+}
+
+/// Payload of `agent://reasoning_end/{sessionId}` — a thinking block ended,
+/// relayed from the sidecar's `reasoning_end` SSE event.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ReasoningEndPayload {
+    session_id: String,
+    block_index: i64,
+}
+
 /// One attached agent session: a stop flag and the SSE reader thread relaying
 /// downstream `tool_use`. The seq counter lives inside the reader thread.
 struct SessionHandle {
@@ -517,6 +550,33 @@ fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &s
                 tool_call_id: event.get("tool_call_id").and_then(Value::as_str).unwrap_or_default().to_string(),
             };
             let _ = app.emit(&format!("agent://tooldone/{session_id}"), payload);
+        }
+        Some("reasoning_start") => {
+            let payload = ReasoningStartPayload {
+                session_id: session_id.to_string(),
+                block_index: event.get("block_index").and_then(Value::as_i64).unwrap_or(0),
+                reasoning_type: event
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or("thinking")
+                    .to_string(),
+            };
+            let _ = app.emit(&format!("agent://reasoning_start/{session_id}"), payload);
+        }
+        Some("reasoning_delta") => {
+            let payload = ReasoningDeltaPayload {
+                session_id: session_id.to_string(),
+                block_index: event.get("block_index").and_then(Value::as_i64).unwrap_or(0),
+                delta: event.get("delta").and_then(Value::as_str).unwrap_or_default().to_string(),
+            };
+            let _ = app.emit(&format!("agent://reasoning_delta/{session_id}"), payload);
+        }
+        Some("reasoning_end") => {
+            let payload = ReasoningEndPayload {
+                session_id: session_id.to_string(),
+                block_index: event.get("block_index").and_then(Value::as_i64).unwrap_or(0),
+            };
+            let _ = app.emit(&format!("agent://reasoning_end/{session_id}"), payload);
         }
         Some("error") => {
             let payload = ErrorPayload {
