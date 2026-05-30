@@ -8,17 +8,20 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react';
  *   - Frame-level mutation suppression coalesces layout-effect + observer scrolls
  *   - `scheduleFollow()` rAF guard: ≤ one follow-scroll per frame
  *   - `ResizeObserver` shares the same `handleContentGrowth` handler
- *   - Strict-bottom re-engage (≤ 2px)
- *   - Wheel + touch upward-intent detection pauses following
+ *   - Re-engage threshold (≤ 60px from bottom)
+ *   - Wheel + touch upward-intent detection pauses following (with micro-delta threshold)
  *   - Two `useLayoutEffect`s: deps → structural scroll; resetDeps → forced re-follow
  */
 
-const STRICT_BOTTOM_PX = 2;
+/** Re-engage threshold: scroll within this distance of the bottom to resume following. */
+const RE_ENGAGE_PX = 60;
+/** Wheel threshold: ignore micro-deltas (e.g. trackpad jitter) smaller than this. */
+const WHEEL_THRESHOLD = -3;
 
 interface AutoScroll {
   /** Callback ref — attach to the scroll container element. */
   ref: (el: HTMLDivElement | null) => void;
-  /** True when the container is within STRICT_BOTTOM_PX of the bottom. */
+  /** True when the container is near the bottom (within re-engage threshold). */
   isAtBottom: boolean;
   /** Scroll to the very bottom immediately (also re-enables following). */
   scrollToBottom: () => void;
@@ -46,6 +49,9 @@ export function useAutoScroll(
   // Observers (stored so cleanup can disconnect)
   const mutationObserver = useRef<MutationObserver | null>(null);
   const resizeObserver = useRef<ResizeObserver | null>(null);
+
+  // Event listeners (stored so cleanup can remove them)
+  const listenersRef = useRef<Array<[HTMLElement, string, EventListener, boolean | AddEventListenerOptions]>>([]);
 
   // Touch tracking
   const touchStartY = useRef<number | null>(null);
@@ -106,9 +112,11 @@ export function useAutoScroll(
 
   const ref = useCallback(
     (el: HTMLDivElement | null) => {
-      // Tear down previous observers
+      // Tear down previous observers and event listeners
       mutationObserver.current?.disconnect();
       resizeObserver.current?.disconnect();
+      listenersRef.current.forEach(([prevEl, evt, fn, opts]) => prevEl.removeEventListener(evt, fn, opts));
+      listenersRef.current = [];
       containerEl.current = el;
       if (!el) return;
 
@@ -139,14 +147,21 @@ export function useAutoScroll(
       ro.observe(el);
       resizeObserver.current = ro;
 
+      // Helper: add a tracked event listener (cleaned up on element change).
+      const addListener = (evt: string, fn: EventListener, opts?: boolean | AddEventListenerOptions) => {
+        const o = opts ?? { passive: true };
+        el.addEventListener(evt, fn, o);
+        listenersRef.current.push([el, evt, fn, o]);
+      };
+
       // --- Wheel listener: upward intent → pause following ---
       const onWheel = (e: WheelEvent) => {
-        if (e.deltaY < 0) {
+        if (e.deltaY < WHEEL_THRESHOLD) {
           following.current = false;
           setIsAtBottom(false);
         }
       };
-      el.addEventListener('wheel', onWheel, { passive: true });
+      addListener('wheel', onWheel as EventListener);
 
       // --- Touch listeners: downward finger → pause following ---
       const onTouchStart = (e: TouchEvent) => {
@@ -165,11 +180,11 @@ export function useAutoScroll(
       const onTouchEnd = () => {
         touchStartY.current = null;
       };
-      el.addEventListener('touchstart', onTouchStart, { passive: true });
-      el.addEventListener('touchmove', onTouchMove, { passive: true });
-      el.addEventListener('touchend', onTouchEnd, { passive: true });
+      addListener('touchstart', onTouchStart as EventListener);
+      addListener('touchmove', onTouchMove as EventListener);
+      addListener('touchend', onTouchEnd as EventListener);
 
-      // --- Scroll listener: strict-bottom re-engage ---
+      // --- Scroll listener: re-engage when near bottom ---
       const onScroll = () => {
         const prevTop = lastScrollTop.current;
         const el2 = containerEl.current;
@@ -182,20 +197,14 @@ export function useAutoScroll(
         if (movedUp && dist > 0) {
           following.current = false;
           setIsAtBottom(false);
-        } else if (dist <= STRICT_BOTTOM_PX) {
+        } else if (dist <= RE_ENGAGE_PX) {
           following.current = true;
           setIsAtBottom(true);
         } else {
           setIsAtBottom(false);
         }
       };
-      el.addEventListener('scroll', onScroll, { passive: true });
-
-      // Store cleanup on the element (the ref callback itself handles cleanup
-      // by disconnecting observers at the top). The event listeners will be
-      // garbage-collected with the element. For a more explicit cleanup, we
-      // could use a WeakMap, but the callback-ref pattern guarantees the old
-      // element's observers are disconnected when a new ref arrives.
+      addListener('scroll', onScroll as EventListener);
     },
     [handleContentGrowth, distanceFromBottom],
   );
@@ -226,6 +235,8 @@ export function useAutoScroll(
     return () => {
       mutationObserver.current?.disconnect();
       resizeObserver.current?.disconnect();
+      listenersRef.current.forEach(([el, evt, fn, opts]) => el.removeEventListener(evt, fn, opts));
+      listenersRef.current = [];
       if (followFrame.current !== null) cancelAnimationFrame(followFrame.current);
       if (releaseMutationSuppressionFrame.current !== null) {
         cancelAnimationFrame(releaseMutationSuppressionFrame.current);
