@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { attachAgentSession, detachAgentSession } from './agent';
+import { attachAgentSession, checkAgentHealth, detachAgentSession } from './agent';
+import { isTauri } from './runtime';
 
 /**
- * Activates the agent bridge from the UI (the entry point that turns the
- * otherwise-dormant `src/ipc/agent.ts` client into a live loop).
+ * Auto-connect hook: on mount, probes `GET /health` to verify the sidecar is
+ * a compatible workhorse-agent, then attaches. If unreachable, retries with
+ * exponential backoff (1 s → 30 s cap). Three failure modes:
  *
- * Connection is **explicit** (design D4: the bridge attaches to a sidecar the
- * user is already running, it never spawns one). `connect()` calls
- * `attachAgentSession()` — which allocates a sidecar session, subscribes to its
- * `tool_use` stream, and publishes the current tool catalog. A failure (e.g. no
- * sidecar listening) surfaces as `status:'error'` with the message, rather than
- * throwing.
+ *   1. **Unreachable** (`transient`) → retry with backoff.
+ *   2. **Incompatible** (`internal: incompatible`) → stop, surface error.
+ *   3. **Manual disconnect** → paused, no retry until `reconnect()`.
+ *
+ * In non-Tauri mode (browser dev server), auto-connect is skipped entirely.
  */
 export type AgentStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -18,56 +19,119 @@ export interface AgentConnection {
   status: AgentStatus;
   sessionId: string | null;
   error: string | null;
-  connect: () => void;
+  /** Manual disconnect — pauses auto-retry. */
   disconnect: () => void;
+  /** Resume auto-connect after a manual disconnect. */
+  reconnect: () => void;
 }
+
+const MAX_RETRY_DELAY_MS = 30_000;
 
 export function useAgentConnection(): AgentConnection {
   const [status, setStatus] = useState<AgentStatus>('idle');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Guard against overlapping connect attempts and post-unmount setState.
+
+  // Guards
   const busy = useRef(false);
   const mounted = useRef(true);
+  const pausedRef = useRef(false);
+  const attemptRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      // Best-effort teardown so a remount starts from a clean session.
-      void detachAgentSession();
-    };
+  const clearRetry = useCallback(() => {
+    if (retryTimerRef.current !== null) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
   }, []);
 
-  const connect = useCallback(() => {
-    if (busy.current) return;
+  // Stable reference to tryConnect so the retry timer and mount effect can
+  // call it without stale closures. We rebuild via useCallback when the
+  // clearRetry dependency changes (it doesn't — stable).
+  const tryConnect = useCallback(() => {
+    if (busy.current || pausedRef.current || !mounted.current) return;
+    if (!isTauri()) {
+      pausedRef.current = true;
+      return;
+    }
     busy.current = true;
     setStatus('connecting');
     setError(null);
-    void attachAgentSession()
-      .then((res) => {
-        if (!mounted.current) return;
+
+    void (async () => {
+      try {
+        // 1. Probe
+        const health = await checkAgentHealth();
+        if (!mounted.current || pausedRef.current) return;
+        if (!health.ok) {
+          // Incompatible or protocol error — stop retrying
+          setError(health.error.message);
+          setStatus('error');
+          return;
+        }
+
+        // 2. Attach
+        const res = await attachAgentSession();
+        if (!mounted.current || pausedRef.current) return;
         if (res.ok) {
           setSessionId(res.value);
           setStatus('connected');
+          setError(null);
+          attemptRef.current = 0; // reset backoff on success
         } else {
           setError(res.error.message);
           setStatus('error');
+          scheduleRetry();
         }
-      })
-      .finally(() => {
+      } catch (e) {
+        if (!mounted.current) return;
+        setError(e instanceof Error ? e.message : String(e));
+        setStatus('error');
+        scheduleRetry();
+      } finally {
         busy.current = false;
-      });
-  }, []);
+      }
+    })();
+  }, [clearRetry]);
+
+  const scheduleRetry = useCallback(() => {
+    if (pausedRef.current || !mounted.current) return;
+    const delay = Math.min(1000 * Math.pow(2, attemptRef.current), MAX_RETRY_DELAY_MS);
+    attemptRef.current++;
+    retryTimerRef.current = setTimeout(() => {
+      retryTimerRef.current = null;
+      if (!pausedRef.current && mounted.current) tryConnect();
+    }, delay);
+  }, [tryConnect]);
 
   const disconnect = useCallback(() => {
+    pausedRef.current = true;
+    clearRetry();
     void detachAgentSession().finally(() => {
       if (!mounted.current) return;
       setSessionId(null);
       setError(null);
       setStatus('idle');
     });
-  }, []);
+  }, [clearRetry]);
 
-  return { status, sessionId, error, connect, disconnect };
+  const reconnect = useCallback(() => {
+    pausedRef.current = false;
+    attemptRef.current = 0;
+    tryConnect();
+  }, [tryConnect]);
+
+  useEffect(() => {
+    mounted.current = true;
+    // Kick off auto-connect on mount
+    tryConnect();
+    return () => {
+      mounted.current = false;
+      clearRetry();
+      void detachAgentSession();
+    };
+  }, [tryConnect, clearRetry]);
+
+  return { status, sessionId, error, disconnect, reconnect };
 }

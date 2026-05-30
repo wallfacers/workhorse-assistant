@@ -46,6 +46,25 @@ let active: ActiveSession | null = null;
 const notInTauri = () =>
   ({ ok: false, error: { kind: 'validation', message: 'agent bridge invoked outside Tauri runtime' } }) as const;
 
+/** Response from GET /health, used by the auto-connect probe. */
+export interface HealthInfo {
+  ok: boolean;
+  version: string;
+  protocol_version: string;
+  capabilities: string[];
+}
+
+/** Probe the sidecar via GET /health to verify identity and compatibility. */
+export async function checkAgentHealth(): Promise<Result<HealthInfo>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    const info = await invoke<HealthInfo>('agent_health_check');
+    return ok(info);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
 /**
  * Attach to a sidecar agent session: the Rust bridge creates it upstream
  * (`POST /v1/sessions` with `{provider, model, workdir}`) and returns its id.
@@ -100,6 +119,22 @@ export async function attachAgentSession(workdir = ''): Promise<Result<string>> 
   } catch (e) {
     return { ok: false, error: toIpcError(e) };
   }
+}
+
+/** Send a user message to the active agent session. */
+export async function sendAgentMessage(content: string): Promise<Result<void>> {
+  if (!isTauri() || !active) return notInTauri();
+  try {
+    await invoke('agent_send_message', { sessionId: active.sessionId, content });
+    return ok(undefined);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
+/** The active session ID, or null if not attached. */
+export function activeSessionId(): string | null {
+  return active?.sessionId ?? null;
 }
 
 /** The latest publish outcome (registered/rejected) for the active session, or

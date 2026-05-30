@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager, RunEvent, State};
 mod agent;
 mod pty;
 
-use agent::{AgentBridge, AgentError};
+use agent::{AgentBridge, AgentError, HealthInfo};
 use pty::{PtyError, SessionRegistry};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -106,6 +106,20 @@ fn agent_detach(bridge: State<'_, AgentBridge>, session_id: String) {
     bridge.detach(&session_id);
 }
 
+#[tauri::command(async)]
+fn agent_health_check(bridge: State<'_, AgentBridge>) -> Result<HealthInfo, AgentError> {
+    bridge.health_check()
+}
+
+#[tauri::command(async)]
+fn agent_send_message(
+    bridge: State<'_, AgentBridge>,
+    session_id: String,
+    content: String,
+) -> Result<(), AgentError> {
+    bridge.send_message(&session_id, &content)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -123,7 +137,9 @@ pub fn run() {
             agent_attach,
             agent_forward_result,
             agent_publish_catalog,
-            agent_detach
+            agent_detach,
+            agent_health_check,
+            agent_send_message
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

@@ -140,10 +140,10 @@
     background: transparent;
   }
   [data-separator].separator-handle[aria-orientation='horizontal'] {
-    height: 4px;
+    height: 6px;
   }
   [data-separator].separator-handle[aria-orientation='vertical'] {
-    width: 4px;
+    width: 6px;
   }
   /* The visible teal line (hover/drag) is a pseudo-element inset from both ends
    * by the pane corner radius (--radius-md), so it spans only the cards' straight
@@ -157,13 +157,20 @@
     transition: background-color 0.15s;
   }
   [data-separator].separator-handle[aria-orientation='vertical']::before {
-    inset: var(--radius-md) 0;
+    inset: var(--radius-md) 2px;
+    width: 1px;
   }
   [data-separator].separator-handle[aria-orientation='horizontal']::before {
-    inset: 0 var(--radius-md);
+    inset: 2px var(--radius-md);
+    height: 1px;
   }
   [data-separator].separator-handle:hover::before,
   [data-separator].separator-handle:active::before {
     background: var(--color-primary-container);
   }
+
+  /* Anti-jitter for chat scroll containers. Ported from data-talk's
+   * split-view.tsx overflow-anchor + scrollbarGutter pattern. */
+  .overflow-anchor-auto { overflow-anchor: auto; }
+  .scrollbar-gutter-stable { scrollbar-gutter: stable; }
 }

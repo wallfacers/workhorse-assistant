@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Moon, Sun, X } from 'lucide-react';
+import type { AgentConnection } from '../ipc';
 
-type NavItem = '主题' | '快捷键';
+type NavItem = '主题' | '快捷键' | 'Agent';
 
 interface SettingsModalProps {
   isDarkMode: boolean;
   setIsDarkMode: (dark: boolean) => void;
   onClose: () => void;
+  agent: AgentConnection;
 }
 
 const SHORTCUTS: { key: string; desc: string }[] = [
@@ -23,7 +25,21 @@ const SHORTCUTS: { key: string; desc: string }[] = [
   { key: 'Esc',     desc: '取消 / 关闭' },
 ];
 
-export default function SettingsModal({ isDarkMode, setIsDarkMode, onClose }: SettingsModalProps) {
+const STATUS_LABEL: Record<AgentConnection['status'], string> = {
+  idle: '未连接',
+  connecting: '连接中…',
+  connected: '已连接',
+  error: '连接失败',
+};
+
+const STATUS_DOT: Record<AgentConnection['status'], string> = {
+  idle: 'bg-gray-400',
+  connecting: 'bg-amber-400 animate-pulse',
+  connected: 'bg-green-500',
+  error: 'bg-red-500',
+};
+
+export default function SettingsModal({ isDarkMode, setIsDarkMode, onClose, agent }: SettingsModalProps) {
   const [activeNav, setActiveNav] = useState<NavItem>('主题');
 
   return (
@@ -51,7 +67,7 @@ export default function SettingsModal({ isDarkMode, setIsDarkMode, onClose }: Se
 
           {/* Left nav */}
           <div className="w-44 flex-shrink-0 border-r border-outline/40 dark:border-neutral-800/40 px-2 py-3 space-y-0.5">
-            {(['主题', '快捷键'] as NavItem[]).map((item) => (
+            {(['主题', '快捷键', 'Agent'] as NavItem[]).map((item) => (
               <button
                 key={item}
                 type="button"
@@ -73,8 +89,76 @@ export default function SettingsModal({ isDarkMode, setIsDarkMode, onClose }: Se
               <ThemeSection isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
             )}
             {activeNav === '快捷键' && <ShortcutsSection />}
+            {activeNav === 'Agent' && <AgentSection agent={agent} />}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function AgentSection({ agent }: { agent: AgentConnection }) {
+  const isConnecting = agent.status === 'connecting';
+  const isConnected = agent.status === 'connected';
+
+  return (
+    <div>
+      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">连接</p>
+
+      {/* Status row */}
+      <div className="flex items-center gap-2.5 mb-4">
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[agent.status]}`} />
+        <span className="text-[12.5px] font-medium text-gray-800 dark:text-gray-200">
+          {STATUS_LABEL[agent.status]}
+        </span>
+        {agent.sessionId && (
+          <span className="text-[11px] text-gray-400 dark:text-gray-500 font-mono">
+            {agent.sessionId.slice(0, 12)}
+          </span>
+        )}
+      </div>
+
+      {/* Error message */}
+      {agent.error && (
+        <div className="mb-4 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-[12px] text-red-700 dark:text-red-300">
+          {agent.error}
+        </div>
+      )}
+
+      {/* Endpoint (read-only for V1) */}
+      <div className="mb-4">
+        <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">服务地址</label>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-neutral-800/60 border border-outline/40 dark:border-neutral-800/50">
+          <span className="text-[12.5px] font-mono text-gray-700 dark:text-gray-300">
+            http://127.0.0.1:7821
+          </span>
+          <span className="text-[10px] text-gray-400 dark:text-gray-500">默认值</span>
+        </div>
+        <p className="mt-1 text-[10.5px] text-gray-400 dark:text-gray-500">
+          可通过 WORKHORSE_AGENT_ENDPOINT 环境变量修改
+        </p>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-2">
+        {isConnected ? (
+          <button
+            type="button"
+            onClick={() => agent.disconnect()}
+            className="px-4 py-1.5 rounded-lg border border-outline dark:border-neutral-700 text-[12px] font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+          >
+            断开连接
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => agent.reconnect()}
+            disabled={isConnecting}
+            className="px-4 py-1.5 rounded-lg bg-gray-800 dark:bg-gray-200 text-[12px] font-medium text-white dark:text-gray-800 hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isConnecting ? '连接中…' : '重新连接'}
+          </button>
+        )}
       </div>
     </div>
   );

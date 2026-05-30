@@ -42,11 +42,9 @@ use tauri::{AppHandle, Emitter};
 
 const DEFAULT_ENDPOINT: &str = "http://127.0.0.1:7821";
 const ENDPOINT_ENV: &str = "WORKHORSE_AGENT_ENDPOINT";
-// POST /v1/sessions requires provider+model+workdir. Provider/model default to
-// these and are env-overridable; workdir is supplied by the renderer (the
-// current project dir), falling back to the app process cwd when empty.
+// POST /v1/sessions requires provider+workdir; model is optional and falls back
+// to the sidecar's config `models.default` when omitted. Both are env-overridable.
 const DEFAULT_PROVIDER: &str = "anthropic";
-const DEFAULT_MODEL: &str = "claude-sonnet-4-6";
 const PROVIDER_ENV: &str = "WORKHORSE_AGENT_PROVIDER";
 const MODEL_ENV: &str = "WORKHORSE_AGENT_MODEL";
 const HTTP_TIMEOUT: Duration = Duration::from_secs(10);
@@ -88,6 +86,47 @@ impl AgentError {
     }
 }
 
+/// Expected protocol version. Must match `api.ProtocolVersion` in the Go sidecar.
+const EXPECTED_PROTOCOL_VERSION: &str = "1";
+
+/// Response shape from `GET /health`. Used by `agent_health_check` to verify
+/// identity and compatibility before attaching.
+#[derive(Debug, serde::Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct HealthInfo {
+    pub ok: bool,
+    pub version: String,
+    pub protocol_version: String,
+    pub capabilities: Vec<String>,
+}
+
+impl AgentBridge {
+    /// Probe `GET /health` on the configured endpoint. Returns a `HealthInfo`
+    /// on success, or an `AgentError` on failure:
+    ///   - `transient` — network error (unreachable, timeout)
+    ///   - `internal` — incompatible sidecar (protocol_version mismatch)
+    pub fn health_check(&self) -> Result<HealthInfo, AgentError> {
+        let endpoint = self.endpoint();
+        let resp = ureq::get(&format!("{endpoint}/health"))
+            .timeout(Duration::from_secs(3))
+            .call()
+            .map_err(|e| AgentError::transient(format!("sidecar unreachable: {e}")))?;
+        let info: HealthInfo = resp
+            .into_json()
+            .map_err(|e| AgentError::internal(format!("bad /health response: {e}")))?;
+        if !info.ok {
+            return Err(AgentError::internal("sidecar /health returned ok:false"));
+        }
+        if info.protocol_version != EXPECTED_PROTOCOL_VERSION {
+            return Err(AgentError::internal(format!(
+                "incompatible sidecar: protocol_version {} (expected {})",
+                info.protocol_version, EXPECTED_PROTOCOL_VERSION
+            )));
+        }
+        Ok(info)
+    }
+}
+
 /// Payload of `agent://tooluse/{sessionId}`. Field names are camelCase to match
 /// the TS `ToolUsePayload` interface in `src/agent/contract.ts`.
 #[derive(Serialize, Clone)]
@@ -110,6 +149,56 @@ struct PublishedPayload {
     session_id: String,
     registered: Value,
     rejected: Value,
+}
+
+/// Payload of `agent://text/{sessionId}` — assistant text delta relayed from the
+/// sidecar's `assistant_text_delta` SSE event.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct TextDeltaPayload {
+    session_id: String,
+    delta: String,
+}
+
+/// Payload of `agent://textdone/{sessionId}` — assistant text done relayed from
+/// the sidecar's `assistant_text_done` SSE event.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct TextDonePayload {
+    session_id: String,
+    message_id: String,
+    stop_reason: String,
+}
+
+/// Payload of `agent://toolstart/{sessionId}` — tool call start relayed from
+/// the sidecar's `tool_call_start` SSE event.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ToolStartPayload {
+    session_id: String,
+    tool_call_id: String,
+    name: String,
+    input: Value,
+}
+
+/// Payload of `agent://tooldone/{sessionId}` — tool call done relayed from
+/// the sidecar's `tool_call_done` SSE event.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ToolDonePayload {
+    session_id: String,
+    tool_call_id: String,
+}
+
+/// Payload of `agent://error/{sessionId}` — error from the sidecar relayed
+/// from the `error` SSE event (e.g. provider model not found).
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ErrorPayload {
+    session_id: String,
+    code: String,
+    message: String,
+    recoverable: bool,
 }
 
 /// One attached agent session: a stop flag and the SSE reader thread relaying
@@ -156,7 +245,9 @@ impl AgentBridge {
         let endpoint = self.endpoint();
         let provider =
             std::env::var(PROVIDER_ENV).unwrap_or_else(|_| DEFAULT_PROVIDER.to_string());
-        let model = std::env::var(MODEL_ENV).unwrap_or_else(|_| DEFAULT_MODEL.to_string());
+        // Model is optional: when WORKHORSE_AGENT_MODEL is unset, omit it so the
+        // sidecar falls back to its config's `models.default` (e.g. "anthropic:qwen3.6-plus").
+        let model_override = std::env::var(MODEL_ENV).ok();
         let workdir = if workdir.trim().is_empty() {
             std::env::current_dir()
                 .map(|p| p.to_string_lossy().into_owned())
@@ -164,13 +255,16 @@ impl AgentBridge {
         } else {
             workdir
         };
+        let mut body = json!({
+            "provider": provider,
+            "workdir": workdir,
+        });
+        if let Some(m) = model_override {
+            body["model"] = json!(m);
+        }
         let resp = ureq::post(&format!("{endpoint}/v1/sessions"))
             .timeout(HTTP_TIMEOUT)
-            .send_json(json!({
-                "provider": provider,
-                "model": model,
-                "workdir": workdir,
-            }))
+            .send_json(body)
             .map_err(|e| AgentError::transient(format!("sidecar unreachable: {e}")))?;
         let body: Value = resp
             .into_json()
@@ -197,6 +291,22 @@ impl AgentBridge {
             SessionHandle { stop, reader: Some(reader) },
         );
         Ok(session_id)
+    }
+
+    /// Send a user message to the sidecar session via POST /v1/sessions/{id}/stream.
+    /// The sidecar routes it to the agent's inbox and starts a turn.
+    pub fn send_message(&self, session_id: &str, content: &str) -> Result<(), AgentError> {
+        let endpoint = self.session_endpoint(session_id)?;
+        let url = format!("{endpoint}/v1/sessions/{session_id}/stream");
+        let body = json!({
+            "type": "user_message",
+            "content": content,
+        });
+        ureq::post(&url)
+            .timeout(HTTP_TIMEOUT)
+            .send_json(body)
+            .map_err(|e| AgentError::transient(format!("send_message failed: {e}")))?;
+        Ok(())
     }
 
     /// Forward a renderer `tool_result` upstream, correlated by `tool_use_id`.
@@ -375,6 +485,47 @@ fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &s
                 rejected: arr(event.get("rejected")),
             };
             let _ = app.emit(&format!("agent://published/{session_id}"), payload);
+        }
+        Some("assistant_text_delta") => {
+            let delta = event.get("delta").and_then(Value::as_str).unwrap_or_default();
+            let payload = TextDeltaPayload {
+                session_id: session_id.to_string(),
+                delta: delta.to_string(),
+            };
+            let _ = app.emit(&format!("agent://text/{session_id}"), payload);
+        }
+        Some("assistant_text_done") => {
+            let payload = TextDonePayload {
+                session_id: session_id.to_string(),
+                message_id: event.get("message_id").and_then(Value::as_str).unwrap_or_default().to_string(),
+                stop_reason: event.get("stop_reason").and_then(Value::as_str).unwrap_or_default().to_string(),
+            };
+            let _ = app.emit(&format!("agent://textdone/{session_id}"), payload);
+        }
+        Some("tool_call_start") => {
+            let payload = ToolStartPayload {
+                session_id: session_id.to_string(),
+                tool_call_id: event.get("tool_call_id").and_then(Value::as_str).unwrap_or_default().to_string(),
+                name: event.get("name").and_then(Value::as_str).unwrap_or_default().to_string(),
+                input: event.get("input").cloned().unwrap_or(Value::Null),
+            };
+            let _ = app.emit(&format!("agent://toolstart/{session_id}"), payload);
+        }
+        Some("tool_call_done") => {
+            let payload = ToolDonePayload {
+                session_id: session_id.to_string(),
+                tool_call_id: event.get("tool_call_id").and_then(Value::as_str).unwrap_or_default().to_string(),
+            };
+            let _ = app.emit(&format!("agent://tooldone/{session_id}"), payload);
+        }
+        Some("error") => {
+            let payload = ErrorPayload {
+                session_id: session_id.to_string(),
+                code: event.get("code").and_then(Value::as_str).unwrap_or_default().to_string(),
+                message: event.get("message").and_then(Value::as_str).unwrap_or_default().to_string(),
+                recoverable: event.get("recoverable").and_then(Value::as_bool).unwrap_or(false),
+            };
+            let _ = app.emit(&format!("agent://error/{session_id}"), payload);
         }
         _ => {}
     }
