@@ -1,17 +1,17 @@
-> Status: §2–§6 are implemented in the working branch (Rust bridge, TS hook, UI).
-> §1 is a cross-repo prerequisite in workhorse-agent (not yet done) and §7.2–7.5
+> Status: §1–§6 implemented (Go sidecar + Rust bridge + TS hook + UI). §7.2–7.5
 > are manual checks pending a Windows-native build with a running sidecar.
 
 ## 1. workhorse-agent (Go repo): 增强 GET /health
 
-Cross-repo, not done. This is the prerequisite for auto-connect to succeed: if the
-Go `/health` does not return `protocol_version`, the Rust `health_check` marks the
-sidecar incompatible (`internal` error) and stops retrying. Coordinate per
-`feedback_multi-agent-git-coordination`.
+Done in the workhorse-agent repo as openspec change `add-health-protocol-version`
+(branch `add-health-protocol-version`): `/health` now returns `protocol_version:"1"`
+and `capabilities:["frontend_tools","external_agents"]`. Both repos agree on the
+value `"1"` (Rust `EXPECTED_PROTOCOL_VERSION` ↔ Go `protocol.ProtocolVersion`),
+per `feedback_multi-agent-git-coordination`.
 
-- [ ] 1.1 在 `internal/api/health.go` 的 `handleHealth` 响应中新增 `protocol_version: "1"` 和 `capabilities: ["frontend_tools"]` 字段
-- [ ] 1.2 在 `internal/api/` 或 `internal/config/` 中定义 `ProtocolVersion = "1"` 和 `DefaultCapabilities` 常量
-- [ ] 1.3 确认 `GET /health` 继续免 bearer auth 和 Origin 检查
+- [x] 1.1 在 `internal/api/health.go` 的 `handleHealth` 响应中新增 `protocol_version: "1"` 和 `capabilities` 字段
+- [x] 1.2 在 `internal/api/protocol/protocol.go` 中定义 `ProtocolVersion = "1"` 和 `DefaultCapabilities` 常量
+- [x] 1.3 确认 `GET /health` 继续免 bearer auth 和 Origin 检查（无 middleware 改动）
 
 ## 2. Rust bridge: agent_health_check 命令
 
