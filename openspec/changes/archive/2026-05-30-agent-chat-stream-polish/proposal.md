@@ -30,11 +30,16 @@ interruption is one bridge command away.
 ### New Capabilities
 - `agent-chat-stop`: a user-driven stop control over the live agent stream, backed by
   a renderer→Rust→sidecar cancel command and the send/stop button state machine.
+- `agent-chat-stream-ux`: streaming readability requirements — stable (non-jittering)
+  bubbles/code-blocks during streaming, Shiki per-token syntax colouring, a block
+  background distinct from the bubble in both themes, horizontal scroll for long lines,
+  and a first-token avatar+blinking-star placeholder.
 
 ### Modified Capabilities
-- `chat-autoscroll`: tighten the anti-jitter contract so streaming does not move
-  already-rendered content (coalesced scroll across the code-block highlight swap).
-- `chat-reasoning`: unaffected (no requirement change) — listed only as a neighbour.
+<!-- None: chat-autoscroll's base spec is still in the in-progress agent-chat-polish
+     change and not yet archived in openspec/specs/, so the anti-jitter tightening is
+     captured as a requirement under the new agent-chat-stream-ux capability instead. -->
+
 
 ## Impact
 

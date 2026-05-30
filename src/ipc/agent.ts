@@ -132,6 +132,38 @@ export async function sendAgentMessage(content: string): Promise<Result<void>> {
   }
 }
 
+/** Cancel the active agent turn (real interrupt via the sidecar cancel endpoint).
+ *  Routes through the Rust `agent_cancel` command — the renderer makes no direct
+ *  network call to the sidecar (AGENTS.md boundary). */
+export async function cancelAgentMessage(): Promise<Result<void>> {
+  if (!isTauri() || !active) return notInTauri();
+  try {
+    await invoke('agent_cancel', { sessionId: active.sessionId });
+    return ok(undefined);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
+/** Permission decision values accepted by the sidecar. */
+export type PermissionDecision =
+  | 'allow_once' | 'allow_session' | 'allow_permanent' | 'deny' | 'deny_permanent';
+
+/** Answer a pending tool-permission prompt for the active session (routes
+ *  through the Rust `agent_permission_decision` command). */
+export async function sendPermissionDecision(
+  requestId: string,
+  decision: PermissionDecision,
+): Promise<Result<void>> {
+  if (!isTauri() || !active) return notInTauri();
+  try {
+    await invoke('agent_permission_decision', { sessionId: active.sessionId, requestId, decision });
+    return ok(undefined);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
 /** The active session ID, or null if not attached. */
 export function activeSessionId(): string | null {
   return active?.sessionId ?? null;

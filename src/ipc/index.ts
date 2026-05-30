@@ -33,7 +33,7 @@ export {
   onPtyOutput,
   onPtyExit,
 } from './pty';
-export { attachAgentSession, checkAgentHealth, detachAgentSession, sendAgentMessage, activeSessionId } from './agent';
-export type { HealthInfo } from './agent';
+export { attachAgentSession, checkAgentHealth, detachAgentSession, sendAgentMessage, cancelAgentMessage, sendPermissionDecision, activeSessionId } from './agent';
+export type { HealthInfo, PermissionDecision } from './agent';
 export { useAgentConnection } from './useAgentConnection';
 export type { AgentStatus, AgentConnection } from './useAgentConnection';

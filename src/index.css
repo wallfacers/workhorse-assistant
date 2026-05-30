@@ -180,7 +180,10 @@
    * Shiki with `defaultColor: false`, toggled by the `.dark` class.
    * ---------------------------------------------------------------- */
 
-  /* Shiki output wrapper */
+  /* Shiki output wrapper. `white-space: pre` keeps long lines from wrapping so
+   * the wrapper's `overflow-x: auto` produces a horizontal scrollbar instead of
+   * stretching the bubble. Padding/font-size/line-height MUST match the streaming
+   * <pre> below so the streaming→highlighted swap keeps a constant height. */
   .shiki-wrapper pre.shiki {
     margin: 0;
     padding: 12px;
@@ -189,42 +192,123 @@
     font-family: var(--font-mono);
     font-size: 11.5px;
     line-height: 1.625;
+    white-space: pre;
   }
   .dark .shiki-wrapper pre.shiki {
     color: var(--shiki-dark);
   }
 
-  /* Tokens: transparent background so the container bg shows through */
+  /* Tokens: consume Shiki's per-token colour variables (emitted with
+   * defaultColor:false). Without this `color` rule the variables are present but
+   * never applied, so every token inherits one flat colour. Background stays
+   * transparent so the container bg shows through. */
   .shiki-wrapper pre.shiki span {
+    color: var(--shiki-light);
     background: transparent !important;
   }
+  .dark .shiki-wrapper pre.shiki span {
+    color: var(--shiki-dark);
+  }
 
-  /* Code block container */
+  /* Code block container — background distinct from the message bubble
+   * (bubble = surface-muted / surface-dark) so code reads as a separate panel.
+   * Light: surface (#FFF, one step brighter than the muted bubble).
+   * Dark: surface-dark-muted (#1A202C, one step brighter than the near-black bubble). */
   [data-component="markdown-code"] {
-    background: var(--color-surface-muted);
+    background: var(--color-surface);
     border: 1px solid var(--color-outline);
   }
   .dark [data-component="markdown-code"] {
-    background: var(--color-surface-dark);
+    background: var(--color-surface-dark-muted);
     border-color: var(--color-outline-dark);
   }
 
-  /* Top bar */
+  /* Top bar — one step off the code body for separation. */
   [data-component="markdown-code"] [data-slot="markdown-code-bar"] {
-    background: var(--color-surface);
+    background: var(--color-surface-muted);
     border-bottom: 1px solid var(--color-outline);
   }
   .dark [data-component="markdown-code"] [data-slot="markdown-code-bar"] {
-    background: var(--color-surface-dark-elevated);
+    background: var(--color-surface-dark);
     border-bottom-color: var(--color-outline-dark);
   }
 
-  /* Streaming code (plain text) */
+  /* Streaming code (plain text, pre-highlight). Same metrics as pre.shiki so the
+   * swap to highlighted output does not change height; `white-space: pre` for
+   * horizontal scroll. */
   [data-component="markdown-code"] pre[data-streaming-code="true"] {
+    margin: 0;
+    padding: 12px;
     background: transparent;
     color: var(--color-on-surface);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.625;
+    white-space: pre;
+    overflow-x: auto;
   }
   .dark [data-component="markdown-code"] pre[data-streaming-code="true"] {
     color: var(--color-on-canvas-dark);
   }
+
+  /* ----------------------------------------------------------------
+   * Markdown body — element styling for the marked+morphdom renderer.
+   * marked emits bare HTML (no Tailwind classes), so block/inline elements
+   * are styled here to match the former react-markdown component look.
+   * ---------------------------------------------------------------- */
+  [data-component="markdown"] { font-size: 12.5px; line-height: 1.625; }
+  [data-component="markdown"] > :first-child { margin-top: 0; }
+  [data-component="markdown"] > :last-child { margin-bottom: 0; }
+  [data-component="markdown"] p { margin: 0 0 0.5rem; }
+  [data-component="markdown"] a {
+    color: #0b6477; text-decoration: underline;
+    text-decoration-color: rgb(11 100 119 / 0.4);
+  }
+  .dark [data-component="markdown"] a { color: #4dd0e1; text-decoration-color: rgb(77 208 225 / 0.4); }
+  [data-component="markdown"] a:hover { text-decoration-color: currentColor; }
+  [data-component="markdown"] h1 { font-size: 14px; font-weight: 600; margin: 0.75rem 0 0.375rem; }
+  [data-component="markdown"] h2 { font-size: 13px; font-weight: 600; margin: 0.625rem 0 0.25rem; }
+  [data-component="markdown"] h3,
+  [data-component="markdown"] h4 { font-size: 12.5px; font-weight: 600; margin: 0.5rem 0 0.25rem; }
+  [data-component="markdown"] ul { list-style: disc; padding-left: 1rem; margin: 0 0 0.5rem; }
+  [data-component="markdown"] ol { list-style: decimal; padding-left: 1rem; margin: 0 0 0.5rem; }
+  [data-component="markdown"] li { font-size: 12.5px; margin: 0.125rem 0; }
+  [data-component="markdown"] strong { font-weight: 600; }
+  /* Inline code (not inside a code block) → subtle pill. */
+  [data-component="markdown"] :not(pre) > code {
+    background: var(--color-surface-muted);
+    padding: 0.125rem 0.25rem; border-radius: 4px;
+    font-family: var(--font-mono); font-size: 11.5px;
+  }
+  .dark [data-component="markdown"] :not(pre) > code { background: rgb(38 38 38 / 1); }
+  [data-component="markdown"] blockquote {
+    border-left: 2px solid rgb(2 74 68 / 0.4); padding-left: 0.75rem;
+    margin: 0.5rem 0; font-style: italic; color: var(--color-on-surface-muted, #6b7280);
+  }
+  .dark [data-component="markdown"] blockquote { border-left-color: rgb(77 208 225 / 0.4); }
+  [data-component="markdown"] hr { margin: 0.75rem 0; border: 0; border-top: 1px solid var(--color-outline); }
+  .dark [data-component="markdown"] hr { border-top-color: var(--color-outline-dark); }
+  [data-component="markdown"] table { font-size: 11.5px; border-collapse: collapse; }
+  [data-component="markdown"] th,
+  [data-component="markdown"] td { border: 1px solid var(--color-outline); padding: 0.25rem 0.5rem; text-align: left; }
+  .dark [data-component="markdown"] th,
+  .dark [data-component="markdown"] td { border-color: var(--color-outline-dark); }
+  [data-component="markdown"] th { background: var(--color-surface-muted); font-weight: 600; }
+  .dark [data-component="markdown"] th { background: var(--color-surface-dark); }
+
+  /* First-token placeholder star (Claude-Code-CLI style): blinks while cycling
+   * through the avatar's gradient hues and settles toward the project theme
+   * colour (`--color-primary`) until the first token replaces it. */
+  .agent-pending-star {
+    animation: agent-star-pulse 1.6s ease-in-out infinite;
+    will-change: opacity, color;
+  }
+}
+
+@keyframes agent-star-pulse {
+  0%   { opacity: 0.4;  color: #f59e0b; } /* amber */
+  25%  { opacity: 1;    color: #ec4899; } /* pink */
+  50%  { opacity: 0.55; color: #6366f1; } /* indigo */
+  75%  { opacity: 1;    color: #06b6d4; } /* cyan */
+  100% { opacity: 0.4;  color: var(--color-primary); } /* settle toward theme */
 }

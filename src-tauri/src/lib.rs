@@ -120,6 +120,24 @@ fn agent_send_message(
     bridge.send_message(&session_id, &content)
 }
 
+#[tauri::command(async)]
+fn agent_cancel(
+    bridge: State<'_, AgentBridge>,
+    session_id: String,
+) -> Result<(), AgentError> {
+    bridge.cancel(&session_id)
+}
+
+#[tauri::command(async)]
+fn agent_permission_decision(
+    bridge: State<'_, AgentBridge>,
+    session_id: String,
+    request_id: String,
+    decision: String,
+) -> Result<(), AgentError> {
+    bridge.permission_decision(&session_id, &request_id, &decision)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -139,7 +157,9 @@ pub fn run() {
             agent_publish_catalog,
             agent_detach,
             agent_health_check,
-            agent_send_message
+            agent_send_message,
+            agent_cancel,
+            agent_permission_decision
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

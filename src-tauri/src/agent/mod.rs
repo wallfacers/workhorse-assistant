@@ -201,6 +201,23 @@ struct ErrorPayload {
     recoverable: bool,
 }
 
+/// Payload of `agent://permission_request/{sessionId}` — the agent needs the
+/// user to approve a tool call, relayed from the sidecar's authoritative
+/// `permission_request` SSE event (the one carrying `dangerous`/`reason`).
+/// Respond via the `agent_permission_decision` command. `dangerous` is true for
+/// sensitive operations (e.g. a dangerous Bash command) which the sidecar
+/// re-prompts every time regardless of a prior session allow.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PermissionRequestPayload {
+    session_id: String,
+    request_id: String,
+    tool: String,
+    resource: String,
+    dangerous: bool,
+    reason: String,
+}
+
 /// Payload of `agent://reasoning_start/{sessionId}` — a thinking block began,
 /// relayed from the sidecar's `reasoning_start` SSE event. `reasoningType` is
 /// `"thinking"` (carries deltas) or `"redacted"` (no deltas follow). `blockIndex`
@@ -339,6 +356,44 @@ impl AgentBridge {
             .timeout(HTTP_TIMEOUT)
             .send_json(body)
             .map_err(|e| AgentError::transient(format!("send_message failed: {e}")))?;
+        Ok(())
+    }
+
+    /// Cancel the active turn for a session via POST /v1/sessions/{id}/cancel.
+    /// The sidecar acks with `202 Accepted` and asks the agent run to stop; this
+    /// is best-effort interruption (the renderer finalises its own state too).
+    pub fn cancel(&self, session_id: &str) -> Result<(), AgentError> {
+        let endpoint = self.session_endpoint(session_id)?;
+        let url = format!("{endpoint}/v1/sessions/{session_id}/cancel");
+        ureq::post(&url)
+            .timeout(HTTP_TIMEOUT)
+            .call()
+            .map_err(|e| AgentError::transient(format!("cancel failed: {e}")))?;
+        Ok(())
+    }
+
+    /// Answer a pending permission prompt for a session by POSTing a
+    /// `permission_decision` client message to the stream endpoint. `decision`
+    /// is one of `allow_once`/`allow_session`/`allow_permanent`/`deny`/
+    /// `deny_permanent`; the blocked agent `Check()` reads it off the answers
+    /// channel and proceeds or denies the tool call.
+    pub fn permission_decision(
+        &self,
+        session_id: &str,
+        request_id: &str,
+        decision: &str,
+    ) -> Result<(), AgentError> {
+        let endpoint = self.session_endpoint(session_id)?;
+        let url = format!("{endpoint}/v1/sessions/{session_id}/stream");
+        let body = json!({
+            "type": "permission_decision",
+            "request_id": request_id,
+            "decision": decision,
+        });
+        ureq::post(&url)
+            .timeout(HTTP_TIMEOUT)
+            .send_json(body)
+            .map_err(|e| AgentError::transient(format!("permission_decision failed: {e}")))?;
         Ok(())
     }
 
@@ -556,7 +611,7 @@ fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &s
                 session_id: session_id.to_string(),
                 block_index: event.get("block_index").and_then(Value::as_i64).unwrap_or(0),
                 reasoning_type: event
-                    .get("type")
+                    .get("reasoning_type")
                     .and_then(Value::as_str)
                     .unwrap_or("thinking")
                     .to_string(),
@@ -577,6 +632,24 @@ fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &s
                 block_index: event.get("block_index").and_then(Value::as_i64).unwrap_or(0),
             };
             let _ = app.emit(&format!("agent://reasoning_end/{session_id}"), payload);
+        }
+        Some("permission_request") => {
+            // The sidecar emits two permission_request frames per gated call: a
+            // bare informational one (request_id = tool-call id, no `dangerous`)
+            // and the authoritative prompt (request_id = ULID, with `dangerous`
+            // /`reason`) whose id the PermissionAnswers channel matches. Only the
+            // latter is answerable — gate on the presence of `dangerous`.
+            if event.get("dangerous").is_some() {
+                let payload = PermissionRequestPayload {
+                    session_id: session_id.to_string(),
+                    request_id: event.get("request_id").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    tool: event.get("tool").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    resource: event.get("resource").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    dangerous: event.get("dangerous").and_then(Value::as_bool).unwrap_or(false),
+                    reason: event.get("reason").and_then(Value::as_str).unwrap_or_default().to_string(),
+                };
+                let _ = app.emit(&format!("agent://permission_request/{session_id}"), payload);
+            }
         }
         Some("error") => {
             let payload = ErrorPayload {

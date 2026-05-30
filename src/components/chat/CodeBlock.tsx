@@ -77,12 +77,14 @@ export default function CodeBlock({ language, code, streaming = false }: CodeBlo
   return (
     <div
       data-component="markdown-code"
-      className="my-2 rounded-md border border-outline/50 dark:border-outline-dark/60 overflow-hidden bg-surface-muted dark:bg-surface-dark"
+      className="my-2 rounded-md overflow-hidden"
     >
-      {/* Top bar: language label + copy button */}
+      {/* Top bar: language label + copy button. Background + borders come from
+          index.css (`[data-component="markdown-code"] …`) so the panel stays on
+          the design tokens and reads as distinct from the message bubble. */}
       <div
         data-slot="markdown-code-bar"
-        className="flex items-center justify-between px-3 py-1.5 border-b border-outline/40 dark:border-outline-dark/40 bg-surface dark:bg-surface-dark-elevated"
+        className="flex items-center justify-between px-3 py-1.5"
       >
         <span
           data-slot="markdown-code-language"

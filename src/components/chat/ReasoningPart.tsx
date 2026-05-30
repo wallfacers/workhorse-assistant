@@ -78,7 +78,7 @@ export default function ReasoningPart({
       </button>
 
       {open && (
-        <div className="rounded-md border border-outline/60 dark:border-neutral-800/60 bg-surface-muted/60 dark:bg-surface-dark/60 px-3 py-2 text-[12px] leading-relaxed text-gray-600 dark:text-gray-400">
+        <div className="pl-[19px] text-[12px] leading-relaxed text-gray-500 dark:text-gray-400">
           {redacted ? (
             <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-500 italic">
               <Lock className="w-3 h-3 flex-shrink-0" />
