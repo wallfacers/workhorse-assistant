@@ -77,7 +77,7 @@ export default function CodeBlock({ language, code, streaming = false }: CodeBlo
   return (
     <div
       data-component="markdown-code"
-      className="my-2 rounded-lg border border-outline/50 dark:border-outline-dark/60 overflow-hidden bg-surface-muted dark:bg-surface-dark"
+      className="my-2 rounded-md border border-outline/50 dark:border-outline-dark/60 overflow-hidden bg-surface-muted dark:bg-surface-dark"
     >
       {/* Top bar: language label + copy button */}
       <div

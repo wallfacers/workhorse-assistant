@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { ArrowDown, ArrowUp, Copy, LayoutList, Plus, Settings, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, Copy, LayoutList, Plus, Settings, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { MOCK_TASKS } from './agent-rail.mock';
 import type { MockTask } from './agent-rail.mock';
 import TaskListModal from './TaskListModal';
@@ -19,7 +19,8 @@ import ReasoningPart from './chat/ReasoningPart';
 type MessagePart =
   | { type: 'text'; content: string }
   | { type: 'reasoning'; text: string; status: 'streaming' | 'done'; redacted?: boolean; startedAt?: number; endedAt?: number }
-  | { type: 'tool_call'; id: string; name: string; input: unknown; status: 'running' | 'done' | 'error'; output?: unknown };
+  | { type: 'tool_call'; id: string; name: string; input: unknown; status: 'running' | 'done' | 'error'; output?: unknown }
+  | { type: 'error'; code: string; message: string };
 
 interface ChatMessage {
   id: string;
@@ -274,7 +275,7 @@ export default function AgentRail({
         setMessages((prev) => [...prev, {
           id: `e-${Date.now()}`,
           role: 'assistant',
-          parts: [{ type: 'text', content: `⚠️ **Error (${code})**: ${message}` }],
+          parts: [{ type: 'error', code, message }],
         }]);
       }));
     })();
@@ -299,7 +300,7 @@ export default function AgentRail({
   };
 
   const inputBox = (
-    <div className="bg-white dark:bg-surface-dark border border-outline dark:border-neutral-800 rounded-xl px-3 pt-2.5 pb-2 flex flex-col focus-within:ring-1 focus-within:ring-gray-300 dark:focus-within:ring-neutral-700 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.03)] overflow-hidden">
+    <div className="bg-white dark:bg-surface-dark border border-outline dark:border-neutral-800 rounded-lg px-3 pt-2.5 pb-2 flex flex-col focus-within:ring-1 focus-within:ring-gray-300 dark:focus-within:ring-neutral-700 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.03)] overflow-hidden">
       <textarea
         placeholder="请输入任务，交给我来完成"
         rows={3}
@@ -342,7 +343,7 @@ export default function AgentRail({
               {messages.map((msg) => (
                 msg.role === 'user' ? (
                   <div key={msg.id} className="flex justify-end">
-                    <div className="max-w-[85%] bg-pink-50 dark:bg-pink-950/40 rounded-xl px-3.5 py-2.5 text-pink-900 dark:text-pink-200 text-[12.5px] leading-relaxed shadow-sm">
+                    <div className="max-w-[85%] bg-pink-50 dark:bg-pink-950/40 rounded-lg px-3.5 py-2.5 text-pink-900 dark:text-pink-200 text-[12.5px] leading-relaxed shadow-sm">
                       {msg.parts.filter((p) => p.type === 'text').map((p) => (p as { content: string }).content).join('')}
                     </div>
                   </div>
@@ -352,7 +353,7 @@ export default function AgentRail({
                       W
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="min-h-[36px] bg-surface-muted dark:bg-surface-dark rounded-xl px-3.5 py-2.5 text-gray-800 dark:text-gray-200 text-[12.5px] leading-relaxed border border-outline/50 dark:border-neutral-800/60">
+                      <div className="min-h-[36px] bg-surface-muted dark:bg-surface-dark rounded-lg px-3.5 py-2.5 text-gray-800 dark:text-gray-200 text-[12.5px] leading-relaxed border border-outline/50 dark:border-neutral-800/60">
                         {msg.parts.map((part, i) => {
                           if (part.type === 'reasoning') {
                             return (
@@ -383,6 +384,20 @@ export default function AgentRail({
                                 key={`tool-${part.id}`}
                                 tool={{ name: part.name, input: part.input, status: part.status, output: part.output }}
                               />
+                            );
+                          }
+                          if (part.type === 'error') {
+                            return (
+                              <div
+                                key={`error-${i}`}
+                                className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
+                              >
+                                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                                <div>
+                                  <span className="font-medium">Error ({part.code})</span>
+                                  <span className="ml-1">{part.message}</span>
+                                </div>
+                              </div>
                             );
                           }
                           return null;
@@ -419,7 +434,7 @@ export default function AgentRail({
         <div className="flex-1 flex items-center justify-center px-3">
           <div className="w-full max-w-[360px]">
             <div className="text-center mb-4">
-              <div className="w-10 h-10 mx-auto rounded-xl bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow-sm mb-3">W</div>
+              <div className="w-10 h-10 mx-auto rounded-lg bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow-sm mb-3">W</div>
               <p className="text-gray-500 dark:text-gray-400 text-[12px]">有什么可以帮你的？</p>
             </div>
             {inputBox}
@@ -435,8 +450,8 @@ export default function AgentRail({
           <span className="text-[12.5px] font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[120px]">wallfacers</span>
         </div>
         <div className="flex items-center gap-1">
-          <button type="button" onClick={() => setModalOpen(true)} className="p-1.5 rounded-xl hover:bg-gray-200/80 dark:hover:bg-neutral-800 text-gray-500 dark:text-gray-400 transition-colors" title="任务列表" aria-label="打开任务列表"><LayoutList className="w-4 h-4" /></button>
-          <button type="button" onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-xl hover:bg-gray-200/80 dark:hover:bg-neutral-800 text-gray-500 dark:text-gray-400 transition-colors" title="设置" aria-label="打开设置"><Settings className="w-4 h-4" /></button>
+          <button type="button" onClick={() => setModalOpen(true)} className="p-1.5 rounded-lg hover:bg-gray-200/80 dark:hover:bg-neutral-800 text-gray-500 dark:text-gray-400 transition-colors" title="任务列表" aria-label="打开任务列表"><LayoutList className="w-4 h-4" /></button>
+          <button type="button" onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-lg hover:bg-gray-200/80 dark:hover:bg-neutral-800 text-gray-500 dark:text-gray-400 transition-colors" title="设置" aria-label="打开设置"><Settings className="w-4 h-4" /></button>
         </div>
       </div>
 

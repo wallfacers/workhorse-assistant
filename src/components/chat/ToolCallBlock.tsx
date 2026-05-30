@@ -35,9 +35,9 @@ export default function ToolCallBlock({ tool }: { tool: ToolCallData }) {
     <details
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="my-1.5 rounded-lg border border-outline/40 dark:border-neutral-700/50 bg-surface-muted/60 dark:bg-neutral-800/40"
+      className="my-1.5 rounded-md border border-outline/40 dark:border-neutral-700/50 bg-surface-muted/60 dark:bg-neutral-800/40"
     >
-      <summary className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none text-[11.5px] hover:bg-gray-100/60 dark:hover:bg-neutral-800/60 rounded-lg transition-colors">
+      <summary className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none text-[11.5px] hover:bg-gray-100/60 dark:hover:bg-neutral-800/60 rounded-md transition-colors">
         {open ? (
           <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
         ) : (
@@ -56,7 +56,7 @@ export default function ToolCallBlock({ tool }: { tool: ToolCallData }) {
           {tool.input !== undefined && (
             <div>
               <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-0.5">输入</p>
-              <pre className="text-[10.5px] font-mono bg-white dark:bg-neutral-900 rounded-md p-2 overflow-x-auto custom-scrollbar text-gray-700 dark:text-gray-300 border border-outline/30 dark:border-neutral-700/40">
+              <pre className="text-[10.5px] font-mono bg-white dark:bg-neutral-900 rounded p-2 overflow-x-auto custom-scrollbar text-gray-700 dark:text-gray-300 border border-outline/30 dark:border-neutral-700/40">
                 {typeof tool.input === 'string' ? tool.input : JSON.stringify(tool.input, null, 2)}
               </pre>
             </div>
@@ -64,7 +64,7 @@ export default function ToolCallBlock({ tool }: { tool: ToolCallData }) {
           {tool.output !== undefined && (
             <div>
               <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-0.5">输出</p>
-              <pre className="text-[10.5px] font-mono bg-white dark:bg-neutral-900 rounded-md p-2 overflow-x-auto custom-scrollbar text-gray-700 dark:text-gray-300 border border-outline/30 dark:border-neutral-700/40">
+              <pre className="text-[10.5px] font-mono bg-white dark:bg-neutral-900 rounded p-2 overflow-x-auto custom-scrollbar text-gray-700 dark:text-gray-300 border border-outline/30 dark:border-neutral-700/40">
                 {typeof tool.output === 'string' ? tool.output : JSON.stringify(tool.output, null, 2)}
               </pre>
             </div>
