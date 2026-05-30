@@ -22,7 +22,7 @@ export default function App() {
       return false;
     }
   });
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const tauri = isTauri();
   const { maximized, fullscreen } = useWindowState();
   const agent = useAgentConnection();
