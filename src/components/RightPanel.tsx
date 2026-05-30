@@ -19,6 +19,15 @@ export default function RightPanel({ onClose }: RightPanelProps) {
     <div className="w-[340px] md:w-[400px] lg:w-[460px] xl:w-[540px] 2xl:w-[600px] bg-white dark:bg-surface-dark-elevated flex flex-col h-full flex-shrink-0 rounded-2xl lg:rounded-lg border border-outline dark:border-neutral-800 overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.015)]">
       {/* Tab bar — no separate header above this */}
       <div className="px-3 pt-2.5 pb-2 flex items-center gap-2 flex-shrink-0">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Collapse work panel"
+          title="收起工作台"
+          className="flex-shrink-0 p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-neutral-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        >
+          <PanelRightClose className="w-4 h-4" />
+        </button>
         <div className="flex-1 flex bg-outline/60 dark:bg-neutral-800/80 p-1 rounded-xl">
           {tabs.map((tab) => (
             <button
@@ -35,15 +44,6 @@ export default function RightPanel({ onClose }: RightPanelProps) {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Collapse work panel"
-          title="收起工作台"
-          className="flex-shrink-0 p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-neutral-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-        >
-          <PanelRightClose className="w-4 h-4" />
-        </button>
       </div>
 
       {/* Tab content — full remaining height */}
