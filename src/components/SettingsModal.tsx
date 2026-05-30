@@ -2,16 +2,12 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Moon, Sun, X } from 'lucide-react';
 import type { AgentConnection } from '../ipc';
+import { useApp } from '../context';
 
 type NavItem = '主题' | '快捷键' | 'Agent';
 
 interface SettingsModalProps {
-  isDarkMode: boolean;
-  setIsDarkMode: (dark: boolean) => void;
   onClose: () => void;
-  agent: AgentConnection;
-  autoExpandReasoning: boolean;
-  setAutoExpandReasoning: (v: boolean) => void;
 }
 
 const SHORTCUTS: { key: string; desc: string }[] = [
@@ -41,7 +37,8 @@ const STATUS_DOT: Record<AgentConnection['status'], string> = {
   error: 'bg-red-500',
 };
 
-export default function SettingsModal({ isDarkMode, setIsDarkMode, onClose, agent, autoExpandReasoning, setAutoExpandReasoning }: SettingsModalProps) {
+export default function SettingsModal({ onClose }: SettingsModalProps) {
+  const { isDarkMode, setIsDarkMode, agent, autoExpandReasoning, setAutoExpandReasoning } = useApp();
   const [activeNav, setActiveNav] = useState<NavItem>('主题');
 
   return (

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -13,7 +13,7 @@ import {
   writeClipboardText,
   type ProfileId,
 } from '../ipc';
-import { DarkModeCtx } from '../App';
+import { useApp } from '../context';
 
 const RESIZE_DEBOUNCE_MS = 80;
 
@@ -82,7 +82,7 @@ interface TerminalProps {
 export default function Terminal({ profileId, onTitle }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
-  const isDark = useContext(DarkModeCtx);
+  const isDark = useApp().isDarkMode;
 
   // Sync xterm theme when dark mode changes.
   // xterm.css defaults .xterm-viewport to #000; we must force the viewport

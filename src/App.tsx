@@ -1,14 +1,14 @@
-import { createContext, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PanelRightOpen } from 'lucide-react';
 import AgentRail from './components/AgentRail';
+import ErrorBoundary from './components/ErrorBoundary';
 import TerminalWorkspace from './components/terminal/TerminalWorkspace';
 import RightPanel from './components/RightPanel';
 import TitleBar from './components/TitleBar';
 import WindowResizeHandles from './components/WindowResizeHandles';
 import { isTauri, useWindowState, useAgentConnection } from './ipc';
 import { registerFallbackTools, republishCatalog } from './agent';
-
-export const DarkModeCtx = createContext(false);
+import { AppContext } from './context';
 
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -65,23 +65,29 @@ export default function App() {
     };
   }, []);
 
+  const appContextValue = {
+    isDarkMode,
+    setIsDarkMode,
+    autoExpandReasoning,
+    setAutoExpandReasoning,
+    agent,
+  };
+
   return (
-    <DarkModeCtx value={isDarkMode}>
+    <AppContext value={appContextValue}>
     <div
       className={`${isDarkMode ? 'dark' : ''} ${floating ? 'rounded-xl border border-outline dark:border-neutral-800' : ''} relative h-screen w-screen flex flex-col overflow-hidden bg-surface-muted dark:bg-surface-dark text-on-canvas dark:text-on-canvas-dark font-sans`}
     >
       <TitleBar maximized={maximized} />
 
       <div className="flex-1 min-h-0 w-full flex p-3.5 gap-3.5 overflow-hidden">
-        <AgentRail
-          isDarkMode={isDarkMode}
-          setIsDarkMode={setIsDarkMode}
-          agent={agent}
-          autoExpandReasoning={autoExpandReasoning}
-          setAutoExpandReasoning={setAutoExpandReasoning}
-        />
+        <ErrorBoundary name="Chat">
+          <AgentRail />
+        </ErrorBoundary>
         <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
-          <TerminalWorkspace />
+          <ErrorBoundary name="Terminal">
+            <TerminalWorkspace />
+          </ErrorBoundary>
         </div>
         {rightPanelOpen ? (
           <RightPanel onClose={() => setRightPanelOpen(false)} />
@@ -104,6 +110,6 @@ export default function App() {
 
     </div>
     {floating && <WindowResizeHandles />}
-    </DarkModeCtx>
+    </AppContext>
   );
 }
