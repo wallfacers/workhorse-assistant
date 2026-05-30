@@ -80,14 +80,14 @@ function PermissionCard({ part, onDecide }: {
           <button
             type="button"
             onClick={() => onDecide(requestId, 'allow_session')}
-            className="px-2.5 py-1 rounded-md text-[11.5px] font-semibold bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-800 hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors"
+            className="px-2.5 py-1 rounded text-[11.5px] font-semibold bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-800 hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors"
           >
             允许
           </button>
           <button
             type="button"
             onClick={() => onDecide(requestId, 'deny')}
-            className="px-2.5 py-1 rounded-md text-[11.5px] font-semibold border border-outline dark:border-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+            className="px-2.5 py-1 rounded text-[11.5px] font-semibold border border-outline dark:border-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
           >
             拒绝
           </button>

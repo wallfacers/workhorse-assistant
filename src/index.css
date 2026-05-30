@@ -180,13 +180,31 @@
    * Shiki with `defaultColor: false`, toggled by the `.dark` class.
    * ---------------------------------------------------------------- */
 
-  /* Shiki output wrapper. `white-space: pre` keeps long lines from wrapping so
-   * the wrapper's `overflow-x: auto` produces a horizontal scrollbar instead of
-   * stretching the bubble. Padding/font-size/line-height MUST match the streaming
-   * <pre> below so the streaming→highlighted swap keeps a constant height. */
+  /* Shiki output wrapper IS the horizontal-scroll container for highlighted code.
+   * It stays at the bubble width (block, width:auto, capped at 100%) while the
+   * non-wrapping `pre.shiki` lines overflow INTO it, so the scrollbar lands on the
+   * code block. Without this, the overflow escapes up to the message list — whose
+   * `overflow-y:auto` forces `overflow-x` to compute to `auto` — and the whole
+   * panel scrolls horizontally with code spilling past the window edge. */
+  .shiki-wrapper {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
+  /* `white-space: pre` keeps long lines from wrapping so the wrapper's
+   * `overflow-x: auto` produces a horizontal scrollbar instead of stretching the
+   * bubble. Padding/font-size/line-height MUST match the streaming <pre> below so
+   * the streaming→highlighted swap keeps a constant height. */
   .shiki-wrapper pre.shiki {
     margin: 0;
     padding: 12px;
+    /* width:max-content grows the <pre> box to the longest line so it genuinely
+     * exceeds the wrapper — only then does the wrapper's overflow-x:auto produce a
+     * scrollbar (a block child at width:auto stays wrapper-width and its text
+     * overflow is silently clipped by the container's overflow:hidden instead).
+     * min-width:100% keeps short snippets filling the wrapper. */
+    width: max-content;
+    min-width: 100%;
     background: transparent !important;
     color: var(--shiki-light);
     font-family: var(--font-mono);
@@ -215,22 +233,67 @@
    * Light: surface (#FFF, one step brighter than the muted bubble).
    * Dark: surface-dark-muted (#1A202C, one step brighter than the near-black bubble). */
   [data-component="markdown-code"] {
+    margin: 0.5rem 0;                /* my-2 */
     background: var(--color-surface);
     border: 1px solid var(--color-outline);
+    border-radius: 1rem;             /* rounded-2xl (16px) — bumped up further per request */
+    overflow: hidden;                /* clip bar + code body to the rounded corners */
   }
   .dark [data-component="markdown-code"] {
     background: var(--color-surface-dark-muted);
     border-color: var(--color-outline-dark);
   }
 
-  /* Top bar — one step off the code body for separation. */
+  /* Top bar — flex row: language label on the left, copy button on the right.
+   * One step off the code body for separation. */
   [data-component="markdown-code"] [data-slot="markdown-code-bar"] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.25rem 0.75rem;        /* py-1 px-3 */
     background: var(--color-surface-muted);
     border-bottom: 1px solid var(--color-outline);
   }
   .dark [data-component="markdown-code"] [data-slot="markdown-code-bar"] {
     background: var(--color-surface-dark);
     border-bottom-color: var(--color-outline-dark);
+  }
+
+  /* Language label (left). */
+  [data-component="markdown-code"] [data-slot="markdown-code-language"] {
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    color: #6b7280;                  /* gray-500 */
+  }
+  .dark [data-component="markdown-code"] [data-slot="markdown-code-language"] {
+    color: #9ca3af;                  /* gray-400 */
+  }
+
+  /* Copy button (right) — icon button with a subtle hover wash. */
+  [data-component="markdown-code"] [data-slot="markdown-copy-button"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;                /* p-1 */
+    border: 0;
+    border-radius: 0.25rem;          /* rounded */
+    background: transparent;
+    color: #9ca3af;                  /* gray-400 */
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  [data-component="markdown-code"] [data-slot="markdown-copy-button"]:hover {
+    background: rgb(229 231 235 / 0.6);   /* gray-200/60 */
+    color: #4b5563;                        /* gray-600 */
+  }
+  .dark [data-component="markdown-code"] [data-slot="markdown-copy-button"] {
+    color: #6b7280;                  /* gray-500 */
+  }
+  .dark [data-component="markdown-code"] [data-slot="markdown-copy-button"]:hover {
+    background: rgb(64 64 64 / 0.6);      /* neutral-700/60 */
+    color: #d1d5db;                        /* gray-300 */
   }
 
   /* Streaming code (plain text, pre-highlight). Same metrics as pre.shiki so the

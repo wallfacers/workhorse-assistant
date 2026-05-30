@@ -59,7 +59,7 @@ function langLabel(lang: string): string {
 }
 
 const STREAMING_CODE_BODY_STYLE =
-  'display:block;white-space:pre;word-break:normal;overflow-wrap:normal;min-height:1.5em';
+  'display:block;white-space:pre;word-break:normal;overflow-wrap:normal;min-height:1.5em;width:max-content;min-width:100%';
 
 /** Stable HTML for the trailing open (streaming) code fence — plain escaped text
  *  with a trailing newline so the stream-code → highlighted swap is a no-op diff. */
