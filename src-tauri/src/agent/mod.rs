@@ -201,6 +201,31 @@ struct ErrorPayload {
     recoverable: bool,
 }
 
+/// Payload of `agent://connection_lost/{sessionId}` — SSE reader detected
+/// the stream dropped. Emitted once per disconnect cycle; not re-emitted on
+/// each reconnect attempt.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ConnectionLostPayload {
+    session_id: String,
+}
+
+/// Payload of `agent://connection_restored/{sessionId}` — SSE reader
+/// reconnected after a prior `connection_lost`.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ConnectionRestoredPayload {
+    session_id: String,
+}
+
+/// Payload of `agent://connection_failed/{sessionId}` — SSE reader gave up
+/// after RECONNECT_MAX_ATTEMPTS. The reader thread will exit.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ConnectionFailedPayload {
+    session_id: String,
+}
+
 /// Payload of `agent://permission_request/{sessionId}` — the agent needs the
 /// user to approve a tool call, relayed from the sidecar's authoritative
 /// `permission_request` SSE event (the one carrying `dangerous`/`reason`).
@@ -494,10 +519,21 @@ fn spawn_sse_reader(
     std::thread::spawn(move || {
         let url = format!("{endpoint}/v1/sessions/{session_id}/stream");
         let mut attempts: u32 = 0;
+        let mut lost_emitted: bool = false;
 
         while !stop.load(Ordering::SeqCst) {
             match ureq::get(&url).call() {
                 Ok(resp) => {
+                    // Reconnected (or first connect).
+                    if lost_emitted {
+                        let _ = app.emit(
+                            &format!("agent://connection_restored/{session_id}"),
+                            ConnectionRestoredPayload {
+                                session_id: session_id.clone(),
+                            },
+                        );
+                        lost_emitted = false;
+                    }
                     attempts = 0;
                     let reader = BufReader::new(resp.into_reader());
                     let mut data = String::new();
@@ -507,7 +543,19 @@ fn spawn_sse_reader(
                         }
                         let line = match line {
                             Ok(l) => l,
-                            Err(_) => break, // stream error → reconnect
+                            Err(_) => {
+                                // Stream error — emit connection_lost once.
+                                if !lost_emitted {
+                                    let _ = app.emit(
+                                        &format!("agent://connection_lost/{session_id}"),
+                                        ConnectionLostPayload {
+                                            session_id: session_id.clone(),
+                                        },
+                                    );
+                                    lost_emitted = true;
+                                }
+                                break; // → reconnect
+                            }
                         };
                         if line.is_empty() {
                             // Blank line terminates an SSE event.
@@ -521,8 +569,24 @@ fn spawn_sse_reader(
                     // Stream closed cleanly; loop to resubscribe unless stopping.
                 }
                 Err(_) => {
+                    // Connection refused / network error.
+                    if !lost_emitted {
+                        let _ = app.emit(
+                            &format!("agent://connection_lost/{session_id}"),
+                            ConnectionLostPayload {
+                                session_id: session_id.clone(),
+                            },
+                        );
+                        lost_emitted = true;
+                    }
                     attempts += 1;
                     if attempts > RECONNECT_MAX_ATTEMPTS {
+                        let _ = app.emit(
+                            &format!("agent://connection_failed/{session_id}"),
+                            ConnectionFailedPayload {
+                                session_id: session_id.clone(),
+                            },
+                        );
                         return; // give up; renderer attach can retry later
                     }
                     std::thread::sleep(Duration::from_millis(
