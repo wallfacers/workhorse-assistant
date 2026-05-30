@@ -1,12 +1,13 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import CodeBlock from './CodeBlock';
 
 /**
  * Lightweight markdown renderer for chat messages.
  *
  * Adapts data-talk's markdown streaming approach (partial fence stripping,
  * consistent code block layout) to workhorse's design tokens:
- *   - Code blocks: `font-mono`, dark bg, `rounded-lg`
+ *   - Code blocks: delegated to `CodeBlock` (Shiki highlighting, copy, label)
  *   - Inline code: subtle bg, `rounded`
  *   - Links: secondary colour, underline on hover
  *   - Base size: `text-[12.5px]` (matches AgentRail bubble)
@@ -33,17 +34,14 @@ export default function MarkdownContent({ content, streaming = false }: Markdown
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        // --- Code blocks (fenced) ---
+        // --- Code blocks (fenced) → CodeBlock; inline → pill ---
         code({ className, children, ...props }) {
-          const isBlock = className?.startsWith('language-') || String(children).includes('\n');
-          if (isBlock) {
+          // Fenced code has className like "language-python"
+          if (className?.startsWith('language-')) {
+            const language = className.replace(/^language-/, '');
+            const code = String(children).replace(/\n$/, '');
             return (
-              <code
-                className={`${className ?? ''} block font-mono text-[11.5px] leading-relaxed`}
-                {...props}
-              >
-                {children}
-              </code>
+              <CodeBlock language={language} code={code} streaming={streaming} />
             );
           }
           // Inline code
@@ -56,13 +54,9 @@ export default function MarkdownContent({ content, streaming = false }: Markdown
             </code>
           );
         },
-        // --- Pre blocks (code block wrapper) ---
+        // --- Pre blocks: thin pass-through (CodeBlock renders its own <pre>) ---
         pre({ children }) {
-          return (
-            <pre className="my-2 p-3 rounded-lg bg-gray-900 dark:bg-neutral-900 text-gray-100 overflow-x-auto custom-scrollbar text-[11.5px] leading-relaxed">
-              {children}
-            </pre>
-          );
+          return <>{children}</>;
         },
         // --- Paragraphs ---
         p({ children }) {

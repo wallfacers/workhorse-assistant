@@ -1,102 +1,242 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 /**
- * Auto-scroll hook inspired by data-talk's `use-auto-scroll.ts`.
+ * Auto-scroll hook — jitter-free follow-the-bottom for chat message lists.
  *
- * Uses MutationObserver (not React state deps) to detect content growth and
- * scroll to bottom synchronised with browser paint (RAF). A wheel-listener
- * detects upward scroll intent and pauses following until the user sends a
- * new message (via `resetFollow()`) or clicks the scroll-to-bottom button.
- *
- * Anti-jitter techniques ported from data-talk:
- *   - MutationObserver fires before React state → one frame less latency
- *   - RAF scheduling → synchronous with browser paint
- *   - FOLLOW_THRESHOLD (120 px) → stays anchored if close to bottom
- *   - `overflow-anchor: auto` in CSS handles content-above changes
+ * Ported from data-talk's frame-level suppression mechanism:
+ *   - `useAutoScroll(deps, resetDeps)` signature
+ *   - Frame-level mutation suppression coalesces layout-effect + observer scrolls
+ *   - `scheduleFollow()` rAF guard: ≤ one follow-scroll per frame
+ *   - `ResizeObserver` shares the same `handleContentGrowth` handler
+ *   - Strict-bottom re-engage (≤ 2px)
+ *   - Wheel + touch upward-intent detection pauses following
+ *   - Two `useLayoutEffect`s: deps → structural scroll; resetDeps → forced re-follow
  */
 
-const FOLLOW_THRESHOLD_PX = 120;
+const STRICT_BOTTOM_PX = 2;
 
 interface AutoScroll {
-  /** True when the container is within FOLLOW_THRESHOLD of the bottom. */
+  /** Callback ref — attach to the scroll container element. */
+  ref: (el: HTMLDivElement | null) => void;
+  /** True when the container is within STRICT_BOTTOM_PX of the bottom. */
   isAtBottom: boolean;
-  /** Scroll to the very bottom immediately. */
+  /** Scroll to the very bottom immediately (also re-enables following). */
   scrollToBottom: () => void;
-  /** Call when the user sends a new message — re-enables following. */
-  resetFollow: () => void;
 }
 
-export function useAutoScroll(containerRef: RefObject<HTMLDivElement | null>): AutoScroll {
+export function useAutoScroll(
+  deps: React.DependencyList,
+  resetDeps: React.DependencyList,
+): AutoScroll {
   const [isAtBottom, setIsAtBottom] = useState(true);
+
+  // --- Refs ---
+  const containerEl = useRef<HTMLDivElement | null>(null);
   const following = useRef(true);
-  const rafId = useRef<number | null>(null);
-  const suppressWheelRef = useRef(false);
+  const lastScrollTop = useRef(0);
 
-  const measureBottom = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < FOLLOW_THRESHOLD_PX;
-  }, [containerRef]);
+  // Mutation suppression
+  const suppressMutationScrolls = useRef(false);
+  const pendingFollowAfterSuppression = useRef(false);
+  const releaseMutationSuppressionFrame = useRef<number | null>(null);
 
-  const scrollToBottom = useCallback(() => {
-    const el = containerRef.current;
+  // rAF follow dedup
+  const followFrame = useRef<number | null>(null);
+
+  // Observers (stored so cleanup can disconnect)
+  const mutationObserver = useRef<MutationObserver | null>(null);
+  const resizeObserver = useRef<ResizeObserver | null>(null);
+
+  // Touch tracking
+  const touchStartY = useRef<number | null>(null);
+
+  // --- Helpers ---
+
+  const distanceFromBottom = useCallback(() => {
+    const el = containerEl.current;
+    if (!el) return 0;
+    return el.scrollHeight - el.scrollTop - el.clientHeight;
+  }, []);
+
+  const doScrollToBottom = useCallback(() => {
+    const el = containerEl.current;
     if (!el) return;
-    // Use instant (not smooth) to avoid mid-animation jitter
     el.scrollTop = el.scrollHeight;
+    following.current = true;
     setIsAtBottom(true);
-    following.current = true;
-  }, [containerRef]);
+  }, []);
 
-  const resetFollow = useCallback(() => {
-    following.current = true;
-    // Immediately scroll to bottom on new send
-    scrollToBottom();
-  }, [scrollToBottom]);
+  // --- scheduleFollow: rAF-deduped follow scroll (≤1 per frame) ---
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    // --- MutationObserver: detect content growth → scroll if following ---
-    const mo = new MutationObserver(() => {
+  const scheduleFollow = useCallback(() => {
+    if (followFrame.current !== null) return; // already scheduled
+    followFrame.current = requestAnimationFrame(() => {
+      followFrame.current = null;
       if (!following.current) return;
-      // Cancel any pending RAF to coalesce rapid mutations
-      if (rafId.current !== null) cancelAnimationFrame(rafId.current);
-      rafId.current = requestAnimationFrame(() => {
-        rafId.current = null;
-        if (!following.current) return;
-        el.scrollTop = el.scrollHeight;
-        setIsAtBottom(true);
-      });
+      doScrollToBottom();
     });
-    mo.observe(el, { childList: true, subtree: true, characterData: true });
+  }, [doScrollToBottom]);
 
-    // --- Wheel listener: detect upward scroll intent → stop following ---
-    const onWheel = (e: WheelEvent) => {
-      if (suppressWheelRef.current) return;
-      if (e.deltaY < 0 && following.current) {
-        // User scrolled up → stop following
-        following.current = false;
-        setIsAtBottom(false);
+  // --- handleContentGrowth: shared handler for mutation + resize ---
+
+  const handleContentGrowth = useCallback(() => {
+    if (!following.current) return;
+    scheduleFollow();
+  }, [scheduleFollow]);
+
+  // --- suppressMutationsUntilNextFrame ---
+
+  const suppressMutationsUntilNextFrame = useCallback(() => {
+    suppressMutationScrolls.current = true;
+    pendingFollowAfterSuppression.current = false;
+    if (releaseMutationSuppressionFrame.current !== null) {
+      cancelAnimationFrame(releaseMutationSuppressionFrame.current);
+    }
+    releaseMutationSuppressionFrame.current = requestAnimationFrame(() => {
+      releaseMutationSuppressionFrame.current = null;
+      suppressMutationScrolls.current = false;
+      if (pendingFollowAfterSuppression.current) {
+        pendingFollowAfterSuppression.current = false;
+        handleContentGrowth();
+      }
+    });
+  }, [handleContentGrowth]);
+
+  // --- Callback ref (sets up / tears down observers) ---
+
+  const ref = useCallback(
+    (el: HTMLDivElement | null) => {
+      // Tear down previous observers
+      mutationObserver.current?.disconnect();
+      resizeObserver.current?.disconnect();
+      containerEl.current = el;
+      if (!el) return;
+
+      // MutationObserver: detect content growth → scroll if following
+      const mo = new MutationObserver(() => {
+        if (suppressMutationScrolls.current) {
+          // Record a pending follow instead of scrolling immediately
+          if (following.current) {
+            pendingFollowAfterSuppression.current = true;
+          }
+          return;
+        }
+        handleContentGrowth();
+      });
+      mo.observe(el, { childList: true, subtree: true, characterData: true });
+      mutationObserver.current = mo;
+
+      // ResizeObserver: late layout changes (highlight, images)
+      const ro = new ResizeObserver(() => {
+        if (suppressMutationScrolls.current) {
+          if (following.current) {
+            pendingFollowAfterSuppression.current = true;
+          }
+          return;
+        }
+        handleContentGrowth();
+      });
+      ro.observe(el);
+      resizeObserver.current = ro;
+
+      // --- Wheel listener: upward intent → pause following ---
+      const onWheel = (e: WheelEvent) => {
+        if (e.deltaY < 0) {
+          following.current = false;
+          setIsAtBottom(false);
+        }
+      };
+      el.addEventListener('wheel', onWheel, { passive: true });
+
+      // --- Touch listeners: downward finger → pause following ---
+      const onTouchStart = (e: TouchEvent) => {
+        touchStartY.current = e.touches[0]?.clientY ?? null;
+      };
+      const onTouchMove = (e: TouchEvent) => {
+        if (touchStartY.current === null) return;
+        const currentY = e.touches[0]?.clientY;
+        if (currentY === undefined) return;
+        // Finger moving down = scrolling content up
+        if (currentY < touchStartY.current) {
+          following.current = false;
+          setIsAtBottom(false);
+        }
+      };
+      const onTouchEnd = () => {
+        touchStartY.current = null;
+      };
+      el.addEventListener('touchstart', onTouchStart, { passive: true });
+      el.addEventListener('touchmove', onTouchMove, { passive: true });
+      el.addEventListener('touchend', onTouchEnd, { passive: true });
+
+      // --- Scroll listener: strict-bottom re-engage ---
+      const onScroll = () => {
+        const prevTop = lastScrollTop.current;
+        const el2 = containerEl.current;
+        if (!el2) return;
+        const currentTop = el2.scrollTop;
+        const movedUp = currentTop < prevTop;
+        const dist = distanceFromBottom();
+        lastScrollTop.current = currentTop;
+
+        if (movedUp && dist > 0) {
+          following.current = false;
+          setIsAtBottom(false);
+        } else if (dist <= STRICT_BOTTOM_PX) {
+          following.current = true;
+          setIsAtBottom(true);
+        } else {
+          setIsAtBottom(false);
+        }
+      };
+      el.addEventListener('scroll', onScroll, { passive: true });
+
+      // Store cleanup on the element (the ref callback itself handles cleanup
+      // by disconnecting observers at the top). The event listeners will be
+      // garbage-collected with the element. For a more explicit cleanup, we
+      // could use a WeakMap, but the callback-ref pattern guarantees the old
+      // element's observers are disconnected when a new ref arrives.
+    },
+    [handleContentGrowth, distanceFromBottom],
+  );
+
+  // --- useLayoutEffect: deps → structural scroll + suppression ---
+
+  useLayoutEffect(() => {
+    // Suppress mutation-driven scrolls for this frame so the layout-effect
+    // scroll and the observer scroll coalesce into one.
+    suppressMutationsUntilNextFrame();
+    if (following.current) {
+      doScrollToBottom();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  // --- useLayoutEffect: resetDeps → forced re-follow + scroll ---
+
+  useLayoutEffect(() => {
+    following.current = true;
+    suppressMutationsUntilNextFrame();
+    doScrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, resetDeps);
+
+  // Cleanup on unmount
+  useLayoutEffect(() => {
+    return () => {
+      mutationObserver.current?.disconnect();
+      resizeObserver.current?.disconnect();
+      if (followFrame.current !== null) cancelAnimationFrame(followFrame.current);
+      if (releaseMutationSuppressionFrame.current !== null) {
+        cancelAnimationFrame(releaseMutationSuppressionFrame.current);
       }
     };
-    el.addEventListener('wheel', onWheel, { passive: true });
+  }, []);
 
-    // --- Scroll listener: update isAtBottom state ---
-    const onScroll = () => {
-      const atBottom = measureBottom();
-      setIsAtBottom(atBottom);
-      if (atBottom) following.current = true;
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
+  const scrollToBottom = useCallback(() => {
+    following.current = true;
+    doScrollToBottom();
+  }, [doScrollToBottom]);
 
-    return () => {
-      mo.disconnect();
-      el.removeEventListener('wheel', onWheel);
-      el.removeEventListener('scroll', onScroll);
-      if (rafId.current !== null) cancelAnimationFrame(rafId.current);
-    };
-  }, [containerRef, measureBottom]);
-
-  return { isAtBottom, scrollToBottom, resetFollow };
+  return { ref, scrollToBottom, isAtBottom };
 }

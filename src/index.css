@@ -173,4 +173,58 @@
    * split-view.tsx overflow-anchor + scrollbarGutter pattern. */
   .overflow-anchor-auto { overflow-anchor: auto; }
   .scrollbar-gutter-stable { scrollbar-gutter: stable; }
+
+  /* ----------------------------------------------------------------
+   * Code block (Shiki dual-theme) — code-block enrichment styles.
+   * Uses `--shiki-light` / `--shiki-dark` CSS variables emitted by
+   * Shiki with `defaultColor: false`, toggled by the `.dark` class.
+   * ---------------------------------------------------------------- */
+
+  /* Shiki output wrapper */
+  .shiki-wrapper pre.shiki {
+    margin: 0;
+    padding: 12px;
+    background: transparent !important;
+    color: var(--shiki-light);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.625;
+  }
+  .dark .shiki-wrapper pre.shiki {
+    color: var(--shiki-dark);
+  }
+
+  /* Tokens: transparent background so the container bg shows through */
+  .shiki-wrapper pre.shiki span {
+    background: transparent !important;
+  }
+
+  /* Code block container */
+  [data-component="markdown-code"] {
+    background: var(--color-surface-muted);
+    border: 1px solid var(--color-outline);
+  }
+  .dark [data-component="markdown-code"] {
+    background: var(--color-surface-dark);
+    border-color: var(--color-outline-dark);
+  }
+
+  /* Top bar */
+  [data-component="markdown-code"] [data-slot="markdown-code-bar"] {
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-outline);
+  }
+  .dark [data-component="markdown-code"] [data-slot="markdown-code-bar"] {
+    background: var(--color-surface-dark-elevated);
+    border-bottom-color: var(--color-outline-dark);
+  }
+
+  /* Streaming code (plain text) */
+  [data-component="markdown-code"] pre[data-streaming-code="true"] {
+    background: transparent;
+    color: var(--color-on-surface);
+  }
+  .dark [data-component="markdown-code"] pre[data-streaming-code="true"] {
+    color: var(--color-on-canvas-dark);
+  }
 }

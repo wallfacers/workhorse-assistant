@@ -35,5 +35,9 @@ src-tauri/gen/schemas/
 # Playwright MCP
 .playwright-mcp/
 
+# Claude Code — native worktrees and per-checkout local settings
+.claude/worktrees/
+.claude/settings.local.json
+
 # Generated design tokens (when `npm run design:export:css` is wired in)
 src/design-tokens.generated.css

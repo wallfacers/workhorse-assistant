@@ -44,6 +44,14 @@ function StreamingText({ target, streaming }: { target: string; streaming: boole
       return;
     }
 
+    // Bypass pacing for code fences — reveal fenced code instantly to avoid
+    // per-tick re-tokenize flicker (data-talk PacedMarkdown parity).
+    if (/```|~~~/.test(target)) {
+      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+      setShown(target);
+      return;
+    }
+
     const tick = () => {
       const t = targetRef.current;
       setShown((prev) => {
@@ -105,8 +113,13 @@ export default function AgentRail({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streamingIds, setStreamingIds] = useState<Set<string>>(new Set());
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const { isAtBottom, scrollToBottom, resetFollow } = useAutoScroll(scrollContainerRef);
+  // A reactive counter (not a ref): bumping it on send re-renders, which lets
+  // `resetDeps` actually change so the forced re-follow useLayoutEffect fires.
+  const [userSendVersion, setUserSendVersion] = useState(0);
+  const { ref: scrollRef, isAtBottom, scrollToBottom } = useAutoScroll(
+    [messages.length],
+    [userSendVersion],
+  );
 
   const [, setActiveTask] = useState<MockTask>(
     MOCK_TASKS.find((t) => t.active) ?? MOCK_TASKS[0]
@@ -209,9 +222,9 @@ export default function AgentRail({
     if (!text || agent.status !== 'connected') return;
     setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', parts: [{ type: 'text', content: text }] }]);
     setInputText('');
-    resetFollow();
+    setUserSendVersion((v) => v + 1);
     void sendAgentMessage(text);
-  }, [inputText, agent.status, resetFollow]);
+  }, [inputText, agent.status]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -258,7 +271,7 @@ export default function AgentRail({
           {/* Chat area with overflow-anchor for anti-jitter */}
           <div className="relative flex-1 min-h-0">
             <div
-              ref={scrollContainerRef}
+              ref={scrollRef}
               className="h-full overflow-y-auto overflow-anchor-auto scrollbar-gutter-stable custom-scrollbar px-3 py-3 space-y-4"
             >
               {messages.map((msg) => (
