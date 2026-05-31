@@ -1,19 +1,25 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MapPin, FolderOpen, PanelRightClose, Tag, GitBranch, Hash, Calendar } from 'lucide-react';
 import MonoPath from './MonoPath';
 import FileTree from './FileTree';
 import { MOCK_TASK_DETAILS, MOCK_FILE_TREE } from './right-panel.mock';
 
-type Tab = '目录' | '信息' | '预览';
+type Tab = 'directory' | 'info' | 'preview';
 
 interface RightPanelProps {
   onClose: () => void;
 }
 
 export default function RightPanel({ onClose }: RightPanelProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('目录');
+  const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<Tab>('directory');
   const details = MOCK_TASK_DETAILS;
-  const tabs: Tab[] = ['目录', '信息', '预览'];
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'directory', label: t('workspace.tabs.directory') },
+    { key: 'info', label: t('workspace.tabs.info') },
+    { key: 'preview', label: t('workspace.tabs.preview') },
+  ];
 
   return (
     <div className="w-[340px] md:w-[400px] lg:w-[460px] xl:w-[540px] 2xl:w-[600px] bg-white dark:bg-surface-dark-elevated flex flex-col h-full flex-shrink-0 rounded-2xl lg:rounded-lg border border-outline dark:border-neutral-800 overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.015)]">
@@ -23,7 +29,7 @@ export default function RightPanel({ onClose }: RightPanelProps) {
           type="button"
           onClick={onClose}
           aria-label="Collapse work panel"
-          title="收起工作台"
+          title={t('workspace.collapsePanel')}
           className="flex-shrink-0 p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-neutral-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
         >
           <PanelRightClose className="w-4 h-4" />
@@ -31,16 +37,16 @@ export default function RightPanel({ onClose }: RightPanelProps) {
         <div className="flex-1 flex bg-outline/60 dark:bg-neutral-800/80 p-1 rounded-xl">
           {tabs.map((tab) => (
             <button
-              key={tab}
+              key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab)}
+              onClick={() => setActiveTab(tab.key)}
               className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 ${
-                activeTab === tab
+                activeTab === tab.key
                   ? 'bg-white dark:bg-neutral-700 text-gray-950 dark:text-gray-100 shadow-sm'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -48,26 +54,26 @@ export default function RightPanel({ onClose }: RightPanelProps) {
 
       {/* Tab content — full remaining height */}
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar text-[13px]">
-        {activeTab === '目录' && (
+        {activeTab === 'directory' && (
           <div className="px-4 py-3">
             <FileTree nodes={MOCK_FILE_TREE} />
           </div>
         )}
 
-        {activeTab === '信息' && (
+        {activeTab === 'info' && (
           <div className="px-4 py-3">
             <div className="space-y-2">
               <div className="flex items-start gap-2">
                 <Hash className="w-3.5 h-3.5 mt-0.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                 <div>
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500">访问 ID</span>
+                  <span className="text-[11px] text-gray-400 dark:text-gray-500">{t('workspace.fields.accessId')}</span>
                   <p className="text-[12.5px] text-gray-800 dark:text-gray-200 font-medium">{details.accessId}</p>
                 </div>
               </div>
               <div className="flex items-start gap-2">
                 <Tag className="w-3.5 h-3.5 mt-0.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                 <div>
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500">标签</span>
+                  <span className="text-[11px] text-gray-400 dark:text-gray-500">{t('workspace.fields.tags')}</span>
                   <div className="flex flex-wrap gap-1 mt-0.5">
                     {details.tags.map((tag) => (
                       <span
@@ -83,19 +89,19 @@ export default function RightPanel({ onClose }: RightPanelProps) {
               <div className="flex items-start gap-2">
                 <Calendar className="w-3.5 h-3.5 mt-0.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                 <div>
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500">创建时间</span>
+                  <span className="text-[11px] text-gray-400 dark:text-gray-500">{t('workspace.fields.createdAt')}</span>
                   <p className="text-[12.5px] text-gray-800 dark:text-gray-200">{details.created}</p>
                 </div>
               </div>
               <div className="flex items-start gap-2">
                 <GitBranch className="w-3.5 h-3.5 mt-0.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                 <div>
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500">分支</span>
+                  <span className="text-[11px] text-gray-400 dark:text-gray-500">{t('workspace.fields.branch')}</span>
                   <p className="text-[12.5px] text-gray-800 dark:text-gray-200 font-mono">{details.branch}</p>
                 </div>
               </div>
               <div className="mt-1">
-                <span className="text-[11px] text-gray-400 dark:text-gray-500">原始指令</span>
+                <span className="text-[11px] text-gray-400 dark:text-gray-500">{t('workspace.fields.originalCommand')}</span>
                 <p className="mt-0.5 text-[12px] text-gray-700 dark:text-gray-300 bg-surface-muted dark:bg-surface-dark p-2 rounded-lg border border-outline/40 dark:border-neutral-800/50 leading-relaxed">
                   {details.originalPrompt}
                 </p>
@@ -104,7 +110,7 @@ export default function RightPanel({ onClose }: RightPanelProps) {
           </div>
         )}
 
-        {activeTab === '预览' && (
+        {activeTab === 'preview' && (
           <div className="px-4 py-3">
             <div className="bg-white dark:bg-surface-dark-elevated p-4 pb-5 rounded-xl border border-outline/50 dark:border-neutral-800/60 shadow-[0_2px_8px_rgba(0,0,0,0.015)] text-gray-800 dark:text-gray-200">
               <h4 className="text-[14px] font-bold mb-3 text-gray-950 dark:text-gray-50 leading-tight">
@@ -144,14 +150,14 @@ export default function RightPanel({ onClose }: RightPanelProps) {
                   className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-white dark:bg-neutral-800 border border-outline dark:border-neutral-700 rounded-xl text-[12px] font-semibold text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60"
                 >
                   <FolderOpen className="w-4 h-4" />
-                  <span>打开</span>
+                  <span>{t('workspace.actions.open')}</span>
                 </button>
                 <button
                   disabled
                   className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-white dark:bg-neutral-800 border border-outline dark:border-neutral-700 rounded-xl text-[12px] font-semibold text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60"
                 >
                   <MapPin className="w-4 h-4" />
-                  <span>所在位置</span>
+                  <span>{t('workspace.actions.revealInFolder')}</span>
                 </button>
               </div>
             </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ProfileId } from '../../ipc';
 import {
   initWorkspace,
@@ -17,6 +18,7 @@ import { useAgentTabTools } from './useAgentTabTools';
  * switch. Adds no Rust and no IPC.
  */
 export default function TerminalWorkspace() {
+  const { t } = useTranslation();
   const [state, dispatch] = useReducer(workspaceReducer, undefined, initWorkspace);
   const [titles, setTitles] = useState<Record<string, string>>({});
 
@@ -97,8 +99,8 @@ export default function TerminalWorkspace() {
       <div className="relative flex-1 min-h-0">
         {state.groups.length === 0 ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gray-500 dark:text-gray-400">
-            <p className="text-[13px]">暂无终端</p>
-            <ProfileMenu label="新建终端" onSelect={addGroup} />
+            <p className="text-[13px]">{t('terminal.noTerminal')}</p>
+            <ProfileMenu label={t('terminal.newTerminal')} onSelect={addGroup} />
           </div>
         ) : (
           state.groups.map((g) => (

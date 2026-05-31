@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { AlertTriangle, ArrowDown, ArrowUp, Copy, LayoutList, Plus, Settings, ShieldAlert, ShieldCheck, Sparkles, Square, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { MockTask } from './agent-rail.mock';
 import TaskListModal from './TaskListModal';
 import SettingsModal from './SettingsModal';
@@ -12,6 +13,7 @@ import { useApp } from '../context';
 import MarkdownContent from './chat/MarkdownContent';
 import ToolCallBlock from './chat/ToolCallBlock';
 import ReasoningPart from './chat/ReasoningPart';
+import i18n from '../i18n';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,7 +46,7 @@ const isPendingOnly = (m: ChatMessage): boolean =>
  *  the project theme colour (Claude-Code-CLI style) until the first token. */
 function PendingStar() {
   return (
-    <span className="inline-flex items-center" aria-label="正在生成">
+    <span className="inline-flex items-center" aria-label={i18n.t('agent.generating')}>
       <Sparkles className="w-4 h-4 agent-pending-star" />
     </span>
   );
@@ -59,6 +61,7 @@ function PermissionCard({ part, onDecide }: {
   part: PermissionPart;
   onDecide: (requestId: string, decision: PermissionDecision) => void;
 }) {
+  const { t } = useTranslation();
   const { requestId, tool, resource, dangerous, reason, status } = part;
   const tone = dangerous
     ? 'border-red-300 bg-red-50 dark:border-red-800/70 dark:bg-red-950/40'
@@ -67,9 +70,9 @@ function PermissionCard({ part, onDecide }: {
     <div className={`my-1.5 rounded-md border px-3 py-2 text-[12px] leading-relaxed ${tone}`}>
       <div className="flex items-center gap-1.5 font-medium text-gray-700 dark:text-gray-200">
         <ShieldAlert className={`w-3.5 h-3.5 ${dangerous ? 'text-red-500' : 'text-amber-500'}`} />
-        <span>请求权限：{tool}</span>
+        <span>{t('agent.permissionRequest')}{tool}</span>
         {dangerous && (
-          <span className="ml-1 rounded px-1 py-0.5 text-[10px] font-semibold bg-red-500/15 text-red-600 dark:text-red-300">敏感操作</span>
+          <span className="ml-1 rounded px-1 py-0.5 text-[10px] font-semibold bg-red-500/15 text-red-600 dark:text-red-300">{t('agent.sensitiveAction')}</span>
         )}
       </div>
       {resource && (
@@ -83,20 +86,20 @@ function PermissionCard({ part, onDecide }: {
             onClick={() => onDecide(requestId, 'allow_session')}
             className="px-2.5 py-1 rounded text-[11.5px] font-semibold bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-800 hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors"
           >
-            允许
+            {t('common.allow')}
           </button>
           <button
             type="button"
             onClick={() => onDecide(requestId, 'deny')}
             className="px-2.5 py-1 rounded text-[11.5px] font-semibold border border-outline dark:border-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
           >
-            拒绝
+            {t('common.deny')}
           </button>
         </div>
       ) : (
         <div className={`flex items-center gap-1.5 mt-1.5 text-[11.5px] ${status === 'allowed' ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
           {status === 'allowed' ? <ShieldCheck className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-          <span>{status === 'allowed' ? '已允许（本次会话记住）' : '已拒绝'}</span>
+          <span>{status === 'allowed' ? t('agent.allowedRemembered') : t('agent.denied')}</span>
         </div>
       )}
     </div>
@@ -166,18 +169,13 @@ const AGENT_STATUS_DOT: Record<AgentConnection['status'], string> = {
   error: 'bg-red-500',
 };
 
-const AGENT_STATUS_TITLE: Record<AgentConnection['status'], (a: AgentConnection) => string> = {
-  idle: () => '未连接',
-  connecting: () => '连接中…',
-  connected: (a) => `已连接（session ${a.sessionId}）`,
-  error: (a) => `连接失败：${a.error ?? ''}`,
-};
 
 // ---------------------------------------------------------------------------
 // AgentRail
 // ---------------------------------------------------------------------------
 
 export default function AgentRail() {
+  const { t } = useTranslation();
   const { agent, autoExpandReasoning } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -441,6 +439,15 @@ export default function AgentRail() {
     })));
   }, []);
 
+  const statusTitle = (a: AgentConnection): string => {
+    switch (a.status) {
+      case 'idle': return t('agent.status.disconnected');
+      case 'connecting': return t('agent.status.connecting');
+      case 'connected': return t('agent.status.connected', { sessionId: a.sessionId });
+      case 'error': return t('agent.status.failed', { error: a.error ?? '' });
+    }
+  };
+
   const isStreaming = streamingIds.size > 0;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -455,7 +462,7 @@ export default function AgentRail() {
   const inputBox = (
     <div className="bg-white dark:bg-surface-dark border border-outline dark:border-neutral-800 rounded-lg px-3 pt-2.5 pb-2 flex flex-col focus-within:ring-1 focus-within:ring-gray-300 dark:focus-within:ring-neutral-700 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.03)] overflow-hidden">
       <textarea
-        placeholder="请输入任务，交给我来完成"
+        placeholder={t('agent.placeholder')}
         rows={3}
         value={inputText}
         onChange={(e) => setInputText(e.target.value)}
@@ -465,12 +472,12 @@ export default function AgentRail() {
       <div className="flex items-center justify-between mt-1">
         <button type="button" className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-outline dark:border-neutral-700 bg-surface-muted dark:bg-neutral-800/80 hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-600 dark:text-gray-300 text-[11.5px] font-semibold transition-colors">
           <Plus className="w-3 h-3" />
-          <span>选择文件</span>
+          <span>{t('agent.chooseFile')}</span>
         </button>
         {isStreaming ? (
           <button
             type="button"
-            aria-label="停止"
+            aria-label={t('common.stop')}
             onClick={handleStop}
             className="p-1.5 rounded-full transition-colors bg-gray-800 dark:bg-gray-200 hover:bg-gray-700 dark:hover:bg-gray-300 text-white dark:text-gray-800"
           >
@@ -479,7 +486,7 @@ export default function AgentRail() {
         ) : (
           <button
             type="button"
-            aria-label="发送"
+            aria-label={t('common.send')}
             disabled={!inputText.trim() || agent.status !== 'connected'}
             onClick={handleSend}
             className="p-1.5 rounded-full transition-colors disabled:bg-neutral-200/90 disabled:dark:bg-neutral-700 disabled:text-gray-400 disabled:dark:text-gray-500 disabled:cursor-not-allowed bg-gray-800 dark:bg-gray-200 hover:bg-gray-700 dark:hover:bg-gray-300 text-white dark:text-gray-800"
@@ -585,9 +592,9 @@ export default function AgentRail() {
                       </div>
                       {!streamingIds.has(msg.id) && (
                         <div className="flex items-center gap-2 mt-1.5 ml-1 text-gray-400 dark:text-gray-500">
-                          <button className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title="复制"><Copy className="w-3 h-3" /></button>
-                          <button className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title="好用"><ThumbsUp className="w-3 h-3" /></button>
-                          <button className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title="不好"><ThumbsDown className="w-3 h-3" /></button>
+                          <button className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.copy')}><Copy className="w-3 h-3" /></button>
+                          <button className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.good')}><ThumbsUp className="w-3 h-3" /></button>
+                          <button className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.bad')}><ThumbsDown className="w-3 h-3" /></button>
                         </div>
                       )}
                     </div>
@@ -600,7 +607,7 @@ export default function AgentRail() {
             <button
               type="button"
               onClick={scrollToBottom}
-              aria-label="滚到底部"
+              aria-label={t('agent.scrollToBottom')}
               className={`absolute bottom-2 right-3 p-1.5 rounded-full bg-white dark:bg-neutral-800 border border-outline/60 dark:border-neutral-700 shadow-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-neutral-700 transition-all duration-200 ${isAtBottom ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}
             >
               <ArrowDown className="w-3.5 h-3.5" />
@@ -615,7 +622,7 @@ export default function AgentRail() {
           <div className="w-full max-w-[360px]">
             <div className="text-center mb-4">
               <div className="w-10 h-10 mx-auto rounded-lg bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow-sm mb-3">W</div>
-              <p className="text-gray-500 dark:text-gray-400 text-[12px]">有什么可以帮你的？</p>
+              <p className="text-gray-500 dark:text-gray-400 text-[12px]">{t('agent.welcome')}</p>
             </div>
             {inputBox}
           </div>
@@ -626,12 +633,12 @@ export default function AgentRail() {
       <div className="px-3 pb-3 pt-1 flex items-center justify-between border-t border-outline/50 dark:border-neutral-800/60">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 flex-shrink-0 flex items-center justify-center text-[10px] text-white font-bold shadow-sm">W</div>
-          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${AGENT_STATUS_DOT[agent.status]}`} title={AGENT_STATUS_TITLE[agent.status](agent)} />
+          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${AGENT_STATUS_DOT[agent.status]}`} title={statusTitle(agent)} />
           <span className="text-[12.5px] font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[120px]">wallfacers</span>
         </div>
         <div className="flex items-center gap-1">
-          <button type="button" onClick={() => setModalOpen(true)} className="p-1.5 rounded-lg hover:bg-gray-200/80 dark:hover:bg-neutral-800 text-gray-500 dark:text-gray-400 transition-colors" title="任务列表" aria-label="打开任务列表"><LayoutList className="w-4 h-4" /></button>
-          <button type="button" onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-lg hover:bg-gray-200/80 dark:hover:bg-neutral-800 text-gray-500 dark:text-gray-400 transition-colors" title="设置" aria-label="打开设置"><Settings className="w-4 h-4" /></button>
+          <button type="button" onClick={() => setModalOpen(true)} className="p-1.5 rounded-lg hover:bg-gray-200/80 dark:hover:bg-neutral-800 text-gray-500 dark:text-gray-400 transition-colors" title={t('tasks.title')} aria-label={t('agent.openTaskList')}><LayoutList className="w-4 h-4" /></button>
+          <button type="button" onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-lg hover:bg-gray-200/80 dark:hover:bg-neutral-800 text-gray-500 dark:text-gray-400 transition-colors" title={t('settings.title')} aria-label={t('agent.openSettings')}><Settings className="w-4 h-4" /></button>
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { ProfileId } from '../../ipc';
 import type { Group } from './workspaceReducer';
 import ProfileMenu from './ProfileMenu';
@@ -28,6 +29,7 @@ export default function TabBar({
   onClose,
   onAddGroup,
 }: TabBarProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-shrink-0 items-center gap-1.5 px-2 py-2">
       <div className="flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl bg-outline/50 p-1 custom-scrollbar dark:bg-neutral-800/70">
@@ -46,8 +48,8 @@ export default function TabBar({
               <span className="max-w-[200px] truncate">{groupTitles[i]}</span>
               <button
                 type="button"
-                aria-label="关闭终端组"
-                title="关闭"
+                aria-label={t('terminal.closeGroup')}
+                title={t('terminal.close')}
                 onClick={(e) => {
                   e.stopPropagation();
                   onClose(g.id);
@@ -64,7 +66,7 @@ export default function TabBar({
           );
         })}
       </div>
-      <ProfileMenu onSelect={onAddGroup} title="新建终端组" />
+      <ProfileMenu onSelect={onAddGroup} title={t('terminal.newGroup')} />
     </div>
   );
 }

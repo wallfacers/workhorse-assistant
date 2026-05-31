@@ -8,15 +8,17 @@ import {
   Plus,
   ArrowUp,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import MonoPath from './MonoPath';
 
 export default function MainChat() {
+  const { t } = useTranslation();
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-surface-muted dark:bg-surface-dark h-full relative overflow-hidden">
       {/* Header */}
       <div className="px-6 py-4 flex-shrink-0 flex items-center justify-center">
         <h2 className="text-[15px] font-semibold text-gray-950 dark:text-gray-100 flex items-center gap-1">
-          与Workhorse的对话
+          {t('mainChat.conversationTitle')}
         </h2>
       </div>
 
@@ -89,9 +91,9 @@ export default function MainChat() {
 
               {/* Action Buttons */}
               <div className="flex items-center space-x-3 text-gray-400 dark:text-gray-500 mt-3.5 ml-3">
-                <button className="p-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title="复制内容"><Copy className="w-3.5 h-3.5" /></button>
-                <button className="p-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title="觉得好用"><ThumbsUp className="w-3.5 h-3.5" /></button>
-                <button className="p-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title="觉得不好"><ThumbsDown className="w-3.5 h-3.5" /></button>
+                <button className="p-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.copy')}><Copy className="w-3.5 h-3.5" /></button>
+                <button className="p-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.good')}><ThumbsUp className="w-3.5 h-3.5" /></button>
+                <button className="p-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.bad')}><ThumbsDown className="w-3.5 h-3.5" /></button>
               </div>
             </div>
           </div>
@@ -103,14 +105,14 @@ export default function MainChat() {
       <div className="px-4 sm:px-6 pt-0 pb-2 sm:pb-3 flex-shrink-0 mx-auto w-full max-w-full md:max-w-[720px] lg:max-w-[820px] xl:max-w-[940px] 2xl:max-w-[1040px]">
         <div className="bg-white dark:bg-surface-dark-elevated border border-outline dark:border-neutral-800 shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-none rounded-xl p-4 pb-2.5 flex flex-col transition-all focus-within:ring-1 focus-within:ring-gray-300 dark:focus-within:ring-neutral-700">
           <textarea
-            placeholder="请输入任务，交给我来帮你完成"
+            placeholder={t('mainChat.placeholder')}
             className="w-full resize-none h-24 bg-transparent outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 text-[13px] leading-relaxed"
           ></textarea>
           
           <div className="flex items-center justify-between mt-2">
             <button className="flex items-center space-x-1.5 px-4 py-1.5 rounded-full border border-outline dark:border-neutral-700 bg-surface-muted dark:bg-neutral-800/80 hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-600 dark:text-gray-300 text-xs font-semibold transition-colors">
               <Plus className="w-3.5 h-3.5" />
-              <span>选择文件</span>
+              <span>{t('agent.chooseFile')}</span>
             </button>
             
             <button className="p-2 mr-0.5 rounded-full bg-neutral-200/90 hover:bg-neutral-300 dark:bg-neutral-700 dark:hover:bg-neutral-600 text-gray-600 dark:text-gray-200 transition-colors self-end flex items-center justify-center">
@@ -119,7 +121,7 @@ export default function MainChat() {
           </div>
         </div>
         <div className="text-center mt-2 text-[10.5px] text-gray-400 dark:text-gray-500 tracking-wider">
-           以上内容由 AI 生成
+          {t('mainChat.aiDisclaimer')}
         </div>
       </div>
     </div>
