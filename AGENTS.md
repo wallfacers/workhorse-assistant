@@ -59,6 +59,13 @@ all up front.
 - [`docs/references/`](./docs/references/) — Third-party `*-llms.txt` snapshots.
 - [`docs/generated/`](./docs/generated/) — Machine-generated; do not hand-edit.
 
+### Agent sessions
+- [`src/session/`](./src/session/) — multi-session store (`SessionProvider`),
+  per-session chat types, and the per-session SSE event layer. A **project** is
+  the sidecar `workdir`; a project holds many **sessions** (persisted by the
+  sidecar). The renderer bridge (`src/ipc/agent.ts`) addresses sessions by id
+  (`Map`, not a singleton). See `openspec/changes/add-project-sessions/`.
+
 ### i18n
 - [`src/i18n/`](./src/i18n/) — react-i18next configuration and translation files.
 - New UI text: add key to `src/i18n/locales/zh-CN.json`, then add translation to `en-US.json`, then use `useTranslation` hook in the component.

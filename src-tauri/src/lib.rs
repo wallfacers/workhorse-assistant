@@ -83,6 +83,49 @@ fn agent_attach(
 }
 
 #[tauri::command(async)]
+fn agent_open_session(app: AppHandle, bridge: State<'_, AgentBridge>, session_id: String) {
+    bridge.open_session(&app, session_id);
+}
+
+#[tauri::command(async)]
+fn agent_list_sessions(
+    bridge: State<'_, AgentBridge>,
+    workdir: String,
+) -> Result<Value, AgentError> {
+    bridge.list_sessions(&workdir)
+}
+
+#[tauri::command(async)]
+fn agent_session_history(
+    bridge: State<'_, AgentBridge>,
+    session_id: String,
+) -> Result<Value, AgentError> {
+    bridge.session_history(&session_id)
+}
+
+#[tauri::command(async)]
+fn agent_rename_session(
+    bridge: State<'_, AgentBridge>,
+    session_id: String,
+    title: String,
+) -> Result<Value, AgentError> {
+    bridge.rename_session(&session_id, &title)
+}
+
+#[tauri::command(async)]
+fn agent_delete_session(
+    bridge: State<'_, AgentBridge>,
+    session_id: String,
+) -> Result<(), AgentError> {
+    bridge.delete_session(&session_id)
+}
+
+#[tauri::command(async)]
+fn agent_list_projects(bridge: State<'_, AgentBridge>) -> Result<Value, AgentError> {
+    bridge.list_projects()
+}
+
+#[tauri::command(async)]
 fn agent_forward_result(
     bridge: State<'_, AgentBridge>,
     session_id: String,
@@ -153,6 +196,12 @@ pub fn run() {
             pty_resize,
             pty_kill,
             agent_attach,
+            agent_open_session,
+            agent_list_sessions,
+            agent_session_history,
+            agent_rename_session,
+            agent_delete_session,
+            agent_list_projects,
             agent_forward_result,
             agent_publish_catalog,
             agent_detach,

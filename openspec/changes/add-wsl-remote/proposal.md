@@ -1,0 +1,65 @@
+> **Status: PARKED skeleton.** Captured during the `add-project-sessions`
+> exploration so the design isn't lost; not scheduled. Do not start until
+> `add-project-sessions` lands (it carries the forward-compat decisions this
+> change depends on — see that change's design §"Remote/WSL forward-compatibility").
+
+## Why
+
+The user develops in WSL and runs a **Windows-native** build of
+workhorse-assistant (`project_windows-build-from-wsl`). The natural setup mirrors
+**VS Code Remote-WSL**: UI on Windows, the `workhorse-agent` sidecar inside WSL2,
+and the opened **project is a WSL path** (`/home/user/proj`). WSL gives better dev
+toolchain compatibility, so projects should live there.
+
+The architecture is already shaped for this: the renderer never touches the
+network/filesystem; everything privileged crosses the Rust bridge's loopback HTTP
+boundary to the sidecar — i.e. the sidecar **is** the "server" in a client/server
+remote model. The agent transport, session model, persistence, and UI-control
+surface are transport-agnostic and effectively remote-ready. Two subsystems are
+**not**: the embedded terminal (PTY runs on the Windows host) and project-path
+selection (Windows folder dialog ≠ WSL namespace).
+
+## What Changes (sketch — to be detailed)
+
+- **Project path in the sidecar namespace.** Project selection works in the
+  sidecar's filesystem, not the Windows dialog. Preferred: the sidecar enumerates
+  paths (`GET /v1/fs/list?path=` or recent projects), so the picker is
+  namespace-correct by construction. Windows folder dialog becomes the fallback
+  for a local-Windows sidecar only. (Avoid `\\wsl$\` ↔ `/…` translation if
+  possible; if needed, it lives on the assistant side, never in the sidecar.)
+- **Terminal lands in WSL.** Add a `wsl` terminal profile that spawns
+  `wsl.exe -d <distro> --cd <wslpath>` — the PTY stays on the Windows host, the
+  shell process is the WSL bridge (80% solution; no server-side PTY).
+- **Endpoint + platform awareness.** Agent endpoint configurable in Settings
+  (forward-compat from `add-project-sessions`); `/health` capabilities expose
+  platform/distro so the UI defaults the terminal to the `wsl` profile and knows
+  it is talking to a remote sidecar.
+- **Networking guidance.** Document WSL2 localhost forwarding / mirrored
+  networking mode; rely on the bridge's existing SSE reconnect for transient
+  forward drops.
+- **Project ↔ terminal coupling.** Switching to a WSL project makes new terminals
+  WSL shells at that path (the coupling deferred by `add-project-sessions`).
+
+## Capabilities
+
+### New Capabilities
+- `wsl-remote` (placeholder): run the sidecar remotely (WSL2) with project paths
+  and terminals in the sidecar's namespace.
+
+## Impact (sketch)
+
+- **Renderer**: namespace-aware project picker; `wsl` terminal profile wiring;
+  Settings endpoint + platform-driven defaults.
+- **Tauri**: `wsl.exe` launch profile; optional `\\wsl$\` translation helper.
+- **workhorse-agent**: `GET /v1/fs/list` (or recent projects); platform/distro in
+  `/health` capabilities.
+- **Out of scope**: server-side PTY; multiple simultaneous distros/remotes;
+  non-WSL remotes (SSH containers, etc.).
+
+## Open questions
+
+- Path translation vs. fully sidecar-served enumeration — pick one.
+- One sidecar/distro at a time, or a remote switcher alongside the project
+  switcher?
+- Does the assistant ever need to render a host-Windows path, or is everything in
+  the sidecar namespace once a remote project is open?

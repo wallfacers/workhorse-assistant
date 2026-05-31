@@ -10,6 +10,7 @@ import WindowResizeHandles from './components/WindowResizeHandles';
 import { isTauri, useWindowState, useAgentConnection } from './ipc';
 import { registerFallbackTools, republishCatalog } from './agent';
 import { AppContext } from './context';
+import { SessionProvider } from './session/SessionProvider';
 
 export default function App() {
   const { t } = useTranslation();
@@ -77,6 +78,7 @@ export default function App() {
 
   return (
     <AppContext value={appContextValue}>
+    <SessionProvider agent={agent}>
     <div
       className={`${isDarkMode ? 'dark' : ''} ${floating ? 'rounded-xl border border-outline dark:border-neutral-800' : ''} relative h-screen w-screen flex flex-col overflow-hidden bg-surface-muted dark:bg-surface-dark text-on-canvas dark:text-on-canvas-dark font-sans`}
     >
@@ -112,6 +114,7 @@ export default function App() {
 
     </div>
     {floating && <WindowResizeHandles />}
+    </SessionProvider>
     </AppContext>
   );
 }

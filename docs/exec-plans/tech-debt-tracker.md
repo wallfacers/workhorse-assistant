@@ -46,6 +46,44 @@ Do not delete rows; the history is the asset.
 - [ ] Delete orphan `src/components/MainChat.tsx` (never imported since initial
       commit `edbfeb6`, contains invalid `p-4.5`). — discovered 2026-05-29 in
       add-three-pane-shell review — see `src/components/MainChat.tsx`
+- [ ] Embedded terminal (PTY) is **host-bound** (spawns `powershell.exe`/`$SHELL`
+      on the Windows host). The WSL-remote goal needs a WSL shell at the project
+      path; planned as a `wsl.exe` launch profile, not yet built. — discovered
+      2026-05-31 in add-project-sessions exploration — see
+      [`../../openspec/changes/add-wsl-remote/proposal.md`](../../openspec/changes/add-wsl-remote/proposal.md)
+- [ ] Project scopes **only the agent session list**, not the terminal cwd /
+      namespace. Switching project does not re-scope the embedded terminal;
+      desirable once WSL projects exist (a WSL project should yield WSL terminals
+      at that path). — discovered 2026-05-31 in add-project-sessions design (D4) —
+      see [`../../openspec/changes/add-project-sessions/design.md`](../../openspec/changes/add-project-sessions/design.md)
+- [ ] Multi-live-session **memory eviction** (drop buffer + close stream for idle
+      non-active sessions, reload from history on revisit). If the first cut ships
+      without it, in-memory buffers + SSE streams grow unbounded with session
+      count. — discovered 2026-05-31 in add-project-sessions design (D2) — see
+      [`../../openspec/changes/add-project-sessions/design.md`](../../openspec/changes/add-project-sessions/design.md)
+- [ ] **Subscribe race (B1)**: in `SessionProvider`'s subscribe effect, a rapid
+      remove→re-add of the same session id inside the async `listen()` window can
+      drop one set of unlisten fns (listener leak / duplicate dispatch). The
+      empty-array slot reservation covers the common case; a per-id generation
+      counter would close it fully. Low likelihood. — discovered 2026-05-31 in
+      add-project-sessions review — see `src/session/SessionProvider.tsx`
+- [ ] **Reconnect stale session (B3)**: `useAgentConnection`'s reconnect path
+      calls `attachAgentSession`, which (post multi-live refactor) no longer
+      detaches the prior session — the dead id lingers in the bridge `Map` and the
+      switcher. Root fix is the project-aware connection rework (§3.6). — discovered
+      2026-05-31 in add-project-sessions review — see `src/ipc/agent.ts`,
+      [`../../openspec/changes/add-project-sessions/tasks.md`](../../openspec/changes/add-project-sessions/tasks.md) (§3.6)
+- [ ] **`tool_call_done` carries no output/error (C1)**: Rust `ToolDonePayload`
+      emits only `{sessionId, toolCallId}`, but the TS `tooldone` handler expects
+      `output`/`error`. Result: tool calls always render `status: 'done'` and their
+      output is never shown. Needs protocol alignment with the sidecar before
+      forwarding the fields. — discovered 2026-05-31 in add-project-sessions review
+      — see `src-tauri/src/agent/mod.rs`, `src/session/events.ts`
+- [ ] **Permission decision targets active session (C3)**: `decidePermission`
+      routes to the active session; a card raised in A but answered after switching
+      to B mis-targets. Thread the owning sessionId through the card. Pairs with
+      §3.6. — discovered 2026-05-31 in add-project-sessions review — see
+      `src/session/SessionProvider.tsx`
 
 ## Closed
 

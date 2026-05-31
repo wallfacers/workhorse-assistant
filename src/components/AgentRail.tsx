@@ -1,49 +1,25 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, Copy, LayoutList, Plus, Settings, ShieldAlert, ShieldCheck, Sparkles, Square, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MockTask } from './agent-rail.mock';
 import TaskListModal from './TaskListModal';
 import SettingsModal from './SettingsModal';
+import SessionHeader from './SessionHeader';
 import type { AgentConnection } from '../ipc';
-import { sendAgentMessage, cancelAgentMessage, sendPermissionDecision, activeSessionId } from '../ipc';
 import type { PermissionDecision } from '../ipc';
 import { useAutoScroll } from '../hooks/use-auto-scroll';
 import { useApp } from '../context';
+import { useSession } from '../session/SessionProvider';
+import { isPendingOnly } from '../session/types';
 import MarkdownContent from './chat/MarkdownContent';
 import ToolCallBlock from './chat/ToolCallBlock';
 import ReasoningPart from './chat/ReasoningPart';
 import i18n from '../i18n';
 
 // ---------------------------------------------------------------------------
-// Types
+// First-token placeholder: a blinking, colour-cycling star (Claude-Code-CLI
+// style) until the first token arrives.
 // ---------------------------------------------------------------------------
-
-type MessagePart =
-  | { type: 'text'; content: string }
-  | { type: 'reasoning'; text: string; status: 'streaming' | 'done'; redacted?: boolean; startedAt?: number; endedAt?: number }
-  | { type: 'tool_call'; id: string; name: string; input: unknown; status: 'running' | 'done' | 'error'; output?: unknown }
-  | { type: 'error'; code: string; message: string }
-  | { type: 'permission'; requestId: string; tool: string; resource: string; dangerous: boolean; reason: string; status: 'pending' | 'allowed' | 'denied' }
-  | { type: 'pending' };
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  parts: MessagePart[];
-}
-
-/** Drop a leading `pending` placeholder when the first real content part arrives,
- *  so the blinking-star placeholder is replaced (not stacked above) the content. */
-const dropPending = (parts: MessagePart[]): MessagePart[] =>
-  parts.filter((p) => p.type !== 'pending');
-
-/** True when a message is just the first-token placeholder (no content yet). */
-const isPendingOnly = (m: ChatMessage): boolean =>
-  m.role === 'assistant' && m.parts.length === 1 && m.parts[0].type === 'pending';
-
-/** First-token placeholder: a blinking, colour-cycling star that settles toward
- *  the project theme colour (Claude-Code-CLI style) until the first token. */
 function PendingStar() {
   return (
     <span className="inline-flex items-center" aria-label={i18n.t('agent.generating')}>
@@ -52,13 +28,10 @@ function PendingStar() {
   );
 }
 
-type PermissionPart = Extract<MessagePart, { type: 'permission' }>;
-
-/** Tool-permission prompt card. "允许" sends allow_session (the sidecar then
- *  remembers it for the session); "拒绝" sends deny. Sensitive (dangerous)
- *  operations are re-prompted by the sidecar every time regardless. */
+/** Tool-permission prompt card. "允许" sends allow_session; "拒绝" sends deny.
+ *  Sensitive (dangerous) operations are re-prompted by the sidecar every time. */
 function PermissionCard({ part, onDecide }: {
-  part: PermissionPart;
+  part: { requestId: string; tool: string; resource: string; dangerous: boolean; reason: string; status: 'pending' | 'allowed' | 'denied' };
   onDecide: (requestId: string, decision: PermissionDecision) => void;
 }) {
   const { t } = useTranslation();
@@ -109,7 +82,6 @@ function PermissionCard({ part, onDecide }: {
 // ---------------------------------------------------------------------------
 // StreamingText — character-by-character reveal (data-talk PacedMarkdown spirit)
 // ---------------------------------------------------------------------------
-
 const PACE_MS = 24;
 
 function StreamingText({ target, streaming }: { target: string; streaming: boolean }) {
@@ -124,16 +96,12 @@ function StreamingText({ target, streaming }: { target: string; streaming: boole
       setShown(target);
       return;
     }
-
-    // Bypass pacing for code fences — reveal fenced code instantly to avoid
-    // per-tick re-tokenize flicker (data-talk PacedMarkdown parity).
-    // Anchored to line start so prose mentions of ``` don't false-positive.
+    // Bypass pacing for code fences — reveal fenced code instantly.
     if (/^(`{3,}|~{3,})/m.test(target)) {
       if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
       setShown(target);
       return;
     }
-
     const tick = () => {
       const t = targetRef.current;
       setShown((prev) => {
@@ -148,20 +116,16 @@ function StreamingText({ target, streaming }: { target: string; streaming: boole
       });
       timerRef.current = setTimeout(tick, PACE_MS);
     };
-
     if (!timerRef.current) tick();
     return () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } };
   }, [target, streaming]);
 
-  // Render markdown even during streaming — StreamingText feeds the text in
-  // progressively, MarkdownContent handles it.
   return <MarkdownContent content={shown} streaming={streaming} />;
 }
 
 // ---------------------------------------------------------------------------
-// Connection status helpers
+// Connection status dot
 // ---------------------------------------------------------------------------
-
 const AGENT_STATUS_DOT: Record<AgentConnection['status'], string> = {
   idle: 'bg-gray-400',
   connecting: 'bg-amber-400 animate-pulse',
@@ -169,22 +133,21 @@ const AGENT_STATUS_DOT: Record<AgentConnection['status'], string> = {
   error: 'bg-red-500',
 };
 
-
 // ---------------------------------------------------------------------------
-// AgentRail
+// AgentRail — now a view over the active session's store slice (§4.1)
 // ---------------------------------------------------------------------------
-
 export default function AgentRail() {
   const { t } = useTranslation();
   const { agent, autoExpandReasoning } = useApp();
+  const { runtime, activeSessionId, sendMessage, cancel, decidePermission, newSession } = useSession();
+  const messages = runtime.messages;
+  const streamingIds = runtime.streaming;
+
   const [modalOpen, setModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [streamingIds, setStreamingIds] = useState<Set<string>>(new Set());
 
-  // A reactive counter (not a ref): bumping it on send re-renders, which lets
-  // `resetDeps` actually change so the forced re-follow useLayoutEffect fires.
+  // A reactive counter that bumps on send so the auto-scroll re-follows.
   const [userSendVersion, setUserSendVersion] = useState(0);
   const { ref: scrollRef, isAtBottom, scrollToBottom } = useAutoScroll(
     [messages.length],
@@ -194,250 +157,23 @@ export default function AgentRail() {
   // Task selection is a no-op until the task list is wired to real state.
   const handleSelectTask = (_task: MockTask) => { /* no-op */ };
 
-  // Ref-based delta buffer for streaming
-  const assistantIdRef = useRef('');
-  const deltaRef = useRef('');
+  const isStreaming = streamingIds.size > 0;
 
-  // Subscribe to assistant SSE events
-  useEffect(() => {
-    const sid = activeSessionId();
-    if (!sid) return;
-    const unlistens: UnlistenFn[] = [];
-    let cancelled = false;
-
-    (async () => {
-      // Helper: register a listener, but if the effect was already cleaned up,
-      // unlisten immediately to avoid dangling subscriptions.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const on = async (event: string, handler: (e: any) => void) => {
-        const un = await listen(event, handler);
-        if (cancelled) { un(); return; }
-        unlistens.push(un);
-      };
-
-      // --- text delta ---
-      await on(`agent://text/${sid}`, (e: { payload: { delta: string } }) => {
-        if (!assistantIdRef.current) {
-          assistantIdRef.current = `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-          deltaRef.current = '';
-          setStreamingIds((prev) => new Set(prev).add(assistantIdRef.current));
-        }
-        deltaRef.current += e.payload.delta;
-        const id = assistantIdRef.current;
-        const content = deltaRef.current;
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last?.role === 'assistant' && last.id === id) {
-            // Update or append the text part while preserving other parts
-            // (reasoning, tool_call) already on the message.
-            const hasText = last.parts.some((p) => p.type === 'text');
-            const parts = hasText
-              ? last.parts.map((p) => p.type === 'text' ? { ...p, content } : p)
-              : [...last.parts, { type: 'text' as const, content }];
-            return [...prev.slice(0, -1), { ...last, parts }];
-          }
-          return [...prev, { id, role: 'assistant', parts: [{ type: 'text', content }] }];
-        });
-      });
-
-      // --- text done ---
-      await on(`agent://textdone/${sid}`, (_e: { payload: { stopReason: string } }) => {
-        const id = assistantIdRef.current;
-        if (id) setStreamingIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
-        assistantIdRef.current = '';
-        deltaRef.current = '';
-        // Drop a placeholder that never received any content (empty turn).
-        setMessages((prev) => prev.filter((m) => !isPendingOnly(m)));
-      });
-
-      // --- tool call start ---
-      // Rust relays these payloads with `#[serde(rename_all = "camelCase")]`,
-      // so the field is `toolCallId`, not `tool_call_id`.
-      await on(`agent://toolstart/${sid}`, (e: { payload: { toolCallId: string; name: string; input: unknown } }) => {
-        const tcId = e.payload.toolCallId;
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last?.role === 'assistant') {
-            const parts = [...dropPending(last.parts), { type: 'tool_call' as const, id: tcId, name: e.payload.name, input: e.payload.input, status: 'running' as const }];
-            return [...prev.slice(0, -1), { ...last, parts }];
-          }
-          // No assistant message yet — create one with the tool call.
-          // Set assistantIdRef so subsequent text/reasoning events reuse this message.
-          const newId = `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-          if (!assistantIdRef.current) {
-            assistantIdRef.current = newId;
-            deltaRef.current = '';
-            setStreamingIds((prev) => new Set(prev).add(newId));
-          }
-          return [...prev, { id: newId, role: 'assistant', parts: [{ type: 'tool_call', id: tcId, name: e.payload.name, input: e.payload.input, status: 'running' as const }] }];
-        });
-      });
-
-      // --- tool call done ---
-      // The sidecar's `tool_call_done` event carries only the id (no output/error
-      // in the V1 protocol); we mark the block done and surface output if a
-      // future protocol revision adds the (camelCase) field.
-      await on(`agent://tooldone/${sid}`, (e: { payload: { toolCallId: string; output?: unknown; error?: string } }) => {
-        const tcId = e.payload.toolCallId;
-        setMessages((prev) => prev.map((msg) => {
-          if (msg.role !== 'assistant') return msg;
-          return {
-            ...msg,
-            parts: msg.parts.map((p) => {
-              if (p.type === 'tool_call' && p.id === tcId) {
-                return { ...p, status: e.payload.error ? 'error' as const : 'done' as const, output: e.payload.output ?? e.payload.error };
-              }
-              return p;
-            }),
-          };
-        }));
-      });
-
-      // --- reasoning start (a thinking block began) ---
-      // Reasoning arrives before the assistant's text, so this may be the first
-      // event of an assistant turn: ensure an assistant message exists (mirroring
-      // the text-delta path) and append a fresh streaming reasoning part.
-      // Rust relays camelCase: `reasoningType` is "thinking" | "redacted".
-      await on(`agent://reasoning_start/${sid}`, (e: { payload: { reasoningType: string } }) => {
-        if (!assistantIdRef.current) {
-          assistantIdRef.current = `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-          deltaRef.current = '';
-          setStreamingIds((prev) => new Set(prev).add(assistantIdRef.current));
-        }
-        const id = assistantIdRef.current;
-        const redacted = e.payload.reasoningType === 'redacted';
-        const part: MessagePart = { type: 'reasoning', text: '', status: 'streaming', redacted, startedAt: Date.now() };
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last?.role === 'assistant' && last.id === id) {
-            return [...prev.slice(0, -1), { ...last, parts: [...dropPending(last.parts), part] }];
-          }
-          return [...prev, { id, role: 'assistant', parts: [part] }];
-        });
-      });
-
-      // --- reasoning delta (thinking-text increment, regular thinking only) ---
-      await on(`agent://reasoning_delta/${sid}`, (e: { payload: { delta: string } }) => {
-        const id = assistantIdRef.current;
-        if (!id) return;
-        setMessages((prev) => prev.map((msg) => {
-          if (msg.role !== 'assistant' || msg.id !== id) return msg;
-          const parts = [...msg.parts];
-          for (let i = parts.length - 1; i >= 0; i--) {
-            const p = parts[i];
-            if (p.type === 'reasoning' && p.status === 'streaming') {
-              parts[i] = { ...p, text: p.text + e.payload.delta };
-              break;
-            }
-          }
-          return { ...msg, parts };
-        }));
-      });
-
-      // --- reasoning end (thinking block finished) ---
-      await on(`agent://reasoning_end/${sid}`, () => {
-        const id = assistantIdRef.current;
-        if (!id) return;
-        setMessages((prev) => prev.map((msg) => {
-          if (msg.role !== 'assistant' || msg.id !== id) return msg;
-          const parts = [...msg.parts];
-          for (let i = parts.length - 1; i >= 0; i--) {
-            const p = parts[i];
-            if (p.type === 'reasoning' && p.status === 'streaming') {
-              parts[i] = { ...p, status: 'done', endedAt: Date.now() };
-              break;
-            }
-          }
-          return { ...msg, parts };
-        }));
-      });
-
-      // --- error from sidecar (model not found, provider error, etc.) ---
-      await on(`agent://error/${sid}`, (e: { payload: { code: string; message: string; recoverable: boolean } }) => {
-        assistantIdRef.current = '';
-        deltaRef.current = '';
-        setStreamingIds(new Set());
-        const { code, message } = e.payload;
-        setMessages((prev) => [
-          // Drop a dangling first-token placeholder so the blinking star does not
-          // persist next to the error.
-          ...prev.filter((m) => !isPendingOnly(m)),
-          { id: `e-${Date.now()}`, role: 'assistant', parts: [{ type: 'error', code, message }] },
-        ]);
-      });
-
-      // --- permission request (agent wants to run a gated tool) ---
-      // Only the authoritative prompt (carrying `dangerous`) is relayed. Append a
-      // permission card to the current assistant message; dedup by requestId.
-      await on(`agent://permission_request/${sid}`, (e: { payload: { requestId: string; tool: string; resource: string; dangerous: boolean; reason: string } }) => {
-        const { requestId, tool, resource, dangerous, reason } = e.payload;
-        // A pending prompt is not a streaming turn — clear the placeholder/star.
-        setMessages((prev) => {
-          if (prev.some((m) => m.parts.some((p) => p.type === 'permission' && p.requestId === requestId))) return prev;
-          const part: MessagePart = { type: 'permission', requestId, tool, resource, dangerous, reason, status: 'pending' };
-          const base = prev.filter((m) => !isPendingOnly(m));
-          const last = base[base.length - 1];
-          if (last?.role === 'assistant') {
-            return [...base.slice(0, -1), { ...last, parts: [...dropPending(last.parts), part] }];
-          }
-          return [...base, { id: `p-${Date.now()}`, role: 'assistant', parts: [part] }];
-        });
-      });
-    })();
-
-    return () => {
-      cancelled = true;
-      unlistens.forEach((u) => u());
-    };
-  }, [agent.status, agent.sessionId]);
-
-  const handleSend = useCallback(() => {
+  const handleSend = () => {
     const text = inputText.trim();
     if (!text || agent.status !== 'connected') return;
-    // Pre-create the assistant row with a first-token placeholder so the avatar +
-    // blinking star appear immediately (no blank gap), and mark it streaming so
-    // the composer button switches to Stop right away. The id is reused by the
-    // text/tool/reasoning listeners (they replace the pending part in place).
-    const aid = `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    assistantIdRef.current = aid;
-    deltaRef.current = '';
-    setStreamingIds((prev) => new Set(prev).add(aid));
-    setMessages((prev) => [
-      ...prev,
-      { id: `u-${Date.now()}`, role: 'user', parts: [{ type: 'text', content: text }] },
-      { id: aid, role: 'assistant', parts: [{ type: 'pending' }] },
-    ]);
+    sendMessage(text);
     setInputText('');
     setUserSendVersion((v) => v + 1);
-    void sendAgentMessage(text);
-  }, [inputText, agent.status]);
+  };
 
-  // Stop the in-flight run: real interrupt upstream, then finalise local state.
-  // Streamed text is preserved; a placeholder with no content is dropped; any
-  // still-streaming reasoning block is closed. Race-safe vs a late textdone/ack.
-  const handleStop = useCallback(() => {
-    void cancelAgentMessage();
-    assistantIdRef.current = '';
-    deltaRef.current = '';
-    setStreamingIds(new Set());
-    setMessages((prev) => prev
-      .filter((m) => !isPendingOnly(m))
-      .map((m) => m.role === 'assistant'
-        ? { ...m, parts: m.parts.map((p) => p.type === 'reasoning' && p.status === 'streaming' ? { ...p, status: 'done' as const, endedAt: Date.now() } : p) }
-        : m),
-    );
-  }, []);
-
-  // Answer a tool-permission prompt and reflect the resolved state on the card.
-  const handlePermission = useCallback((requestId: string, decision: PermissionDecision) => {
-    void sendPermissionDecision(requestId, decision);
-    const resolved = decision.startsWith('allow') ? 'allowed' as const : 'denied' as const;
-    setMessages((prev) => prev.map((m) => ({
-      ...m,
-      parts: m.parts.map((p) =>
-        p.type === 'permission' && p.requestId === requestId ? { ...p, status: resolved } : p),
-    })));
-  }, []);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) return; // ignore Enter during IME composition (CJK)
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
 
   const statusTitle = (a: AgentConnection): string => {
     switch (a.status) {
@@ -445,17 +181,6 @@ export default function AgentRail() {
       case 'connecting': return t('agent.status.connecting');
       case 'connected': return t('agent.status.connected', { sessionId: a.sessionId });
       case 'error': return t('agent.status.failed', { error: a.error ?? '' });
-    }
-  };
-
-  const isStreaming = streamingIds.size > 0;
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Ignore Enter while an IME composition is in progress (CJK input).
-    if (e.nativeEvent.isComposing) return;
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
     }
   };
 
@@ -478,7 +203,7 @@ export default function AgentRail() {
           <button
             type="button"
             aria-label={t('common.stop')}
-            onClick={handleStop}
+            onClick={cancel}
             className="p-1.5 rounded-full transition-colors bg-gray-800 dark:bg-gray-200 hover:bg-gray-700 dark:hover:bg-gray-300 text-white dark:text-gray-800"
           >
             <Square className="w-3 h-3 fill-current" />
@@ -503,6 +228,8 @@ export default function AgentRail() {
   return (
     <div className="w-[400px] bg-white dark:bg-surface-dark-elevated flex flex-col rounded-lg border border-outline dark:border-neutral-800/60 shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full text-[13px] flex-shrink-0 overflow-hidden">
 
+      {activeSessionId && <SessionHeader />}
+
       {hasMessages ? (
         <>
           {/* Chat area with overflow-anchor for anti-jitter */}
@@ -526,11 +253,7 @@ export default function AgentRail() {
                     <div className="flex-1 min-w-0">
                       <div className={
                         isPendingOnly(msg)
-                          // First-token placeholder: just the blinking star beside
-                          // the avatar until content arrives.
                           ? 'flex items-center min-h-[24px] text-gray-800 dark:text-gray-200'
-                          // No bubble chrome for assistant replies — content sits
-                          // bare next to the avatar (Claude-style).
                           : 'pt-0.5 text-gray-800 dark:text-gray-200 text-[12.5px] leading-relaxed'
                       }>
                         {msg.parts.map((part, i) => {
@@ -551,12 +274,12 @@ export default function AgentRail() {
                             );
                           }
                           if (part.type === 'text') {
-                            const isStreaming = streamingIds.has(msg.id) && i === msg.parts.length - 1;
+                            const streaming = streamingIds.has(msg.id) && i === msg.parts.length - 1;
                             return (
                               <StreamingText
                                 key={`text-${i}`}
                                 target={part.content}
-                                streaming={isStreaming}
+                                streaming={streaming}
                               />
                             );
                           }
@@ -584,7 +307,7 @@ export default function AgentRail() {
                           }
                           if (part.type === 'permission') {
                             return (
-                              <PermissionCard key={`perm-${part.requestId}`} part={part} onDecide={handlePermission} />
+                              <PermissionCard key={`perm-${part.requestId}`} part={part} onDecide={decidePermission} />
                             );
                           }
                           return null;
@@ -624,7 +347,21 @@ export default function AgentRail() {
               <div className="w-10 h-10 mx-auto rounded-lg bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow-sm mb-3">W</div>
               <p className="text-gray-500 dark:text-gray-400 text-[12px]">{t('agent.welcome')}</p>
             </div>
-            {inputBox}
+            {activeSessionId ? (
+              inputBox
+            ) : (
+              // No active session (e.g. the last one was just deleted): the input
+              // would send into the void, so offer a way back in instead.
+              <button
+                type="button"
+                onClick={() => void newSession()}
+                disabled={agent.status !== 'connected'}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-outline bg-white px-3 py-2.5 text-[12.5px] font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-800 dark:bg-surface-dark dark:text-gray-200 dark:hover:bg-neutral-800"
+              >
+                <Plus className="h-4 w-4" />
+                <span>{t('agent.newSession')}</span>
+              </button>
+            )}
           </div>
         </div>
       )}
