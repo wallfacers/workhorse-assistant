@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PanelRightOpen } from 'lucide-react';
 import AgentRail from './components/AgentRail';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -11,6 +12,7 @@ import { registerFallbackTools, republishCatalog } from './agent';
 import { AppContext } from './context';
 
 export default function App() {
+  const { t } = useTranslation();
   const [isDarkMode, setIsDarkMode] = useState(false);
   // Display-only preference: auto-expand the reasoning ("thinking") section while
   // it streams. Persisted across sessions; does NOT enable/disable thinking
@@ -98,8 +100,8 @@ export default function App() {
               data-testid="open-work-panel"
               data-agent-clickable
               onClick={() => setRightPanelOpen(true)}
-              aria-label="Open work panel"
-              title="展开工作台"
+              aria-label={t('workspace.expandPanel')}
+              title={t('workspace.expandPanel')}
               className="p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-neutral-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
             >
               <PanelRightOpen className="w-4 h-4" />

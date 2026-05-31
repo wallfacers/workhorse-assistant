@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
@@ -48,6 +49,7 @@ export default function Modal({
   hideCloseButton = false,
   size = 'lg',
 }: ModalProps) {
+  const { t } = useTranslation();
   useEffect(() => {
     if (!open || !closeOnEsc) return;
     const handler = (e: KeyboardEvent) => {
@@ -83,8 +85,8 @@ export default function Modal({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
-            title="Close"
+            aria-label={t('common.close')}
+            title={t('common.close')}
             className="absolute top-3 right-3 z-10 p-1.5 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
           >
             <X className="w-5 h-5" />

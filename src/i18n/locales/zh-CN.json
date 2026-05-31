@@ -27,7 +27,9 @@
       "disconnected": "未连接",
       "connecting": "连接中…",
       "connected": "已连接（session {{sessionId}}）",
-      "failed": "连接失败：{{error}}"
+      "failed": "连接失败：{{error}}",
+      "heartbeatFailed": "心跳检测失败",
+      "reconnecting": "连接已断开，正在重连…"
     },
     "feedback": {
       "copy": "复制",

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { attachAgentSession, checkAgentHealth, detachAgentSession } from './agent';
 import { isTauri } from './runtime';
+import i18n from '../i18n';
 
 /**
  * Auto-connect hook: on mount, probes `GET /health` to verify the sidecar is
@@ -93,7 +94,7 @@ export function useAgentConnection(): AgentConnection {
           }
         } catch {
           if (!mounted.current) return;
-          setError('heartbeat 失败');
+          setError(i18n.t('agent.status.heartbeatFailed'));
           setStatus('error');
           clearHeartbeat();
           scheduleRetryRef.current();
@@ -218,7 +219,7 @@ export function useAgentConnection(): AgentConnection {
         event: `agent://connection_failed/${sid}`,
         handler: () => {
           if (!mounted.current || cancelled) return;
-          setError('连接已断开，正在重连…');
+          setError(i18n.t('agent.status.reconnecting'));
           setStatus('error');
           clearHeartbeat();
           // SSE reader thread exited — full reconnect cycle needed.

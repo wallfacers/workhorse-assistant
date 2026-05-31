@@ -27,7 +27,9 @@
       "disconnected": "Disconnected",
       "connecting": "Connecting…",
       "connected": "Connected (session {{sessionId}})",
-      "failed": "Connection failed: {{error}}"
+      "failed": "Connection failed: {{error}}",
+      "heartbeatFailed": "Heartbeat failed",
+      "reconnecting": "Disconnected, reconnecting…"
     },
     "feedback": {
       "copy": "Copy",
