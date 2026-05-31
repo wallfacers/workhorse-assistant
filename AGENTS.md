@@ -64,7 +64,8 @@ all up front.
   per-session chat types, and the per-session SSE event layer. A **project** is
   the sidecar `workdir`; a project holds many **sessions** (persisted by the
   sidecar). The renderer bridge (`src/ipc/agent.ts`) addresses sessions by id
-  (`Map`, not a singleton). See `openspec/changes/add-project-sessions/`.
+  (`Map`, not a singleton). See `openspec/specs/project-sessions/` (archived
+  change: `openspec/changes/archive/2026-05-31-add-project-sessions/`).
 
 ### i18n
 - [`src/i18n/`](./src/i18n/) — react-i18next configuration and translation files.

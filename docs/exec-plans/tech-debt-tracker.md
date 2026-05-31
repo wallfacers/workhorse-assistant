@@ -55,12 +55,12 @@ Do not delete rows; the history is the asset.
       namespace. Switching project does not re-scope the embedded terminal;
       desirable once WSL projects exist (a WSL project should yield WSL terminals
       at that path). — discovered 2026-05-31 in add-project-sessions design (D4) —
-      see [`../../openspec/changes/add-project-sessions/design.md`](../../openspec/changes/add-project-sessions/design.md)
+      see [`../../openspec/changes/archive/2026-05-31-add-project-sessions/design.md`](../../openspec/changes/archive/2026-05-31-add-project-sessions/design.md)
 - [ ] Multi-live-session **memory eviction** (drop buffer + close stream for idle
       non-active sessions, reload from history on revisit). If the first cut ships
       without it, in-memory buffers + SSE streams grow unbounded with session
       count. — discovered 2026-05-31 in add-project-sessions design (D2) — see
-      [`../../openspec/changes/add-project-sessions/design.md`](../../openspec/changes/add-project-sessions/design.md).
+      [`../../openspec/changes/archive/2026-05-31-add-project-sessions/design.md`](../../openspec/changes/archive/2026-05-31-add-project-sessions/design.md).
       **2026-06-01 implementation note**: eviction's revisit-restore reuses
       `switchSession` (openAgentSession + history rebuild), so it is gated on the
       sidecar `GET /history` endpoint *and* on only evicting `idle && !active`

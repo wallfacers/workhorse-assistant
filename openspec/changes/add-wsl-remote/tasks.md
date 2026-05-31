@@ -3,7 +3,7 @@
 > Status: PARKED. Do not start the assistant-side items (§B/§C) until the
 > sidecar endpoints they depend on exist. Delivery order is in
 > [`design.md`](./design.md); the batch-1 sidecar contract is the standalone
-> [`../add-project-sessions/workhorse-agent-tasks.md`](../add-project-sessions/workhorse-agent-tasks.md).
+> [`../archive/2026-05-31-add-project-sessions/workhorse-agent-tasks.md`](../archive/2026-05-31-add-project-sessions/workhorse-agent-tasks.md).
 
 ## A. Sidecar (Go) — batch 2 (WSL enablement)
 
@@ -52,5 +52,5 @@
       README; note reliance on the bridge's existing SSE reconnect.
 - [ ] D2 Real-machine: Windows-host renderer + WSL2 sidecar, open a `/home/...`
       project, get a WSL terminal, sessions persist + rebuild across restart.
-- [ ] D3 `npm run lint` + `cargo check`; move both this change and
-      `add-project-sessions` to archived once verified.
+- [ ] D3 `npm run lint` + `cargo check`; move this change to archived once
+      verified (`add-project-sessions` is already archived).
