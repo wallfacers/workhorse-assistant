@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Copy, Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { highlightCode } from './highlighter';
 
 /**
@@ -42,6 +43,7 @@ interface CodeBlockProps {
 }
 
 export default function CodeBlock({ language, code, streaming = false }: CodeBlockProps) {
+  const { t } = useTranslation();
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -97,7 +99,7 @@ export default function CodeBlock({ language, code, streaming = false }: CodeBlo
           data-slot="markdown-code-actions"
           onClick={handleCopy}
           className="p-1 rounded hover:bg-gray-200/60 dark:hover:bg-neutral-700/60 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-          aria-label="复制代码"
+          aria-label={t('codeBlock.copy')}
         >
           {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
         </button>

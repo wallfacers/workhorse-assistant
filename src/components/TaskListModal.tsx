@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { MOCK_TASKS } from './agent-rail.mock';
 import type { MockTask } from './agent-rail.mock';
 
@@ -9,6 +10,7 @@ interface TaskListModalProps {
 }
 
 export default function TaskListModal({ onClose, onSelect }: TaskListModalProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -33,11 +35,11 @@ export default function TaskListModal({ onClose, onSelect }: TaskListModalProps)
       <div className="w-72 bg-white dark:bg-surface-dark-elevated rounded-2xl border border-outline dark:border-neutral-800 shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden">
         {/* Header */}
         <div className="px-4 pt-3.5 pb-2 flex items-center justify-between">
-          <span className="text-[13px] font-semibold text-gray-900 dark:text-gray-100">任务列表</span>
+          <span className="text-[13px] font-semibold text-gray-900 dark:text-gray-100">{t('tasks.title')}</span>
           <button
             type="button"
             onClick={onClose}
-            aria-label="关闭任务列表"
+            aria-label={t('tasks.closeTaskList')}
             className="p-1 rounded-md text-gray-400 dark:text-gray-500 hover:bg-gray-200/70 dark:hover:bg-neutral-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
           >
             <X className="w-3.5 h-3.5" />
@@ -53,7 +55,7 @@ export default function TaskListModal({ onClose, onSelect }: TaskListModalProps)
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索任务…"
+              placeholder={t('tasks.searchPlaceholder')}
               className="w-full pl-8 pr-3 py-1.5 bg-surface-muted dark:bg-surface-dark border border-outline dark:border-neutral-800 rounded-xl outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-neutral-700 transition-shadow text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 text-[12.5px]"
             />
           </div>
@@ -62,7 +64,7 @@ export default function TaskListModal({ onClose, onSelect }: TaskListModalProps)
         {/* Task list */}
         <div className="px-2 pb-3 max-h-56 overflow-y-auto custom-scrollbar space-y-0.5">
           {filtered.length === 0 ? (
-            <p className="px-3 py-4 text-center text-[12px] text-gray-400 dark:text-gray-500">无匹配任务</p>
+            <p className="px-3 py-4 text-center text-[12px] text-gray-400 dark:text-gray-500">{t('tasks.noMatch')}</p>
           ) : (
             filtered.map((task) => (
               <button

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, Lock } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import MarkdownContent from './MarkdownContent';
 
 /**
@@ -35,6 +36,7 @@ export default function ReasoningPart({
   endedAt,
   autoExpand,
 }: ReasoningPartProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const wasStreaming = useRef(false);
 
@@ -57,12 +59,12 @@ export default function ReasoningPart({
       : null;
 
   const label = streaming
-    ? '思考中…'
+    ? t('reasoning.thinking')
     : redacted
-      ? '已隐藏的推理'
+      ? t('reasoning.redacted')
       : durationSec != null
-        ? `深度思考 ${durationSec} 秒`
-        : '深度思考';
+        ? t('reasoning.duration', { seconds: durationSec })
+        : t('reasoning.default');
 
   return (
     <div data-component="reasoning-part" className="mb-2 flex flex-col gap-1.5">
@@ -82,7 +84,7 @@ export default function ReasoningPart({
           {redacted ? (
             <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-500 italic">
               <Lock className="w-3 h-3 flex-shrink-0" />
-              <span>此推理块已加密（redacted），内容不可见</span>
+              <span>{t('reasoning.redactedMessage')}</span>
             </div>
           ) : (
             <MarkdownContent content={text} streaming={streaming} />

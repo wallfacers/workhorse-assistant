@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import i18n from '../i18n';
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary — catches rendering errors in its subtree so a broken panel
@@ -46,17 +47,17 @@ export default class ErrorBoundary extends Component<Props, State> {
             <span className="text-red-500 text-lg">!</span>
           </div>
           <p className="text-[13px] font-semibold text-gray-900 dark:text-gray-100 mb-1">
-            这个区域出了点问题
+            {i18n.t('error.boundaryTitle')}
           </p>
           <p className="text-[11.5px] text-gray-500 dark:text-gray-400 mb-4 break-all">
-            {this.state.error?.message ?? '未知渲染错误'}
+            {this.state.error?.message ?? i18n.t('error.unknown')}
           </p>
           <button
             type="button"
             onClick={this.handleRetry}
             className="px-3.5 py-1.5 rounded-lg bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-800 text-[12px] font-medium hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors"
           >
-            重试
+            {i18n.t('common.retry')}
           </button>
         </div>
       </div>
