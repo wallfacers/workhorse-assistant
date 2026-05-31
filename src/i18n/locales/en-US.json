@@ -101,7 +101,9 @@
     "newTerminal": "New terminal",
     "newGroup": "New terminal group",
     "closeGroup": "Close terminal group",
-    "close": "Close"
+    "close": "Close",
+    "splitRight": "Split right",
+    "splitDown": "Split down"
   },
   "toolCall": {
     "running": "Running…",

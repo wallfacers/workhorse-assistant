@@ -101,7 +101,9 @@
     "newTerminal": "新建终端",
     "newGroup": "新建终端组",
     "closeGroup": "关闭终端组",
-    "close": "关闭"
+    "close": "关闭",
+    "splitRight": "向右分屏",
+    "splitDown": "向下分屏"
   },
   "toolCall": {
     "running": "运行中…",

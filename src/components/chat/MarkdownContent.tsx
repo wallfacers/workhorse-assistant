@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { marked } from 'marked';
 import morphdom from 'morphdom';
 import DOMPurify from 'dompurify';
+import i18n from '../../i18n';
 import { stream, type Block } from './markdown-stream';
 import { highlightCode } from './highlighter';
 import { writeClipboardText } from '../../ipc/clipboard';
@@ -73,7 +74,7 @@ function renderStreamingCodeBlock(block: Block): string {
     '<div data-component="markdown-code" data-streaming-code="true">',
     '<div data-slot="markdown-code-bar">',
     `<span data-slot="markdown-code-language">${escapeHtml(label)}</span>`,
-    `<button data-slot="markdown-copy-button" type="button" aria-label="复制代码">${COPY_SVG}</button>`,
+    `<button data-slot="markdown-copy-button" type="button" aria-label="${escapeHtml(i18n.t('codeBlock.copy'))}">${COPY_SVG}</button>`,
     '</div>',
     `<pre data-streaming-code="true"><code class="${languageClass}" style="${STREAMING_CODE_BODY_STYLE}">${escapeHtml(code)}</code></pre>`,
     '</div>',
@@ -178,7 +179,7 @@ function decorateCodeBlocks(root: HTMLElement): void {
     const btn = document.createElement('button');
     btn.setAttribute('data-slot', 'markdown-copy-button');
     btn.setAttribute('type', 'button');
-    btn.setAttribute('aria-label', '复制代码');
+    btn.setAttribute('aria-label', i18n.t('codeBlock.copy'));
     btn.innerHTML = COPY_SVG;
     bar.append(label, btn);
     pre.parentNode?.replaceChild(wrapper, pre);

@@ -1,5 +1,6 @@
 import { SplitSquareHorizontal, SplitSquareVertical, X } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import Terminal from '../Terminal';
 import type { PaneNode } from './workspaceReducer';
 
@@ -60,6 +61,7 @@ export default function PaneCard({
   onActivate,
   onTitle,
 }: PaneCardProps) {
+  const { t } = useTranslation();
   const split = totalPanes > 1;
   const showAccent = isActive && split;
 
@@ -87,13 +89,13 @@ export default function PaneCard({
           (no xterm content there), so being always-interactive never steals
           xterm's text selection. */}
       <div className="absolute right-1.5 top-1 flex items-center gap-0.5">
-        <ControlButton label="向右分屏" onClick={() => onSplit('row')}>
+        <ControlButton label={t('terminal.splitRight')} onClick={() => onSplit('row')}>
           <SplitSquareHorizontal className="h-3 w-3" />
         </ControlButton>
-        <ControlButton label="向下分屏" onClick={() => onSplit('column')}>
+        <ControlButton label={t('terminal.splitDown')} onClick={() => onSplit('column')}>
           <SplitSquareVertical className="h-3 w-3" />
         </ControlButton>
-        <ControlButton label="关闭" onClick={() => onClose()} danger>
+        <ControlButton label={t('terminal.close')} onClick={() => onClose()} danger>
           <X className="h-3 w-3" />
         </ControlButton>
       </div>

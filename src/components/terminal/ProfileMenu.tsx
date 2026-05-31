@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { ProfileId } from '../../ipc';
 import { PROFILE_LABELS, PROFILE_ORDER } from './profiles';
 
@@ -24,6 +25,7 @@ export default function ProfileMenu({
 }: ProfileMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!open) return;
@@ -45,7 +47,7 @@ export default function ProfileMenu({
         type="button"
         data-testid="new-terminal-group"
         data-agent-clickable
-        title={title ?? '新建终端'}
+        title={title ?? t('terminal.newTerminal')}
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => !v);
