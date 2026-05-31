@@ -71,11 +71,24 @@ export default function TitleBar({ maximized }: TitleBarProps) {
  */
 function ProjectSwitcher() {
   const { t } = useTranslation();
-  const { projects, currentProject, openProject } = useSession();
+  const { projects, recentProjects, currentProject, openProject } = useSession();
   const [open, setOpen] = useState(false);
   const [entering, setEntering] = useState(false);
   const [pathText, setPathText] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+
+  // Known paths = sidecar projects (eventual source of truth) ∪ locally-
+  // remembered recents ∪ the current selection, most-relevant first, deduped.
+  // Until the sidecar's GET /v1/projects ships, `projects` is empty and this is
+  // backed entirely by the local recents list.
+  const knownPaths: string[] = [];
+  const seen = new Set<string>();
+  for (const p of [...projects.map((x) => x.path), ...recentProjects, currentProject]) {
+    if (p && !seen.has(p)) {
+      seen.add(p);
+      knownPaths.push(p);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -119,25 +132,25 @@ function ProjectSwitcher() {
       </button>
       {open && (
         <div className="absolute left-0 top-7 z-50 min-w-[240px] overflow-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
-          {projects.map((p) => (
+          {knownPaths.map((p) => (
             <button
-              key={p.path}
+              key={p}
               type="button"
               onClick={() => {
-                void openProject(p.path);
+                void openProject(p);
                 setOpen(false);
               }}
-              title={p.path}
+              title={p}
               className={`block w-full truncate px-3 py-1.5 text-left text-[12.5px] transition-colors hover:bg-surface-muted dark:hover:bg-surface-dark-muted ${
-                p.path === currentProject
+                p === currentProject
                   ? 'font-semibold text-on-surface dark:text-on-canvas-dark'
                   : 'text-gray-600 dark:text-gray-300'
               }`}
             >
-              {p.path}
+              {p}
             </button>
           ))}
-          {projects.length > 0 && <div className="my-1 border-t border-outline/50 dark:border-neutral-800/60" />}
+          {knownPaths.length > 0 && <div className="my-1 border-t border-outline/50 dark:border-neutral-800/60" />}
           {entering ? (
             <div className="px-2 py-1">
               <input

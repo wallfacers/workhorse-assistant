@@ -226,7 +226,7 @@ export default function AgentRail() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="w-[400px] bg-white dark:bg-surface-dark-elevated flex flex-col rounded-lg border border-outline dark:border-neutral-800/60 shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full text-[13px] flex-shrink-0 overflow-hidden">
+    <div className="w-full bg-white dark:bg-surface-dark-elevated flex flex-col rounded-lg border border-outline dark:border-neutral-800/60 shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full text-[13px] overflow-hidden">
 
       {activeSessionId && <SessionHeader />}
 

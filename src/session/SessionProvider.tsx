@@ -50,6 +50,17 @@ import { subscribeSession } from './events';
 import { emptyRuntime, isPendingOnly, type ChatMessage, type ChatRuntime, type SessionScratch } from './types';
 
 const LS_PROJECT = 'workhorse:currentProject';
+const LS_RECENT = 'workhorse:recentProjects';
+const RECENT_MAX = 8;
+
+function loadRecent(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_RECENT) ?? '[]');
+    return Array.isArray(raw) ? raw.filter((p): p is string => typeof p === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 const genId = (p: string) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
@@ -71,6 +82,7 @@ export interface SessionListItem {
 interface SessionContextValue {
   // Projects
   projects: AgentProjectMeta[];
+  recentProjects: string[];
   currentProject: string;
   openProject: (path: string) => Promise<void>;
   // Sessions
@@ -112,6 +124,9 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
       return '';
     }
   });
+  // Locally-remembered project paths (sidecar `/v1/projects` is the eventual
+  // source of truth, but until it ships this keeps the switcher useful).
+  const [recentProjects, setRecentProjects] = useState<string[]>(loadRecent);
   const [liveSessions, setLiveSessions] = useState<LiveSession[]>([]);
   const [listedSessions, setListedSessions] = useState<AgentSessionMeta[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -256,6 +271,16 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
       } catch {
         // localStorage unavailable — selection stays in-memory.
       }
+      // Remember the path locally (most-recent-first, deduped, capped).
+      setRecentProjects((prev) => {
+        const next = [path, ...prev.filter((p) => p !== path)].slice(0, RECENT_MAX);
+        try {
+          localStorage.setItem(LS_RECENT, JSON.stringify(next));
+        } catch {
+          // best-effort; in-memory list still updates
+        }
+        return next;
+      });
       // B4: drop the previous project's live sessions so the switcher does not
       // mix sessions across projects. This tears down their SSE subscriptions
       // (via the subscribe effect) and resets to an empty-state until the user
@@ -427,6 +452,7 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
 
   const value: SessionContextValue = {
     projects,
+    recentProjects,
     currentProject,
     openProject,
     sessions,

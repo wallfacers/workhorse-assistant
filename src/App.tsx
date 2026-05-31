@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PanelRightOpen } from 'lucide-react';
+import { Group, Panel, Separator } from 'react-resizable-panels';
 import AgentRail from './components/AgentRail';
 import ErrorBoundary from './components/ErrorBoundary';
 import TerminalWorkspace from './components/terminal/TerminalWorkspace';
@@ -84,15 +85,25 @@ export default function App() {
     >
       <TitleBar maximized={maximized} />
 
-      <div className="flex-1 min-h-0 w-full flex p-3.5 gap-3.5 overflow-hidden">
-        <ErrorBoundary name="Chat">
-          <AgentRail />
-        </ErrorBoundary>
-        <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
-          <ErrorBoundary name="Terminal">
-            <TerminalWorkspace />
-          </ErrorBoundary>
-        </div>
+      <div className="flex-1 min-h-0 w-full flex p-3.5 overflow-hidden">
+        <Group
+          id="main-layout"
+          orientation="horizontal"
+          className="flex-1 min-h-0"
+        >
+          <Panel id="chat-panel" defaultSize={30} minSize={20} maxSize={50}>
+            <ErrorBoundary name="Chat">
+              <AgentRail />
+            </ErrorBoundary>
+          </Panel>
+          <Separator className="separator-handle" />
+          <Panel id="terminal-panel" defaultSize={70} minSize={30}>
+            <ErrorBoundary name="Terminal">
+              <TerminalWorkspace />
+            </ErrorBoundary>
+          </Panel>
+        </Group>
+
         {rightPanelOpen ? (
           <RightPanel onClose={() => setRightPanelOpen(false)} />
         ) : (
