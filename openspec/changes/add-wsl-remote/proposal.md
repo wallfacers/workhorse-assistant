@@ -1,7 +1,9 @@
-> **Status: PARKED skeleton.** Captured during the `add-project-sessions`
-> exploration so the design isn't lost; not scheduled. Do not start until
-> `add-project-sessions` lands (it carries the forward-compat decisions this
-> change depends on — see that change's design §"Remote/WSL forward-compatibility").
+> **Status: PARKED, detailed.** Captured during `add-project-sessions` and
+> fleshed out 2026-06-01 with the items that change punted here (§1.7 explicit
+> workdir, full health/session decoupling) plus the sidecar endpoints that gate
+> everything downstream. Not yet scheduled. See [`design.md`](./design.md) for
+> the delivery-order dependency graph and [`tasks.md`](./tasks.md) for the split
+> between the Go sidecar and the assistant.
 
 ## Why
 
@@ -34,6 +36,16 @@ selection (Windows folder dialog ≠ WSL namespace).
   (forward-compat from `add-project-sessions`); `/health` capabilities expose
   platform/distro so the UI defaults the terminal to the `wsl` profile and knows
   it is talking to a remote sidecar.
+- **Explicit `workdir` + cold-start default (absorbs §3.6's deferred §1.7).**
+  Drop the Rust `attach` host-cwd fallback (`std::env::current_dir()`): with a
+  remote sidecar the host cwd is the *wrong namespace*. The renderer must always
+  pass an explicit `workdir`. To keep the zero-config "open app → start chatting"
+  flow, the sidecar reports its default workdir on `GET /health`
+  (`default_workdir`); the renderer uses it as the initial `currentProject` on
+  first launch (then remembers the last project). Without it, first launch shows
+  the project picker. This is why §1.7 belongs *here*, not in
+  `add-project-sessions`: it needs `/health default_workdir`, which lands with
+  the WSL capabilities.
 - **Networking guidance.** Document WSL2 localhost forwarding / mirrored
   networking mode; rely on the bridge's existing SSE reconnect for transient
   forward drops.

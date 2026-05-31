@@ -154,6 +154,15 @@ assistant **永不**读写你的数据目录——它只通过下面的 HTTP 端
   转发这两个字段（缺失则省略），UI 已消费：不发就只能显示"已完成"、看不到工具输出/
   报错。字段名：`output` / `error`（与现有 snake_case 事件字段风格一致）。
   对应地，`history` 的 `tool_call` part 也应回填 `output` / `status`（见 §4.3）。
+- **T7 `history` 完备性（支撑前端内存淘汰）**：assistant 计划对 **idle** 会话做
+  内存淘汰（卸载内存 buffer + 断开该会话的 SSE 流），用户切回时调
+  `GET …/history` **重建对话**。因此 history 的 `parts` 必须能**无损重建 UI 所见**——
+  至少 `text` 与 `tool_call`（含 `output` / `status`）；`reasoning` 可选（缺失只
+  少了思考块，不影响主体）。这是淘汰能否落地的**硬前置**：history 不完备 ⇒ 切回旧
+  会话变空白。
+  - **边界**：assistant **只淘汰 `idle` 会话**。`running` 会话不淘汰，因为这一轮
+    的 in-flight delta 还没落盘、不在 transcript 里——所以 history 只需覆盖**已完成
+    的轮次**即可，不必包含正在流式、未结束的内容。
 
 ---
 

@@ -16,3 +16,25 @@ renderer and bridge SHALL NOT assume `workdir` is a host-Windows path.
   host-path translation)
 - **AND** a new terminal in that project is a shell rooted at `/home/user/proj`
   inside WSL (e.g. launched via `wsl.exe --cd /home/user/proj`)
+
+### Requirement: Explicit workdir with a sidecar-provided cold-start default
+
+The assistant SHALL always send an explicit `workdir` when creating a session;
+the Rust bridge SHALL NOT fall back to the host process cwd. On first launch
+with no remembered project, the assistant SHALL use the sidecar's reported
+default workdir (`default_workdir` from `GET /health`) as the initial project,
+and SHALL fall back to a project-picker prompt only when none is available.
+
+#### Scenario: Cold start uses the sidecar's default workdir
+
+- **WHEN** the app launches with no remembered project and `GET /health` returns
+  `default_workdir = /home/user`
+- **THEN** the assistant opens `/home/user` as the current project and creates the
+  bootstrap session with `workdir = /home/user` (no host-cwd fallback)
+
+#### Scenario: Cold start with no default falls back to the picker
+
+- **WHEN** the app launches with no remembered project and `/health` reports no
+  `default_workdir`
+- **THEN** the assistant shows the project picker and creates no session until the
+  user chooses a path
