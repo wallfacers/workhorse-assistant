@@ -119,7 +119,7 @@ function AgentSection({
   const statusLabel: Record<AgentConnection['status'], string> = {
     idle: t('agent.status.disconnected'),
     connecting: t('agent.status.connecting'),
-    connected: t('agent.status.connected'),
+    connected: t('agent.status.connected', { sessionId: agent.sessionId }),
     error: t('agent.status.failed'),
   };
 

@@ -192,7 +192,7 @@ function wrapTables(root: HTMLElement): void {
     if (table.parentElement?.getAttribute('data-slot') === 'markdown-table-scroll') continue;
     const wrap = document.createElement('div');
     wrap.setAttribute('data-slot', 'markdown-table-scroll');
-    wrap.className = 'overflow-x-auto custom-scrollbar my-2';
+    wrap.className = 'custom-scrollbar my-2';
     table.parentNode?.replaceChild(wrap, table);
     wrap.appendChild(table);
   }
