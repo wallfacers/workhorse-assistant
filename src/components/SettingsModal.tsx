@@ -1,34 +1,28 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Moon, Sun, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { AgentConnection } from '../ipc';
 import { useApp } from '../context';
 
-type NavItem = '主题' | '快捷键' | 'Agent';
+type NavItem = 'theme' | 'shortcuts' | 'agent';
 
 interface SettingsModalProps {
   onClose: () => void;
 }
 
-const SHORTCUTS: { key: string; desc: string }[] = [
-  { key: '⌘ N',     desc: '新建任务' },
-  { key: '⌘ K',     desc: '全局搜索' },
-  { key: '⌘ ,',     desc: '打开设置' },
-  { key: '⌘ W',     desc: '关闭面板' },
-  { key: '⌘ \\',    desc: '切换侧栏' },
-  { key: '⌘ T',     desc: '新建终端' },
-  { key: '⌘ D',     desc: '分割终端' },
-  { key: '⌘ Enter', desc: '发送消息' },
-  { key: '⌘ /',     desc: '显示快捷键' },
-  { key: 'Esc',     desc: '取消 / 关闭' },
+const SHORTCUTS: { key: string; descKey: string }[] = [
+  { key: '⌘ N',     descKey: 'shortcuts.newTask' },
+  { key: '⌘ K',     descKey: 'shortcuts.globalSearch' },
+  { key: '⌘ ,',     descKey: 'shortcuts.openSettings' },
+  { key: '⌘ W',     descKey: 'shortcuts.closePanel' },
+  { key: '⌘ \\',    descKey: 'shortcuts.toggleSidebar' },
+  { key: '⌘ T',     descKey: 'shortcuts.newTerminal' },
+  { key: '⌘ D',     descKey: 'shortcuts.splitTerminal' },
+  { key: '⌘ Enter', descKey: 'shortcuts.sendMessage' },
+  { key: '⌘ /',     descKey: 'shortcuts.showShortcuts' },
+  { key: 'Esc',     descKey: 'shortcuts.cancelClose' },
 ];
-
-const STATUS_LABEL: Record<AgentConnection['status'], string> = {
-  idle: '未连接',
-  connecting: '连接中…',
-  connected: '已连接',
-  error: '连接失败',
-};
 
 const STATUS_DOT: Record<AgentConnection['status'], string> = {
   idle: 'bg-gray-400',
@@ -38,8 +32,15 @@ const STATUS_DOT: Record<AgentConnection['status'], string> = {
 };
 
 export default function SettingsModal({ onClose }: SettingsModalProps) {
+  const { t } = useTranslation();
   const { isDarkMode, setIsDarkMode, agent, autoExpandReasoning, setAutoExpandReasoning } = useApp();
-  const [activeNav, setActiveNav] = useState<NavItem>('主题');
+  const [activeNav, setActiveNav] = useState<NavItem>('theme');
+
+  const navLabels: Record<NavItem, string> = {
+    theme: t('settings.nav.theme'),
+    shortcuts: t('settings.nav.shortcuts'),
+    agent: t('settings.nav.agent'),
+  };
 
   return (
     <div
@@ -50,11 +51,11 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
         {/* Header */}
         <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-outline/50 dark:border-neutral-800/60 flex-shrink-0">
-          <span className="text-[13.5px] font-semibold text-gray-900 dark:text-gray-100">设置</span>
+          <span className="text-[13.5px] font-semibold text-gray-900 dark:text-gray-100">{t('settings.title')}</span>
           <button
             type="button"
             onClick={onClose}
-            aria-label="关闭设置"
+            aria-label={t('settings.closeSettings')}
             className="p-1 rounded-md text-gray-400 dark:text-gray-500 hover:bg-gray-200/70 dark:hover:bg-neutral-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
           >
             <X className="w-4 h-4" />
@@ -66,7 +67,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
           {/* Left nav */}
           <div className="w-44 flex-shrink-0 border-r border-outline/40 dark:border-neutral-800/40 px-2 py-3 space-y-0.5">
-            {(['主题', '快捷键', 'Agent'] as NavItem[]).map((item) => (
+            {(['theme', 'shortcuts', 'agent'] as NavItem[]).map((item) => (
               <button
                 key={item}
                 type="button"
@@ -77,18 +78,18 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200/40 dark:hover:bg-neutral-800/50'
                 }`}
               >
-                {item}
+                {navLabels[item]}
               </button>
             ))}
           </div>
 
           {/* Content */}
           <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar px-6 py-4">
-            {activeNav === '主题' && (
+            {activeNav === 'theme' && (
               <ThemeSection isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
             )}
-            {activeNav === '快捷键' && <ShortcutsSection />}
-            {activeNav === 'Agent' && <AgentSection agent={agent} autoExpandReasoning={autoExpandReasoning} setAutoExpandReasoning={setAutoExpandReasoning} />}
+            {activeNav === 'shortcuts' && <ShortcutsSection />}
+            {activeNav === 'agent' && <AgentSection agent={agent} autoExpandReasoning={autoExpandReasoning} setAutoExpandReasoning={setAutoExpandReasoning} />}
           </div>
         </div>
       </div>
@@ -105,18 +106,26 @@ function AgentSection({
   autoExpandReasoning: boolean;
   setAutoExpandReasoning: (v: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const isConnecting = agent.status === 'connecting';
   const isConnected = agent.status === 'connected';
 
+  const statusLabel: Record<AgentConnection['status'], string> = {
+    idle: t('agent.status.disconnected'),
+    connecting: t('agent.status.connecting'),
+    connected: t('agent.status.connected'),
+    error: t('agent.status.failed'),
+  };
+
   return (
     <div>
-      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">连接</p>
+      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">{t('settings.connection')}</p>
 
       {/* Status row */}
       <div className="flex items-center gap-2.5 mb-4">
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[agent.status]}`} />
         <span className="text-[12.5px] font-medium text-gray-800 dark:text-gray-200">
-          {STATUS_LABEL[agent.status]}
+          {statusLabel[agent.status]}
         </span>
         {agent.sessionId && (
           <span className="text-[11px] text-gray-400 dark:text-gray-500 font-mono">
@@ -134,15 +143,15 @@ function AgentSection({
 
       {/* Endpoint (read-only for V1) */}
       <div className="mb-4">
-        <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">服务地址</label>
+        <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">{t('settings.endpoint')}</label>
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-neutral-800/60 border border-outline/40 dark:border-neutral-800/50">
           <span className="text-[12.5px] font-mono text-gray-700 dark:text-gray-300">
             http://127.0.0.1:7821
           </span>
-          <span className="text-[10px] text-gray-400 dark:text-gray-500">默认值</span>
+          <span className="text-[10px] text-gray-400 dark:text-gray-500">{t('settings.defaultValue')}</span>
         </div>
         <p className="mt-1 text-[10.5px] text-gray-400 dark:text-gray-500">
-          可通过 WORKHORSE_AGENT_ENDPOINT 环境变量修改
+          {t('settings.endpointHint')}
         </p>
       </div>
 
@@ -154,7 +163,7 @@ function AgentSection({
             onClick={() => agent.disconnect()}
             className="px-4 py-1.5 rounded-lg border border-outline dark:border-neutral-700 text-[12px] font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
           >
-            断开连接
+            {t('settings.disconnect')}
           </button>
         ) : (
           <button
@@ -163,7 +172,7 @@ function AgentSection({
             disabled={isConnecting}
             className="px-4 py-1.5 rounded-lg bg-gray-800 dark:bg-gray-200 text-[12px] font-medium text-white dark:text-gray-800 hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isConnecting ? '连接中…' : '重新连接'}
+            {isConnecting ? t('agent.status.connecting') : t('settings.reconnect')}
           </button>
         )}
       </div>
@@ -171,7 +180,7 @@ function AgentSection({
       {/* Reasoning display preference — display-only, never toggles thinking on
           the sidecar (whether thinking runs is decided by the sidecar config). */}
       <div className="mt-6 pt-4 border-t border-outline/40 dark:border-neutral-800/40">
-        <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-3">推理显示</p>
+        <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-3">{t('settings.reasoningDisplay')}</p>
         <button
           type="button"
           role="switch"
@@ -180,8 +189,8 @@ function AgentSection({
           className="w-full flex items-center justify-between gap-3"
         >
           <span className="text-left">
-            <span className="block text-[12.5px] font-medium text-gray-800 dark:text-gray-200">自动展开思考过程</span>
-            <span className="block text-[10.5px] text-gray-400 dark:text-gray-500 mt-0.5">流式推理时自动展开，完成后自动折叠</span>
+            <span className="block text-[12.5px] font-medium text-gray-800 dark:text-gray-200">{t('settings.autoExpandThinking')}</span>
+            <span className="block text-[10.5px] text-gray-400 dark:text-gray-500 mt-0.5">{t('settings.autoExpandDescription')}</span>
           </span>
           <span className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${autoExpandReasoning ? 'bg-gray-800 dark:bg-gray-200' : 'bg-gray-300 dark:bg-neutral-700'}`}>
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-900 shadow transition-transform ${autoExpandReasoning ? 'translate-x-4' : 'translate-x-0.5'}`} />
@@ -199,22 +208,39 @@ function ThemeSection({
   isDarkMode: boolean;
   setIsDarkMode: (v: boolean) => void;
 }) {
+  const { t, i18n } = useTranslation();
+
   return (
     <div>
-      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">外观</p>
+      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">{t('settings.appearance')}</p>
       <div className="grid grid-cols-2 gap-3">
         <ThemeOption
-          label="浅色"
+          label={t('settings.lightTheme')}
           icon={<Sun className="w-5 h-5" />}
           active={!isDarkMode}
           onClick={() => setIsDarkMode(false)}
         />
         <ThemeOption
-          label="深色"
+          label={t('settings.darkTheme')}
           icon={<Moon className="w-5 h-5" />}
           active={isDarkMode}
           onClick={() => setIsDarkMode(true)}
         />
+      </div>
+
+      {/* Language selector */}
+      <div className="mt-4 pt-4 border-t border-outline/40 dark:border-neutral-800/40">
+        <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">
+          {t('settings.language')}
+        </label>
+        <select
+          value={i18n.language}
+          onChange={(e) => i18n.changeLanguage(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-neutral-800/60 border border-outline/40 dark:border-neutral-800/50 text-[12.5px] text-gray-700 dark:text-gray-300 outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-neutral-700"
+        >
+          <option value="zh-CN">中文 (简体)</option>
+          <option value="en-US">English</option>
+        </select>
       </div>
     </div>
   );
@@ -252,16 +278,18 @@ function ThemeOption({
 }
 
 function ShortcutsSection() {
+  const { t } = useTranslation();
+
   return (
     <div>
-      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">键盘快捷键</p>
+      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">{t('settings.keyboardShortcuts')}</p>
       <div className="grid grid-cols-2 gap-x-8 gap-y-0">
-        {SHORTCUTS.map(({ key, desc }) => (
+        {SHORTCUTS.map(({ key, descKey }) => (
           <div
             key={key}
             className="flex items-center justify-between py-2 border-b border-outline/30 dark:border-neutral-800/50"
           >
-            <span className="text-[12.5px] text-gray-600 dark:text-gray-400">{desc}</span>
+            <span className="text-[12.5px] text-gray-600 dark:text-gray-400">{t(descKey)}</span>
             <kbd className="px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-neutral-800 border border-outline/60 dark:border-neutral-700 text-[11px] font-mono text-gray-700 dark:text-gray-300 flex-shrink-0">
               {key}
             </kbd>
