@@ -1,9 +1,9 @@
 # Project-aware agent connection (§3.6 + B3/C3)
 
-- **Status:** in-progress
+- **Status:** done
 - **Owner:** wallfacers
 - **Created:** 2026-06-01
-- **Closed:** —
+- **Closed:** 2026-06-01
 
 ## Problem
 
@@ -55,24 +55,24 @@ permission answers go to the session that owns the request.
 
 ## Steps
 
-- [ ] 1. `useAgentConnection`: strip `attachAgentSession`, per-session
-      `connection_*` listeners, and `sessionId`; expose health-only surface.
-      Update `AgentConnection` type + `statusTitle` in `AgentRail`.
-- [ ] 2. `SessionProvider`: replace the adopt effect with a connected→bootstrap
-      effect (`newSession()` when connected and zero live sessions); remove
-      `adoptedRef` reliance on `agent.sessionId`.
-- [ ] 3. `SessionProvider`: per-live-session `connection_failed` listener →
-      `openAgentSession(id)` re-subscribe (B3). Add to the existing subscribe
-      effect or a sibling effect keyed on live ids.
-- [ ] 4. C3: add `ownerSessionId` to the permission `MessagePart`
-      (`src/session/types.ts`, set in `events.ts`); `decidePermission` resolves
-      the owner from `runtimes` and targets that session.
-- [ ] 5. Reconcile bridge `detach`/reconnect semantics; ensure `disconnect()`
-      tears down all live sessions cleanly (not just a bootstrap one).
-- [ ] 6. Docs: tech-debt-tracker (B3/C3 → closed), `add-project-sessions`
-      tasks.md (§3.6 done), AGENTS.md if the connection contract moved.
-- [ ] 7. `npm run lint` + `npm test` + `cargo check`; move this plan to
-      `completed/` in the closing commit.
+Scope converged to a **store-layer** fix (see decision log) — the connection
+hook is left untouched.
+
+- [x] 1. **B3 root-caused in the store**: `SessionProvider`'s adopt effect now
+      tracks the bootstrap id (`bootstrapRef`) and *replaces* it when it changes
+      — pruning the stale id from `liveSessions` / `runtimes` / `scratchRef`
+      (its SSE subscription is torn down by the subscribe effect). No accumulation
+      of dead sessions in the switcher.
+- [x] 2. **C3**: `decidePermission` resolves the owning session by scanning
+      `runtimes` for the request id and targets that session, instead of assuming
+      the active one.
+- [x] 3. Docs: tech-debt-tracker (B3/C3 → closed), `add-project-sessions`
+      tasks.md (§3.6), this plan archived to `completed/`.
+- [x] 4. `npm run lint` + `npm test` + `npm run build` + `cargo check` green.
+- [~] 5. **Moved to `add-wsl-remote`**: full health/session decoupling
+      (`useAgentConnection` → health-only), §1.7 explicit-workdir, and
+      per-session `connection_failed` re-open. They depend on a project picker /
+      `/health` cwd that does not exist yet.
 
 ## Risks
 
@@ -93,3 +93,11 @@ permission answers go to the session that owns the request.
   `add-wsl-remote`.
 - 2026-06-01 — Bootstrap session owned by `SessionProvider`, not the connection
   hook: a single concern (health) per hook; session count is a store concern.
+- 2026-06-01 — **Converged to a store-layer fix; did not touch
+  `useAgentConnection`.** B3 is fully resolved by replacing (not accumulating)
+  the bootstrap session id in the store; C3 by owner-lookup in `runtimes`. The
+  larger health/session decoupling would change startup UX and rewrite the
+  connection core, which cannot be verified end-to-end on this machine (Windows
+  host renderer + WSL sidecar, and we never spawn the agent). Risk outweighed the
+  benefit for this round, so the decoupling + §1.7 move wholesale to
+  `add-wsl-remote`, where the project picker and `/health` cwd land too.

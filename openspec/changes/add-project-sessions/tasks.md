@@ -44,9 +44,11 @@
       `running` from streaming state. The active∪running narrowing pairs with 3.5.
 - [ ] 3.5 Eviction: drop buffer + close stream for idle non-active sessions;
       reload via history on revisit — **deferred** (debt row recorded)
-- [~] 3.6 `useAgentConnection` left as-is; the store **adopts its bootstrap
-      session** and creates more via `attachAgentSession`. Full project-aware
-      rework (+ §1.7 flip) deferred so auto-connect keeps working.
+- [x] 3.6 Store now **replaces** the bootstrap session on reconnect (tracks it
+      via `bootstrapRef`) so the stale id no longer lingers (B3). `decidePermission`
+      targets the owning session (C3). `useAgentConnection` deliberately left
+      unchanged — see [`../../../docs/exec-plans/completed/2026-06-01-project-aware-agent-connection.md`](../../../docs/exec-plans/completed/2026-06-01-project-aware-agent-connection.md).
+      Full health/session decoupling + §1.7 flip moved to `add-wsl-remote`.
 - [x] 3.7 Persist `currentProject` in localStorage (active-session pointer: hint
       only, not yet restored)
 

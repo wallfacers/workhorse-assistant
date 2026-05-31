@@ -68,12 +68,15 @@ Do not delete rows; the history is the asset.
       per-id generation counter (`subGenRef`): an in-flight subscribe whose slot
       was torn down or superseded unlistens itself on resolve. See
       `src/session/SessionProvider.tsx`.
-- [ ] **Reconnect stale session (B3)**: `useAgentConnection`'s reconnect path
-      calls `attachAgentSession`, which (post multi-live refactor) no longer
-      detaches the prior session — the dead id lingers in the bridge `Map` and the
-      switcher. Root fix is the project-aware connection rework (§3.6). — discovered
-      2026-05-31 in add-project-sessions review — see `src/ipc/agent.ts`,
-      [`../../openspec/changes/add-project-sessions/tasks.md`](../../openspec/changes/add-project-sessions/tasks.md) (§3.6)
+- [x] **Reconnect stale session (B3)**: `useAgentConnection`'s reconnect path
+      mints a *new* session id, and (post multi-live refactor) the dead one
+      lingered in the switcher. — discovered 2026-05-31 in add-project-sessions
+      review — closed 2026-06-01 in the store: `SessionProvider` tracks the
+      bootstrap id (`bootstrapRef`) and *replaces* it on change, pruning the stale
+      id from live sessions / runtimes / scratch. The connection hook is unchanged;
+      a full health/session decoupling remains future work in `add-wsl-remote`.
+      See `src/session/SessionProvider.tsx`,
+      [`2026-06-01-project-aware-agent-connection.md`](2026-06-01-project-aware-agent-connection.md).
 - [ ] **`tool_call_done` output/error (C1)**: the Rust bridge now best-effort
       forwards `output`/`error` from the sidecar's `tool_call_done` SSE event
       (omitted when absent → no regression for older sidecars), and the TS handler
@@ -82,11 +85,12 @@ Do not delete rows; the history is the asset.
       tool results stay invisible. Tracked in `workhorse-agent-tasks.md`. —
       discovered 2026-05-31 in add-project-sessions review; Rust side closed
       2026-06-01 — see `src-tauri/src/agent/mod.rs`, `src/session/events.ts`
-- [ ] **Permission decision targets active session (C3)**: `decidePermission`
-      routes to the active session; a card raised in A but answered after switching
-      to B mis-targets. Thread the owning sessionId through the card. Pairs with
-      §3.6. — discovered 2026-05-31 in add-project-sessions review — see
-      `src/session/SessionProvider.tsx`
+- [x] **Permission decision targets active session (C3)**: `decidePermission`
+      routed to the active session; a card raised in A but answered after switching
+      to B could mis-target. — discovered 2026-05-31 in add-project-sessions review
+      — closed 2026-06-01: `decidePermission` now resolves the owning session by
+      scanning `runtimes` for the request id and targets that session. See
+      `src/session/SessionProvider.tsx`.
 
 ## Closed
 

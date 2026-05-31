@@ -124,10 +124,11 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   // superseded subscription unlistens itself instead of leaking.
   const subsRef = useRef<Map<string, { gen: number; uns: UnlistenFn[] }>>(new Map());
   const subGenRef = useRef<Map<string, number>>(new Map());
-  // Session ids we have already adopted from `useAgentConnection`. Adoption is
-  // once-per-id so that clearing live sessions on a project switch (B4) is not
-  // immediately undone by this effect re-firing on the `currentProject` change.
-  const adoptedRef = useRef<Set<string>>(new Set());
+  // The bootstrap session id currently owned by `useAgentConnection`. Tracking
+  // it lets us REPLACE (not accumulate) when a reconnect mints a new id (B3),
+  // and means a project switch clearing live sessions is not undone by this
+  // effect re-firing on the `currentProject` change (B4).
+  const bootstrapRef = useRef<string | null>(null);
 
   const scratchFor = useCallback((id: string): SessionScratch => {
     let s = scratchRef.current.get(id);
@@ -156,16 +157,34 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     [],
   );
 
-  // --- Adopt the bootstrap session from useAgentConnection -------------------
-  // Runs once per distinct bootstrap id. A reconnect that yields a *new* id
-  // adopts that new one (the stale id lingering in the bridge is B3, deferred).
+  // --- Adopt / replace the bootstrap session from useAgentConnection ---------
+  // The connection hook mints a session on connect and a *new* one on each
+  // reconnect. We track the current bootstrap id and replace it when it changes
+  // so the stale (now-dead) id does not linger in the switcher (B3): it is
+  // pruned from live sessions / runtimes / scratch as the new id takes over.
+  // Its SSE subscription is torn down by the subscribe effect once it leaves
+  // `liveSessions`.
   useEffect(() => {
     const sid = agent.sessionId;
-    if (!sid || adoptedRef.current.has(sid)) return;
-    adoptedRef.current.add(sid);
-    setLiveSessions((prev) => (prev.some((s) => s.id === sid) ? prev : [...prev, { id: sid, workdir: currentProject, title: '' }]));
-    setRuntimes((prev) => (prev[sid] ? prev : { ...prev, [sid]: emptyRuntime() }));
-    setActiveSessionId((prev) => prev ?? sid);
+    if (!sid) return;
+    const stale = bootstrapRef.current;
+    if (stale === sid) return; // unchanged — also absorbs currentProject churn (B4)
+    bootstrapRef.current = sid;
+
+    setLiveSessions((prev) => {
+      const pruned = stale ? prev.filter((s) => s.id !== stale) : prev;
+      return pruned.some((s) => s.id === sid) ? pruned : [...pruned, { id: sid, workdir: currentProject, title: '' }];
+    });
+    setRuntimes((prev) => {
+      const next = { ...prev };
+      if (stale && stale !== sid) delete next[stale];
+      if (!next[sid]) next[sid] = emptyRuntime();
+      return next;
+    });
+    if (stale && stale !== sid) scratchRef.current.delete(stale);
+    // If the active session was the one being replaced (or nothing was active),
+    // follow the new bootstrap; otherwise leave the user's selection alone.
+    setActiveSessionId((prev) => (prev === null || prev === stale ? sid : prev));
   }, [agent.sessionId, currentProject]);
 
   // --- Keep SSE listeners mounted for every live session (D2/§3.3) -----------
@@ -362,11 +381,16 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
 
   const decidePermission = useCallback(
     (requestId: string, decision: PermissionDecision) => {
-      // C3 (deferred): routed to the *active* session. A permission card raised
-      // in session A but answered after switching to B would mis-target. Low
-      // likelihood; a proper fix threads the owning sessionId through the card
-      // (with §3.6). For now the card lives in the active session's runtime.
-      const id = activeSessionId;
+      // C3: target the session whose runtime actually holds this request, not
+      // merely whichever session is active when the button is clicked.
+      let owner: string | null = null;
+      for (const [sid, rt] of Object.entries(runtimes)) {
+        if (rt.messages.some((m) => m.parts.some((p) => p.type === 'permission' && p.requestId === requestId))) {
+          owner = sid;
+          break;
+        }
+      }
+      const id = owner ?? activeSessionId;
       if (!id) return;
       void sendPermissionDecision(requestId, decision, id);
       const resolved = decision.startsWith('allow') ? ('allowed' as const) : ('denied' as const);
@@ -377,7 +401,7 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
         })),
       );
     },
-    [activeSessionId, setMessagesFor],
+    [activeSessionId, runtimes, setMessagesFor],
   );
 
   // --- Derived view data -----------------------------------------------------
