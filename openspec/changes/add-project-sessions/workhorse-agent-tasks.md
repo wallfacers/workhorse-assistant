@@ -149,6 +149,11 @@ assistant **永不**读写你的数据目录——它只通过下面的 HTTP 端
   （不只是 UI 连续）。
 - **T5（可选，加分）补帧**：running 会话让晚加入的 stream 订阅者补到这一轮已发的
   事件（SSE 不回放是当前已知缺口）。不强制。
+- **T6 `tool_call_done` 带结果**：该 SSE 事件**必须**携带工具结果——成功时
+  `output`（任意 JSON），失败时 `error`（字符串）。assistant 的桥已 best-effort
+  转发这两个字段（缺失则省略），UI 已消费：不发就只能显示"已完成"、看不到工具输出/
+  报错。字段名：`output` / `error`（与现有 snake_case 事件字段风格一致）。
+  对应地，`history` 的 `tool_call` part 也应回填 `output` / `status`（见 §4.3）。
 
 ---
 

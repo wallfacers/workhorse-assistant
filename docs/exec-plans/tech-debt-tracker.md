@@ -61,24 +61,27 @@ Do not delete rows; the history is the asset.
       without it, in-memory buffers + SSE streams grow unbounded with session
       count. — discovered 2026-05-31 in add-project-sessions design (D2) — see
       [`../../openspec/changes/add-project-sessions/design.md`](../../openspec/changes/add-project-sessions/design.md)
-- [ ] **Subscribe race (B1)**: in `SessionProvider`'s subscribe effect, a rapid
+- [x] **Subscribe race (B1)**: in `SessionProvider`'s subscribe effect, a rapid
       remove→re-add of the same session id inside the async `listen()` window can
-      drop one set of unlisten fns (listener leak / duplicate dispatch). The
-      empty-array slot reservation covers the common case; a per-id generation
-      counter would close it fully. Low likelihood. — discovered 2026-05-31 in
-      add-project-sessions review — see `src/session/SessionProvider.tsx`
+      drop one set of unlisten fns (listener leak / duplicate dispatch). —
+      discovered 2026-05-31 in add-project-sessions review — closed 2026-06-01 by a
+      per-id generation counter (`subGenRef`): an in-flight subscribe whose slot
+      was torn down or superseded unlistens itself on resolve. See
+      `src/session/SessionProvider.tsx`.
 - [ ] **Reconnect stale session (B3)**: `useAgentConnection`'s reconnect path
       calls `attachAgentSession`, which (post multi-live refactor) no longer
       detaches the prior session — the dead id lingers in the bridge `Map` and the
       switcher. Root fix is the project-aware connection rework (§3.6). — discovered
       2026-05-31 in add-project-sessions review — see `src/ipc/agent.ts`,
       [`../../openspec/changes/add-project-sessions/tasks.md`](../../openspec/changes/add-project-sessions/tasks.md) (§3.6)
-- [ ] **`tool_call_done` carries no output/error (C1)**: Rust `ToolDonePayload`
-      emits only `{sessionId, toolCallId}`, but the TS `tooldone` handler expects
-      `output`/`error`. Result: tool calls always render `status: 'done'` and their
-      output is never shown. Needs protocol alignment with the sidecar before
-      forwarding the fields. — discovered 2026-05-31 in add-project-sessions review
-      — see `src-tauri/src/agent/mod.rs`, `src/session/events.ts`
+- [ ] **`tool_call_done` output/error (C1)**: the Rust bridge now best-effort
+      forwards `output`/`error` from the sidecar's `tool_call_done` SSE event
+      (omitted when absent → no regression for older sidecars), and the TS handler
+      already consumes them. Remaining half is the **sidecar contract**: it must
+      actually emit `output` (and `error` on failure) on `tool_call_done`, else
+      tool results stay invisible. Tracked in `workhorse-agent-tasks.md`. —
+      discovered 2026-05-31 in add-project-sessions review; Rust side closed
+      2026-06-01 — see `src-tauri/src/agent/mod.rs`, `src/session/events.ts`
 - [ ] **Permission decision targets active session (C3)**: `decidePermission`
       routes to the active session; a card raised in A but answered after switching
       to B mis-targets. Thread the owning sessionId through the card. Pairs with

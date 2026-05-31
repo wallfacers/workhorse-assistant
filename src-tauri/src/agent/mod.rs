@@ -182,12 +182,18 @@ struct ToolStartPayload {
 }
 
 /// Payload of `agent://tooldone/{sessionId}` — tool call done relayed from
-/// the sidecar's `tool_call_done` SSE event.
+/// the sidecar's `tool_call_done` SSE event. `output`/`error` are best-effort:
+/// forwarded when the sidecar includes them, omitted otherwise (so an older
+/// sidecar that sends neither keeps today's behaviour, no regression).
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct ToolDonePayload {
     session_id: String,
     tool_call_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
 }
 
 /// Payload of `agent://error/{sessionId}` — error from the sidecar relayed
@@ -749,6 +755,9 @@ fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &s
             let payload = ToolDonePayload {
                 session_id: session_id.to_string(),
                 tool_call_id: event.get("tool_call_id").and_then(Value::as_str).unwrap_or_default().to_string(),
+                // Treat an explicit JSON `null` the same as an absent field.
+                output: event.get("output").filter(|v| !v.is_null()).cloned(),
+                error: event.get("error").and_then(Value::as_str).map(str::to_string),
             };
             let _ = app.emit(&format!("agent://tooldone/{session_id}"), payload);
         }

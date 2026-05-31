@@ -118,7 +118,12 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   const [runtimes, setRuntimes] = useState<Record<string, ChatRuntime>>({});
 
   const scratchRef = useRef<Map<string, SessionScratch>>(new Map());
-  const subsRef = useRef<Map<string, UnlistenFn[]>>(new Map());
+  // Each entry carries the generation it was created under (B1). A monotonic
+  // per-id counter (`subGenRef`) lets an in-flight `subscribeSession` detect
+  // that its slot was torn down (or re-created) while it was awaiting, so a
+  // superseded subscription unlistens itself instead of leaking.
+  const subsRef = useRef<Map<string, { gen: number; uns: UnlistenFn[] }>>(new Map());
+  const subGenRef = useRef<Map<string, number>>(new Map());
   // Session ids we have already adopted from `useAgentConnection`. Adoption is
   // once-per-id so that clearing live sessions on a project switch (B4) is not
   // immediately undone by this effect re-firing on the `currentProject` change.
@@ -168,25 +173,31 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     const want = new Set(liveSessions.map((s) => s.id));
     for (const id of want) {
       if (!subsRef.current.has(id)) {
-        // NOTE (B1, deferred): a rapid remove→re-add of the same id within the
-        // async listen() window can drop one set of unlisten fns (leak/dup). The
-        // empty-array reservation below covers the common case; a per-id
-        // generation counter would close the race fully.
-        subsRef.current.set(id, []); // reserve the slot to avoid a double subscribe
+        // Stamp this subscription with a fresh generation; reserve the slot so a
+        // re-entrant effect run does not start a second subscribe (B1).
+        const gen = (subGenRef.current.get(id) ?? 0) + 1;
+        subGenRef.current.set(id, gen);
+        subsRef.current.set(id, { gen, uns: [] });
         void subscribeSession(id, {
           setMessages: setMessagesFor(id),
           setStreaming: setStreamingFor(id),
           scratch: scratchFor(id),
         }).then((uns) => {
-          if (subsRef.current.has(id)) subsRef.current.set(id, uns);
+          const cur = subsRef.current.get(id);
+          // Accept only if the slot is still ours; otherwise it was torn down or
+          // superseded while we awaited — unlisten to avoid a leak/duplicate.
+          if (cur && cur.gen === gen) subsRef.current.set(id, { gen, uns });
           else uns.forEach((u) => u());
         });
       }
     }
-    for (const [id, uns] of subsRef.current) {
+    for (const [id, entry] of subsRef.current) {
       if (!want.has(id)) {
-        uns.forEach((u) => u());
+        entry.uns.forEach((u) => u());
         subsRef.current.delete(id);
+        // Bump the generation so any in-flight subscribe for this id is rejected
+        // when it resolves (it would otherwise re-populate a dead slot).
+        subGenRef.current.set(id, (subGenRef.current.get(id) ?? 0) + 1);
       }
     }
   }, [liveSessions, setMessagesFor, setStreamingFor, scratchFor]);
@@ -195,7 +206,7 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   useEffect(() => {
     const subs = subsRef.current;
     return () => {
-      for (const uns of subs.values()) uns.forEach((u) => u());
+      for (const entry of subs.values()) entry.uns.forEach((u) => u());
       subs.clear();
     };
   }, []);
@@ -283,9 +294,9 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
       const res = await deleteAgentSession(id);
       if (!res.ok) return;
       // Drop the local subscription (deleteAgentSession already detached the bridge).
-      const uns = subsRef.current.get(id);
-      if (uns) {
-        uns.forEach((u) => u());
+      const entry = subsRef.current.get(id);
+      if (entry) {
+        entry.uns.forEach((u) => u());
         subsRef.current.delete(id);
       }
       scratchRef.current.delete(id);
