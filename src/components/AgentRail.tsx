@@ -8,6 +8,7 @@ import type { AgentConnection } from '../ipc';
 import { sendAgentMessage, cancelAgentMessage, sendPermissionDecision, activeSessionId } from '../ipc';
 import type { PermissionDecision } from '../ipc';
 import { useAutoScroll } from '../hooks/use-auto-scroll';
+import { useApp } from '../context';
 import MarkdownContent from './chat/MarkdownContent';
 import ToolCallBlock from './chat/ToolCallBlock';
 import ReasoningPart from './chat/ReasoningPart';
@@ -176,19 +177,8 @@ const AGENT_STATUS_TITLE: Record<AgentConnection['status'], (a: AgentConnection)
 // AgentRail
 // ---------------------------------------------------------------------------
 
-export default function AgentRail({
-  isDarkMode,
-  setIsDarkMode,
-  agent,
-  autoExpandReasoning,
-  setAutoExpandReasoning,
-}: {
-  isDarkMode: boolean;
-  setIsDarkMode: (dark: boolean) => void;
-  agent: AgentConnection;
-  autoExpandReasoning: boolean;
-  setAutoExpandReasoning: (v: boolean) => void;
-}) {
+export default function AgentRail() {
+  const { agent, autoExpandReasoning } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -646,7 +636,7 @@ export default function AgentRail({
       </div>
 
       {modalOpen && <TaskListModal onClose={() => setModalOpen(false)} onSelect={handleSelectTask} />}
-      {settingsOpen && <SettingsModal isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onClose={() => setSettingsOpen(false)} agent={agent} autoExpandReasoning={autoExpandReasoning} setAutoExpandReasoning={setAutoExpandReasoning} />}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

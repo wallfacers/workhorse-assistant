@@ -1,0 +1,132 @@
+{
+  "common": {
+    "allow": "允许",
+    "deny": "拒绝",
+    "close": "关闭",
+    "retry": "重试",
+    "copy": "复制",
+    "send": "发送",
+    "stop": "停止",
+    "confirm": "确认",
+    "cancel": "取消",
+    "open": "打开"
+  },
+  "agent": {
+    "placeholder": "请输入任务，交给我来完成",
+    "welcome": "有什么可以帮你的？",
+    "generating": "正在生成",
+    "chooseFile": "选择文件",
+    "scrollToBottom": "滚到底部",
+    "permissionRequest": "请求权限：",
+    "sensitiveAction": "敏感操作",
+    "allowedRemembered": "已允许（本次会话记住）",
+    "denied": "已拒绝",
+    "openTaskList": "打开任务列表",
+    "openSettings": "打开设置",
+    "status": {
+      "disconnected": "未连接",
+      "connecting": "连接中…",
+      "connected": "已连接（session {{sessionId}}）",
+      "failed": "连接失败：{{error}}"
+    },
+    "feedback": {
+      "copy": "复制",
+      "good": "好用",
+      "bad": "不好"
+    }
+  },
+  "settings": {
+    "title": "设置",
+    "closeSettings": "关闭设置",
+    "nav": {
+      "theme": "主题",
+      "shortcuts": "快捷键",
+      "agent": "Agent"
+    },
+    "appearance": "外观",
+    "lightTheme": "浅色",
+    "darkTheme": "深色",
+    "keyboardShortcuts": "键盘快捷键",
+    "connection": "连接",
+    "endpoint": "服务地址",
+    "defaultValue": "默认值",
+    "endpointHint": "可通过 WORKHORSE_AGENT_ENDPOINT 环境变量修改",
+    "disconnect": "断开连接",
+    "reconnect": "重新连接",
+    "reasoningDisplay": "推理显示",
+    "autoExpandThinking": "自动展开思考过程",
+    "autoExpandDescription": "流式推理时自动展开，完成后自动折叠",
+    "language": "语言"
+  },
+  "shortcuts": {
+    "newTask": "新建任务",
+    "globalSearch": "全局搜索",
+    "openSettings": "打开设置",
+    "closePanel": "关闭面板",
+    "toggleSidebar": "切换侧栏",
+    "newTerminal": "新建终端",
+    "splitTerminal": "分割终端",
+    "sendMessage": "发送消息",
+    "showShortcuts": "显示快捷键",
+    "cancelClose": "取消 / 关闭"
+  },
+  "tasks": {
+    "title": "任务列表",
+    "closeTaskList": "关闭任务列表",
+    "searchPlaceholder": "搜索任务…",
+    "noMatch": "无匹配任务"
+  },
+  "workspace": {
+    "collapsePanel": "收起工作台",
+    "expandPanel": "展开工作台",
+    "tabs": {
+      "directory": "目录",
+      "info": "信息",
+      "preview": "预览"
+    },
+    "fields": {
+      "accessId": "访问 ID",
+      "tags": "标签",
+      "createdAt": "创建时间",
+      "branch": "分支",
+      "originalCommand": "原始指令"
+    },
+    "actions": {
+      "open": "打开",
+      "revealInFolder": "所在位置"
+    }
+  },
+  "terminal": {
+    "noTerminal": "暂无终端",
+    "newTerminal": "新建终端",
+    "newGroup": "新建终端组",
+    "closeGroup": "关闭终端组",
+    "close": "关闭"
+  },
+  "toolCall": {
+    "running": "运行中…",
+    "done": "完成",
+    "error": "出错",
+    "input": "输入",
+    "output": "输出"
+  },
+  "error": {
+    "boundaryTitle": "这个区域出了点问题",
+    "unknown": "未知渲染错误"
+  },
+  "reasoning": {
+    "thinking": "思考中…",
+    "redacted": "已隐藏的推理",
+    "duration": "深度思考 {{seconds}} 秒",
+    "redactedMessage": "此推理块已加密（redacted），内容不可见",
+    "default": "深度思考"
+  },
+  "codeBlock": {
+    "copy": "复制代码"
+  },
+  "mainChat": {
+    "conversationTitle": "与Workhorse的对话",
+    "placeholder": "请输入任务，交给我来帮你完成",
+    "aiDisclaimer": "以上内容由 AI 生成"
+  }
+}
