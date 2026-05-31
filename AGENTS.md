@@ -59,6 +59,11 @@ all up front.
 - [`docs/references/`](./docs/references/) — Third-party `*-llms.txt` snapshots.
 - [`docs/generated/`](./docs/generated/) — Machine-generated; do not hand-edit.
 
+### i18n
+- [`src/i18n/`](./src/i18n/) — react-i18next configuration and translation files.
+- New UI text: add key to `src/i18n/locales/zh-CN.json`, then add translation to `en-US.json`, then use `useTranslation` hook in the component.
+- Language selector: Settings → Appearance → Language. Persists via `localStorage('workhorse:locale')`.
+
 ## Hard Rules
 
 1. **Treat the repo as the system of record.** If a fact is not in code or in
