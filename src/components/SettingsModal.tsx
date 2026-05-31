@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Moon, Sun, X } from 'lucide-react';
+import { Check, ChevronDown, Moon, Sun, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { AgentConnection } from '../ipc';
 import { useApp } from '../context';
 
 type NavItem = 'theme' | 'shortcuts' | 'agent';
+
+/** Display labels stay in each language's own script (i18n convention). */
+const LANGUAGES: { code: string; label: string }[] = [
+  { code: 'zh-CN', label: '中文 (简体)' },
+  { code: 'en-US', label: 'English' },
+];
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -208,7 +214,7 @@ function ThemeSection({
   isDarkMode: boolean;
   setIsDarkMode: (v: boolean) => void;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   return (
     <div>
@@ -233,15 +239,65 @@ function ThemeSection({
         <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">
           {t('settings.language')}
         </label>
-        <select
-          value={i18n.language}
-          onChange={(e) => i18n.changeLanguage(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-neutral-800/60 border border-outline/40 dark:border-neutral-800/50 text-[12.5px] text-gray-700 dark:text-gray-300 outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-neutral-700"
-        >
-          <option value="zh-CN">中文 (简体)</option>
-          <option value="en-US">English</option>
-        </select>
+        <LanguageSelect />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Language picker. Mirrors the terminal `ProfileMenu` dropdown (custom popover
+ * over native `<select>`): a trigger that reflects the current language and a
+ * floating list sharing the same surface/outline tokens and click-outside close.
+ */
+function LanguageSelect() {
+  const { i18n } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const current = LANGUAGES.find((l) => l.code === i18n.language) ?? LANGUAGES[0];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-outline/40 bg-gray-50 px-3 py-2 text-[12.5px] text-gray-700 transition-colors hover:bg-gray-100 dark:border-neutral-800/50 dark:bg-neutral-800/60 dark:text-gray-300 dark:hover:bg-neutral-800"
+      >
+        <span>{current.label}</span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 flex-shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              type="button"
+              onClick={() => {
+                i18n.changeLanguage(l.code);
+                setOpen(false);
+              }}
+              className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[13px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
+            >
+              <span>{l.label}</span>
+              {l.code === current.code && (
+                <Check className="h-3.5 w-3.5 flex-shrink-0 text-gray-500 dark:text-gray-400" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
