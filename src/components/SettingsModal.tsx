@@ -53,7 +53,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-[620px] h-[400px] bg-white dark:bg-surface-dark-elevated rounded-2xl border border-outline dark:border-neutral-800 shadow-[0_16px_48px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col">
+      <div className="w-[810px] h-[520px] bg-white dark:bg-surface-dark-elevated rounded-2xl border border-outline dark:border-neutral-800 shadow-[0_16px_48px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col">
 
         {/* Header */}
         <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-outline/50 dark:border-neutral-800/60 flex-shrink-0">
