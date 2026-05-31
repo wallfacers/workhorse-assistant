@@ -91,16 +91,20 @@ export default function App() {
           orientation="horizontal"
           className="flex-1 min-h-0"
         >
-          <Panel id="chat-panel" defaultSize={30} minSize={20} maxSize={50}>
-            <ErrorBoundary name="Chat">
-              <AgentRail />
-            </ErrorBoundary>
+          <Panel id="chat-panel" defaultSize="400px" minSize="280px" maxSize="50%">
+            <div className="h-full pr-1">
+              <ErrorBoundary name="Chat">
+                <AgentRail />
+              </ErrorBoundary>
+            </div>
           </Panel>
           <Separator className="separator-handle" />
-          <Panel id="terminal-panel" defaultSize={70} minSize={30}>
-            <ErrorBoundary name="Terminal">
-              <TerminalWorkspace />
-            </ErrorBoundary>
+          <Panel id="terminal-panel" minSize="30%">
+            <div className="h-full pl-1">
+              <ErrorBoundary name="Terminal">
+                <TerminalWorkspace />
+              </ErrorBoundary>
+            </div>
           </Panel>
         </Group>
 
