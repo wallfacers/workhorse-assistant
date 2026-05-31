@@ -41,7 +41,64 @@ interface ActiveSession {
   lastPublish: CatalogPublishResult | null;
 }
 
-let active: ActiveSession | null = null;
+/** All attached sessions, keyed by sidecar session id. Multi-live: switching
+ *  between sessions never detaches the others — they keep streaming in the
+ *  background (D2). */
+const sessions = new Map<string, ActiveSession>();
+
+/** The session that signature-less calls (`sendAgentMessage(content)`, etc.)
+ *  default to. The session store sets it via `setActiveSession` when the user
+ *  switches sessions. */
+let currentActiveId: string | null = null;
+
+/** Whether the fan-out catalog publisher is wired. Wired lazily on the first
+ *  attach; torn down when the last session detaches. */
+let publisherWired = false;
+
+/** Publish a catalog to *every* attached session — the UI tool surface is shared
+ *  across sessions, so `republishCatalog()` must reach all of them. */
+function publishToAllSessions(catalog: ToolCatalogEntry[]): Promise<void> {
+  return Promise.all([...sessions.keys()].map((id) => publishCatalog(id, catalog))).then(
+    () => undefined,
+  );
+}
+
+/** Subscribe to a session's tool-use + published streams, register its bridge
+ *  state, make it the active default, and push the current catalog to it. Shared
+ *  by `attachAgentSession` (after create) and `openAgentSession`. */
+async function wireSession(sessionId: string): Promise<void> {
+  const dispatcher = new Dispatcher((payload, result) => {
+    void forwardResult(payload.sessionId, payload.toolUseId, result);
+  });
+
+  const unlisten = await listen<ToolUsePayload>(toolUseTopic(sessionId), (e) =>
+    dispatcher.ingest(e.payload),
+  );
+
+  // The publish outcome arrives asynchronously (the POST only acks 202); stash
+  // the latest registered/rejected breakdown on the session's entry.
+  const unlistenPublished = await listen<CatalogPublishedPayload>(publishedTopic(sessionId), (e) => {
+    const entry = sessions.get(sessionId);
+    if (entry) {
+      entry.lastPublish = { registered: e.payload.registered, rejected: e.payload.rejected };
+    }
+  });
+
+  sessions.set(sessionId, {
+    sessionId,
+    unlisten,
+    unlistenPublished,
+    dispatcher,
+    lastPublish: null,
+  });
+  currentActiveId = sessionId;
+
+  if (!publisherWired) {
+    setCatalogPublisher(publishToAllSessions);
+    publisherWired = true;
+  }
+  await publishCatalog(sessionId, buildCatalog());
+}
 
 const notInTauri = () =>
   ({ ok: false, error: { kind: 'validation', message: 'agent bridge invoked outside Tauri runtime' } }) as const;
@@ -52,6 +109,27 @@ export interface HealthInfo {
   version: string;
   protocol_version: string;
   capabilities: string[];
+}
+
+/** Session metadata as persisted/reported by the sidecar (see
+ *  `workhorse-agent-tasks.md`). `status` drives which sessions get a live stream
+ *  on restart/open. Optional fields tolerate a sidecar that omits them. */
+export interface AgentSessionMeta {
+  id: string;
+  workdir: string;
+  title: string;
+  status: 'idle' | 'running';
+  createdAt?: string;
+  updatedAt?: string;
+  messageCount?: number;
+  lastMessagePreview?: string;
+}
+
+/** A known project path (a sidecar `workdir`) and its session count. */
+export interface AgentProjectMeta {
+  path: string;
+  sessionCount?: number;
+  updatedAt?: string;
 }
 
 /** Probe the sidecar via GET /health to verify identity and compatibility. */
@@ -75,57 +153,46 @@ export async function checkAgentHealth(): Promise<Result<HealthInfo>> {
  */
 export async function attachAgentSession(workdir = ''): Promise<Result<string>> {
   if (!isTauri()) return notInTauri();
-  // Tear down any prior session first (single-session V1).
-  await detachAgentSession();
   try {
+    // Creates a brand-new session upstream (POST /v1/sessions). Multi-live: does
+    // NOT detach existing sessions — they keep running in the background (D2).
     const sessionId = await invoke<string>('agent_attach', { workdir });
-
-    const dispatcher = new Dispatcher((payload, result) => {
-      void forwardResult(payload.sessionId, payload.toolUseId, result);
-    });
-
-    const unlisten = await listen<ToolUsePayload>(
-      toolUseTopic(sessionId),
-      (e) => dispatcher.ingest(e.payload),
-    );
-
-    // The publish outcome arrives asynchronously (the POST only acks 202); stash
-    // the latest registered/rejected breakdown for the session.
-    const unlistenPublished = await listen<CatalogPublishedPayload>(
-      publishedTopic(sessionId),
-      (e) => {
-        if (active && active.sessionId === sessionId) {
-          active.lastPublish = {
-            registered: e.payload.registered,
-            rejected: e.payload.rejected,
-          };
-        }
-      },
-    );
-
-    active = {
-      sessionId,
-      unlisten,
-      unlistenPublished,
-      dispatcher,
-      lastPublish: null,
-    };
-
-    // Wire publish for this session, then push the current catalog upstream.
-    setCatalogPublisher((catalog) => publishCatalog(sessionId, catalog));
-    await publishCatalog(sessionId, buildCatalog());
-
+    await wireSession(sessionId);
     return ok(sessionId);
   } catch (e) {
     return { ok: false, error: toIpcError(e) };
   }
 }
 
-/** Send a user message to the active agent session. */
-export async function sendAgentMessage(content: string): Promise<Result<void>> {
-  if (!isTauri() || !active) return notInTauri();
+/**
+ * Subscribe to an **existing** session without creating one (`agent_open_session`).
+ * Used when switching back to a previously-created session: its SSE stream is
+ * re-opened and it becomes the active default, but the sidecar never allocates a
+ * duplicate. If already attached, just re-activates it.
+ */
+export async function openAgentSession(sessionId: string): Promise<Result<void>> {
+  if (!isTauri()) return notInTauri();
+  if (sessions.has(sessionId)) {
+    currentActiveId = sessionId;
+    return ok(undefined);
+  }
   try {
-    await invoke('agent_send_message', { sessionId: active.sessionId, content });
+    await invoke('agent_open_session', { sessionId });
+    await wireSession(sessionId);
+    return ok(undefined);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
+/** Send a user message to a session (defaults to the active one). */
+export async function sendAgentMessage(
+  content: string,
+  sessionId: string | null = currentActiveId,
+): Promise<Result<void>> {
+  if (!isTauri() || !sessionId) return notInTauri();
+  try {
+    await invoke('agent_send_message', { sessionId, content });
     return ok(undefined);
   } catch (e) {
     return { ok: false, error: toIpcError(e) };
@@ -135,10 +202,12 @@ export async function sendAgentMessage(content: string): Promise<Result<void>> {
 /** Cancel the active agent turn (real interrupt via the sidecar cancel endpoint).
  *  Routes through the Rust `agent_cancel` command — the renderer makes no direct
  *  network call to the sidecar (AGENTS.md boundary). */
-export async function cancelAgentMessage(): Promise<Result<void>> {
-  if (!isTauri() || !active) return notInTauri();
+export async function cancelAgentMessage(
+  sessionId: string | null = currentActiveId,
+): Promise<Result<void>> {
+  if (!isTauri() || !sessionId) return notInTauri();
   try {
-    await invoke('agent_cancel', { sessionId: active.sessionId });
+    await invoke('agent_cancel', { sessionId });
     return ok(undefined);
   } catch (e) {
     return { ok: false, error: toIpcError(e) };
@@ -154,36 +223,65 @@ export type PermissionDecision =
 export async function sendPermissionDecision(
   requestId: string,
   decision: PermissionDecision,
+  sessionId: string | null = currentActiveId,
 ): Promise<Result<void>> {
-  if (!isTauri() || !active) return notInTauri();
+  if (!isTauri() || !sessionId) return notInTauri();
   try {
-    await invoke('agent_permission_decision', { sessionId: active.sessionId, requestId, decision });
+    await invoke('agent_permission_decision', { sessionId, requestId, decision });
     return ok(undefined);
   } catch (e) {
     return { ok: false, error: toIpcError(e) };
   }
 }
 
-/** The active session ID, or null if not attached. */
+/** The active session ID (the default for signature-less calls), or null. */
 export function activeSessionId(): string | null {
-  return active?.sessionId ?? null;
+  return currentActiveId;
 }
 
-/** The latest publish outcome (registered/rejected) for the active session, or
- *  null before the first `frontend_tools_published` event arrives. */
-export function lastPublishResult(): CatalogPublishResult | null {
-  return active?.lastPublish ?? null;
+/** Set the active default session (the session store calls this on switch). A
+ *  null clears it; a non-attached id is ignored. */
+export function setActiveSession(sessionId: string | null): void {
+  if (sessionId === null || sessions.has(sessionId)) currentActiveId = sessionId;
 }
 
-/** Detach the active session: unsubscribe, drop the publisher, tell Rust. */
-export async function detachAgentSession(): Promise<Result<void>> {
-  if (!active) return ok(undefined);
-  const { sessionId, unlisten, unlistenPublished, dispatcher } = active;
-  active = null;
-  setCatalogPublisher(null);
-  unlisten();
-  unlistenPublished();
-  dispatcher.reset(sessionId);
+/** The ids of all currently-attached (live) sessions. */
+export function attachedSessionIds(): string[] {
+  return [...sessions.keys()];
+}
+
+/** The latest publish outcome (registered/rejected) for a session (defaults to
+ *  the active one), or null before the first `frontend_tools_published` event. */
+export function lastPublishResult(
+  sessionId: string | null = currentActiveId,
+): CatalogPublishResult | null {
+  return (sessionId ? sessions.get(sessionId)?.lastPublish : null) ?? null;
+}
+
+/** Detach one session (defaults to the active one): unsubscribe its streams,
+ *  drop its bridge state, and tell Rust to stop its reader thread. Other
+ *  sessions are untouched. The catalog publisher is dropped only when the last
+ *  session detaches. */
+export async function detachAgentSession(
+  sessionId: string | null = currentActiveId,
+): Promise<Result<void>> {
+  if (!sessionId) return ok(undefined);
+  const entry = sessions.get(sessionId);
+  if (!entry) return ok(undefined);
+  sessions.delete(sessionId);
+  entry.unlisten();
+  entry.unlistenPublished();
+  entry.dispatcher.reset(sessionId);
+
+  if (currentActiveId === sessionId) {
+    const remaining = [...sessions.keys()];
+    currentActiveId = remaining.length ? remaining[remaining.length - 1] : null;
+  }
+  if (sessions.size === 0) {
+    setCatalogPublisher(null);
+    publisherWired = false;
+  }
+
   if (!isTauri()) return ok(undefined);
   try {
     await invoke('agent_detach', { sessionId });
@@ -220,4 +318,70 @@ async function publishCatalog(
 ): Promise<void> {
   if (!isTauri()) return;
   await invoke('agent_publish_catalog', { sessionId, catalog });
+}
+
+// ---------------------------------------------------------------------------
+// Project / session catalog (sidecar-persisted; the assistant never reads the
+// sidecar's data directory directly — D1).
+// ---------------------------------------------------------------------------
+
+/** List the sessions persisted for a project path (`GET /v1/sessions?workdir=`). */
+export async function listAgentSessions(workdir: string): Promise<Result<AgentSessionMeta[]>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    const body = await invoke<{ sessions?: AgentSessionMeta[] }>('agent_list_sessions', { workdir });
+    return ok(body.sessions ?? []);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
+/** List known project paths (`GET /v1/projects`). */
+export async function listAgentProjects(): Promise<Result<AgentProjectMeta[]>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    const body = await invoke<{ projects?: AgentProjectMeta[] }>('agent_list_projects');
+    return ok(body.projects ?? []);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
+/** Fetch a session's full transcript for UI rehydration
+ *  (`GET /v1/sessions/{id}/history`). Shape is sidecar-defined; the store parses. */
+export async function agentSessionHistory(sessionId: string): Promise<Result<unknown>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    const body = await invoke<unknown>('agent_session_history', { sessionId });
+    return ok(body);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
+/** Rename a session (`PATCH /v1/sessions/{id}`). Returns the updated metadata. */
+export async function renameAgentSession(
+  sessionId: string,
+  title: string,
+): Promise<Result<AgentSessionMeta>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    const meta = await invoke<AgentSessionMeta>('agent_rename_session', { sessionId, title });
+    return ok(meta);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
+/** Delete a session and its transcript (`DELETE /v1/sessions/{id}`), then drop
+ *  any local subscription/state for it. */
+export async function deleteAgentSession(sessionId: string): Promise<Result<void>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    await invoke('agent_delete_session', { sessionId });
+    await detachAgentSession(sessionId);
+    return ok(undefined);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
 }

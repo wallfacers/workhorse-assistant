@@ -23,6 +23,13 @@
     "denied": "Denied",
     "openTaskList": "Open task list",
     "openSettings": "Open settings",
+    "untitledSession": "Untitled session",
+    "newSession": "New session",
+    "sessionRunning": "Running",
+    "sessionActions": "Session actions",
+    "renameSession": "Rename",
+    "deleteSession": "Delete session",
+    "confirmDelete": "Confirm delete",
     "status": {
       "disconnected": "Disconnected",
       "connecting": "Connecting…",
@@ -36,6 +43,13 @@
       "good": "Good",
       "bad": "Bad"
     }
+  },
+  "project": {
+    "default": "Default project",
+    "switch": "Switch project",
+    "open": "Open path…",
+    "pathPlaceholder": "Enter a project path and press Enter",
+    "current": "Current project"
   },
   "settings": {
     "title": "Settings",

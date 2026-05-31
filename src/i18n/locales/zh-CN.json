@@ -23,6 +23,13 @@
     "denied": "已拒绝",
     "openTaskList": "打开任务列表",
     "openSettings": "打开设置",
+    "untitledSession": "未命名会话",
+    "newSession": "新建会话",
+    "sessionRunning": "运行中",
+    "sessionActions": "会话操作",
+    "renameSession": "重命名",
+    "deleteSession": "删除会话",
+    "confirmDelete": "确认删除",
     "status": {
       "disconnected": "未连接",
       "connecting": "连接中…",
@@ -36,6 +43,13 @@
       "good": "好用",
       "bad": "不好"
     }
+  },
+  "project": {
+    "default": "默认项目",
+    "switch": "切换项目",
+    "open": "打开路径…",
+    "pathPlaceholder": "输入项目路径并回车",
+    "current": "当前项目"
   },
   "settings": {
     "title": "设置",

@@ -1,0 +1,129 @@
+## ADDED Requirements
+
+### Requirement: Project model scoped to a local path
+
+The assistant SHALL represent a **project** as a single local path (the sidecar's
+`workdir`), treated as an opaque string in the sidecar's filesystem namespace. The
+assistant SHALL allow opening multiple projects and switching the active one from
+a control in the TitleBar. The active project SHALL scope the session list and the
+`workdir` used when creating new sessions. The renderer and Rust bridge SHALL NOT
+parse, normalize, or join the project path with host-path logic, and SHALL NOT
+default `workdir` to the host process cwd.
+
+#### Scenario: Open a project and list its sessions
+
+- **WHEN** the user opens a project path `P`
+- **THEN** the assistant requests the sessions for `P` from the sidecar and shows
+  them in the session switcher
+- **AND** new sessions created while `P` is active are created with `workdir = P`
+
+#### Scenario: Switch the active project
+
+- **WHEN** the user picks a different project `Q` from the TitleBar switcher
+- **THEN** the session switcher reflects `Q`'s sessions
+- **AND** the previously active project's running sessions continue running in the
+  background (their streams are not torn down)
+
+#### Scenario: Path is preserved verbatim
+
+- **WHEN** a project path is displayed or sent to the sidecar
+- **THEN** it is shown and transmitted exactly as the sidecar reported it, with no
+  host-path normalization
+
+### Requirement: Multiple persisted sessions per project
+
+Each project SHALL hold many sessions whose transcripts are persisted by the
+sidecar. The assistant SHALL list sessions (with title and status), create new
+sessions, rename a session, and delete a session, through the Rust bridge. The
+sidecar is the source of truth; the assistant SHALL NOT read or write the
+sidecar's data directory directly.
+
+#### Scenario: Create a new session
+
+- **WHEN** the user chooses "new session" in the active project
+- **THEN** the assistant creates a session via the bridge (sidecar allocates the
+  id) and makes it the active session with an empty transcript
+
+#### Scenario: Rename a session
+
+- **WHEN** the user picks "rename" in the session `⋯` menu and submits a title
+- **THEN** the assistant issues a rename through the bridge and the new title is
+  reflected in the header and switcher
+
+#### Scenario: Delete a session
+
+- **WHEN** the user picks "delete" in the session `⋯` menu and confirms
+- **THEN** the assistant deletes the session through the bridge, removes it from
+  the store, and selects an adjacent session as active (or the empty state if none
+  remain)
+
+#### Scenario: Rehydrate a session from history
+
+- **WHEN** the user opens a session whose transcript is not in memory
+- **THEN** the assistant loads its messages from the sidecar history endpoint and
+  renders them
+
+### Requirement: Multi-live session continuity
+
+Sessions SHALL continue running in the background regardless of which session is
+visible. Switching away from a streaming session SHALL NOT cancel it or lose its
+output, and switching back SHALL show its still-live stream. The conversation
+state and SSE subscriptions SHALL live in an app-level store (not in the visible
+`AgentRail`), keeping listeners mounted for the set of `active ∪ running`
+sessions.
+
+#### Scenario: Background session keeps streaming
+
+- **WHEN** session A is streaming and the user switches to session B
+- **THEN** A's output continues to accumulate in the store while B is shown
+- **AND** switching back to A shows the accumulated output and the live stream
+  continues
+
+#### Scenario: Two sessions running at once
+
+- **WHEN** the user has sent a message in both A and B and both are streaming
+- **THEN** both sessions' streams are subscribed concurrently
+- **AND** switching between them never interrupts either turn
+
+#### Scenario: Idle non-active session is evicted from memory
+
+- **WHEN** a session is neither active nor running
+- **THEN** its in-memory buffer MAY be dropped and its stream closed
+- **AND** revisiting it reloads its transcript from history without data loss
+
+### Requirement: Per-session bridge addressing
+
+The renderer bridge SHALL address every operation by an explicit `sessionId`
+rather than an implicit single active session. Subscribing to an existing session
+SHALL NOT create a duplicate session upstream.
+
+#### Scenario: Address a specific session
+
+- **WHEN** a send, cancel, permission decision, tool-result forward, or catalog
+  publish is issued
+- **THEN** it targets the given `sessionId` and does not affect other sessions
+
+#### Scenario: Open an existing session without creating one
+
+- **WHEN** the user switches to an existing session id
+- **THEN** the bridge subscribes to that session's stream without issuing a
+  create, so no duplicate session is allocated by the sidecar
+
+### Requirement: Session header with title and actions
+
+The AgentRail SHALL show a header with the active session's title at the top-left,
+opening a session switcher (session list + new session), and a `⋯` menu at the
+top-right exposing rename and delete. The dropdown/menu interaction SHALL match
+the terminal profile menu (click-outside-to-close, no modal).
+
+#### Scenario: Switch session from the title dropdown
+
+- **WHEN** the user clicks the header title
+- **THEN** a dropdown lists the active project's sessions (the running ones marked)
+  plus a "new session" entry, and selecting one makes it active
+
+#### Scenario: Open the session action menu
+
+- **WHEN** the user clicks the `⋯` menu
+- **THEN** a popover offers "rename" and "delete", and clicking outside it closes
+  the popover without taking an action

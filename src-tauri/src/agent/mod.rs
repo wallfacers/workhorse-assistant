@@ -351,6 +351,27 @@ impl AgentBridge {
             .ok_or_else(|| AgentError::internal("response missing id"))?
             .to_string();
 
+        self.subscribe(app, session_id.clone());
+        Ok(session_id)
+    }
+
+    /// Subscribe to an **existing** session's SSE stream without creating one
+    /// (`agent_open_session`): switching back to a previously-created session
+    /// opens its stream so its events flow again, but never POSTs
+    /// `/v1/sessions`, so the sidecar never allocates a duplicate. No-op if the
+    /// session is already subscribed.
+    pub fn open_session(&self, app: &AppHandle, session_id: String) {
+        self.subscribe(app, session_id);
+    }
+
+    /// Spawn (idempotently) the per-session SSE reader thread and register its
+    /// handle. Shared by `attach` (after create) and `open_session`.
+    fn subscribe(&self, app: &AppHandle, session_id: String) {
+        let endpoint = self.endpoint();
+        let mut inner = self.inner.lock().unwrap();
+        if inner.sessions.contains_key(&session_id) {
+            return;
+        }
         let seq = Arc::new(AtomicU64::new(0));
         let stop = Arc::new(AtomicBool::new(false));
         let reader = spawn_sse_reader(
@@ -360,12 +381,73 @@ impl AgentBridge {
             seq,
             Arc::clone(&stop),
         );
+        inner
+            .sessions
+            .insert(session_id, SessionHandle { stop, reader: Some(reader) });
+    }
 
-        self.inner.lock().unwrap().sessions.insert(
-            session_id.clone(),
-            SessionHandle { stop, reader: Some(reader) },
-        );
-        Ok(session_id)
+    /// List the sessions persisted for a project (`GET /v1/sessions?workdir=`).
+    /// Returns the sidecar's body verbatim (e.g. `{ "sessions": [SessionMeta] }`)
+    /// so new metadata fields pass through without a Rust change. Queries the
+    /// sidecar directly — the sessions need not be locally subscribed.
+    pub fn list_sessions(&self, workdir: &str) -> Result<Value, AgentError> {
+        let endpoint = self.endpoint();
+        let resp = ureq::get(&format!("{endpoint}/v1/sessions"))
+            .timeout(HTTP_TIMEOUT)
+            .query("workdir", workdir)
+            .call()
+            .map_err(|e| AgentError::transient(format!("list_sessions failed: {e}")))?;
+        resp.into_json()
+            .map_err(|e| AgentError::internal(format!("bad /v1/sessions list response: {e}")))
+    }
+
+    /// Fetch a session's full transcript for UI rehydration
+    /// (`GET /v1/sessions/{id}/history`). Body returned verbatim.
+    pub fn session_history(&self, session_id: &str) -> Result<Value, AgentError> {
+        let endpoint = self.endpoint();
+        let resp = ureq::get(&format!("{endpoint}/v1/sessions/{session_id}/history"))
+            .timeout(HTTP_TIMEOUT)
+            .call()
+            .map_err(|e| AgentError::transient(format!("session_history failed: {e}")))?;
+        resp.into_json()
+            .map_err(|e| AgentError::internal(format!("bad history response: {e}")))
+    }
+
+    /// Rename a session (`PATCH /v1/sessions/{id}` `{title}`). Returns the
+    /// updated `SessionMeta` body verbatim.
+    pub fn rename_session(&self, session_id: &str, title: &str) -> Result<Value, AgentError> {
+        let endpoint = self.endpoint();
+        let resp = ureq::request("PATCH", &format!("{endpoint}/v1/sessions/{session_id}"))
+            .timeout(HTTP_TIMEOUT)
+            .send_json(json!({ "title": title }))
+            .map_err(|e| AgentError::transient(format!("rename_session failed: {e}")))?;
+        resp.into_json()
+            .map_err(|e| AgentError::internal(format!("bad rename response: {e}")))
+    }
+
+    /// Delete a session and its transcript (`DELETE /v1/sessions/{id}`), then
+    /// stop any local SSE reader for it so it does not try to reconnect to a
+    /// gone id.
+    pub fn delete_session(&self, session_id: &str) -> Result<(), AgentError> {
+        let endpoint = self.endpoint();
+        ureq::request("DELETE", &format!("{endpoint}/v1/sessions/{session_id}"))
+            .timeout(HTTP_TIMEOUT)
+            .call()
+            .map_err(|e| AgentError::transient(format!("delete_session failed: {e}")))?;
+        self.detach(session_id);
+        Ok(())
+    }
+
+    /// List known project paths (`GET /v1/projects`). Body returned verbatim
+    /// (e.g. `{ "projects": [ProjectMeta] }`).
+    pub fn list_projects(&self) -> Result<Value, AgentError> {
+        let endpoint = self.endpoint();
+        let resp = ureq::get(&format!("{endpoint}/v1/projects"))
+            .timeout(HTTP_TIMEOUT)
+            .call()
+            .map_err(|e| AgentError::transient(format!("list_projects failed: {e}")))?;
+        resp.into_json()
+            .map_err(|e| AgentError::internal(format!("bad /v1/projects response: {e}")))
     }
 
     /// Send a user message to the sidecar session via POST /v1/sessions/{id}/stream.
