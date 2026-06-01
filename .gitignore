@@ -32,8 +32,9 @@ src-tauri/target/
 src-tauri/gen/schemas/
 # Cargo.lock IS committed for applications (Tauri's recommendation).
 
-# Playwright MCP
+# Playwright
 .playwright-mcp/
+.playwright-cli/
 
 # Claude Code — native worktrees and per-checkout local settings
 .claude/worktrees/
