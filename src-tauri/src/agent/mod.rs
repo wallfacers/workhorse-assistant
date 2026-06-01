@@ -65,9 +65,8 @@ pub struct AgentError {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorKind {
-    // Reserved for argument validation on future bridge commands; kept for
-    // parity with the documented taxonomy even though nothing emits it yet.
-    #[allow(dead_code)]
+    // Argument/path validation (e.g. `fs/list` against a forbidden or
+    // not-a-directory path); the UI should surface it, not retry.
     Validation,
     NotFound,
     Transient,
@@ -77,6 +76,9 @@ pub enum ErrorKind {
 impl AgentError {
     fn not_found(message: impl Into<String>) -> Self {
         Self { kind: ErrorKind::NotFound, message: message.into() }
+    }
+    fn validation(message: impl Into<String>) -> Self {
+        Self { kind: ErrorKind::Validation, message: message.into() }
     }
     fn transient(message: impl Into<String>) -> Self {
         Self { kind: ErrorKind::Transient, message: message.into() }
@@ -98,6 +100,19 @@ pub struct HealthInfo {
     pub version: String,
     pub protocol_version: String,
     pub capabilities: Vec<String>,
+    /// The sidecar's default project path; the renderer uses it for cold-start
+    /// when there is no remembered project. Optional for backward-compat with a
+    /// sidecar that predates the WSL-remote batch (these fields are additive and
+    /// do not bump `protocol_version`).
+    #[serde(default)]
+    pub default_workdir: Option<String>,
+    /// `runtime.GOOS` of the sidecar host (`linux`/`windows`/`darwin`).
+    #[serde(default)]
+    pub platform: Option<String>,
+    /// Linux distro name; present only when the sidecar detects it is running
+    /// under WSL. Lets the UI default the terminal to a `wsl` profile.
+    #[serde(default)]
+    pub distro: Option<String>,
 }
 
 impl AgentBridge {
@@ -472,6 +487,41 @@ impl AgentBridge {
             .map_err(|e| AgentError::transient(format!("list_projects failed: {e}")))?;
         resp.into_json()
             .map_err(|e| AgentError::internal(format!("bad /v1/projects response: {e}")))
+    }
+
+    /// Enumerate a directory in the sidecar namespace
+    /// (`GET /v1/fs/list?path=<dir>`). An empty/None `path` lets the sidecar use
+    /// its `default_workdir`. Body returned verbatim
+    /// (`{ "path": "...", "entries": [{ "name", "path", "isDir" }] }`). The
+    /// sidecar's meaningful 4xx (404 missing, 400 not-a-dir, 403 forbidden /
+    /// outside default_workdir / virtual FS) are mapped to typed errors so the
+    /// UI surfaces them instead of retrying as transient.
+    pub fn fs_list(&self, path: Option<&str>) -> Result<Value, AgentError> {
+        let endpoint = self.endpoint();
+        let mut req = ureq::get(&format!("{endpoint}/v1/fs/list")).timeout(HTTP_TIMEOUT);
+        if let Some(p) = path.filter(|p| !p.is_empty()) {
+            req = req.query("path", p);
+        }
+        match req.call() {
+            Ok(resp) => resp
+                .into_json()
+                .map_err(|e| AgentError::internal(format!("bad /v1/fs/list response: {e}"))),
+            Err(ureq::Error::Status(code, resp)) => {
+                let msg = resp
+                    .into_json::<Value>()
+                    .ok()
+                    .and_then(|v| {
+                        v.get("error").and_then(|e| e.as_str()).map(str::to_string)
+                    })
+                    .unwrap_or_else(|| format!("fs/list returned {code}"));
+                Err(match code {
+                    404 => AgentError::not_found(msg),
+                    400 | 403 => AgentError::validation(msg),
+                    _ => AgentError::internal(format!("fs/list HTTP {code}: {msg}")),
+                })
+            }
+            Err(e) => Err(AgentError::transient(format!("fs_list failed: {e}"))),
+        }
     }
 
     /// Send a user message to the sidecar session via POST /v1/sessions/{id}/stream.

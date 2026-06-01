@@ -109,6 +109,15 @@ export interface HealthInfo {
   version: string;
   protocol_version: string;
   capabilities: string[];
+  /** The sidecar's default project path; used for cold-start when there is no
+   *  remembered project. Optional: a sidecar predating the WSL-remote batch
+   *  omits it (additive, does not bump `protocol_version`). */
+  default_workdir?: string;
+  /** Sidecar host platform (`linux`/`windows`/`darwin`). */
+  platform?: string;
+  /** Linux distro name; present only when the sidecar runs under WSL. Lets the
+   *  UI default the terminal to a `wsl` profile. */
+  distro?: string;
 }
 
 /** Session metadata as persisted/reported by the sidecar (see
@@ -130,6 +139,19 @@ export interface AgentProjectMeta {
   path: string;
   sessionCount?: number;
   updatedAt?: string;
+}
+
+/** One entry from `GET /v1/fs/list`. `isDir` is camelCase on the wire. */
+export interface FsEntry {
+  name: string;
+  path: string;
+  isDir: boolean;
+}
+
+/** Body of `GET /v1/fs/list`: the resolved dir plus its single-level entries. */
+export interface FsListing {
+  path: string;
+  entries: FsEntry[];
 }
 
 /** Probe the sidecar via GET /health to verify identity and compatibility. */
@@ -359,6 +381,20 @@ export async function listAgentProjects(): Promise<Result<AgentProjectMeta[]>> {
   try {
     const body = await invoke<{ projects?: AgentProjectMeta[] }>('agent_list_projects');
     return ok(body.projects ?? []);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
+/** Enumerate a directory in the sidecar namespace (`GET /v1/fs/list?path=`).
+ *  Omit `path` to browse the sidecar's `default_workdir`. The Rust bridge maps
+ *  the sidecar's 404/400/403 to `not_found`/`validation` so callers can show a
+ *  message instead of retrying. */
+export async function fsList(path?: string): Promise<Result<FsListing>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    const body = await invoke<FsListing>('agent_fs_list', { path: path ?? null });
+    return ok({ path: body.path, entries: body.entries ?? [] });
   } catch (e) {
     return { ok: false, error: toIpcError(e) };
   }

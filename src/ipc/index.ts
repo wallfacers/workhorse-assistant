@@ -47,10 +47,18 @@ export {
   attachedSessionIds,
   listAgentSessions,
   listAgentProjects,
+  fsList,
   agentSessionHistory,
   renameAgentSession,
   deleteAgentSession,
 } from './agent';
-export type { HealthInfo, PermissionDecision, AgentSessionMeta, AgentProjectMeta } from './agent';
+export type {
+  HealthInfo,
+  PermissionDecision,
+  AgentSessionMeta,
+  AgentProjectMeta,
+  FsEntry,
+  FsListing,
+} from './agent';
 export { useAgentConnection } from './useAgentConnection';
 export type { AgentStatus, AgentConnection } from './useAgentConnection';

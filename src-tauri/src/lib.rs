@@ -126,6 +126,14 @@ fn agent_list_projects(bridge: State<'_, AgentBridge>) -> Result<Value, AgentErr
 }
 
 #[tauri::command(async)]
+fn agent_fs_list(
+    bridge: State<'_, AgentBridge>,
+    path: Option<String>,
+) -> Result<Value, AgentError> {
+    bridge.fs_list(path.as_deref())
+}
+
+#[tauri::command(async)]
 fn agent_forward_result(
     bridge: State<'_, AgentBridge>,
     session_id: String,
@@ -202,6 +210,7 @@ pub fn run() {
             agent_rename_session,
             agent_delete_session,
             agent_list_projects,
+            agent_fs_list,
             agent_forward_result,
             agent_publish_catalog,
             agent_detach,

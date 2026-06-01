@@ -44,9 +44,13 @@
       `src-tauri/src/agent/mod.rs` + TS `src/ipc/agent.ts`) with the now-delivered
       top-level fields `default_workdir` (string) plus optional `platform` and
       `distro` (the latter feeds C2's terminal default). Field names are
-      snake_case on the wire; mirror them exactly. Currently `HealthInfo` only
-      has `ok`/`version`/`protocol_version`/`capabilities`, so this is the first
-      integration step.
+      snake_case on the wire; mirror them exactly.
+      - [x] B2a Data layer: extended `HealthInfo` (Rust `agent/mod.rs` +
+        TS `src/ipc/agent.ts`) with optional `default_workdir`/`platform`/`distro`
+        (`#[serde(default)]`, backward-compatible). `cargo check` + `tsc` clean.
+      - [ ] B2b Cold-start precedence in `SessionProvider`: thread the probe's
+        `default_workdir` into bootstrap; order remembered → `default_workdir` →
+        picker. (Lands atomically with B1.)
 - [x] B3 Full health/session decoupling (D-WSL-4): `useAgentConnection` → pure
       health probe (no `attachAgentSession`, no `sessionId`); `SessionProvider`
       owns bootstrap creation on `connected`; per-live-session
@@ -66,9 +70,14 @@
 - [ ] C1 Namespace-correct project browser backed by `GET /v1/fs/list`
       (replaces today's manual path entry; local recents stay as a fast path).
       Confirmed contract: `{ "path": "<dir>", "entries": [{ "name", "path", "isDir" }] }`
-      (`isDir` camelCase; `path` omitted → sidecar `default_workdir`). Add an
-      `fsList(path?)` IPC wrapper + Rust command — no `fs/list` client exists yet.
-      Handle 403 (virtual FS / outside `default_workdir`), 404, 400 gracefully.
+      (`isDir` camelCase; `path` omitted → sidecar `default_workdir`).
+      - [x] C1a Data layer: `agent_fs_list` Rust command (`lib.rs` +
+        `AgentBridge::fs_list` in `agent/mod.rs`, mapping 404→not_found,
+        400/403→validation) + `fsList(path?)` IPC wrapper with `FsEntry`/`FsListing`
+        types, re-exported from `src/ipc/index.ts`. `cargo check` + `tsc` clean.
+      - [ ] C1b Browser UI: a folder-tree/list picker that calls `fsList`,
+        surfaces 403/404/400 messages, and feeds the chosen path into project
+        selection. (UI — pending design grounding.)
 - [ ] C2 `wsl` terminal profile: spawn `wsl.exe -d <distro> --cd <wslpath>`
       (PTY stays host-side). Default the profile from `/health` platform/distro.
       **Prereq (larger than one line):** today `resolve_profile` (`src-tauri/src/pty/mod.rs`)
