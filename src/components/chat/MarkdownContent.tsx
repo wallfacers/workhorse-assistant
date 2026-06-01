@@ -190,11 +190,18 @@ function decorateCodeBlocks(root: HTMLElement): void {
 function wrapTables(root: HTMLElement): void {
   for (const table of Array.from(root.querySelectorAll('table'))) {
     if (table.parentElement?.getAttribute('data-slot') === 'markdown-table-scroll') continue;
-    const wrap = document.createElement('div');
-    wrap.setAttribute('data-slot', 'markdown-table-scroll');
-    wrap.className = 'custom-scrollbar my-2';
-    table.parentNode?.replaceChild(wrap, table);
-    wrap.appendChild(table);
+    // Outer visual frame: border + rounded corners + overflow:hidden clips the
+    // scrollbar ends so they don't protrude past the rounded corners.
+    const frame = document.createElement('div');
+    frame.setAttribute('data-slot', 'markdown-table-scroll');
+    frame.className = 'my-2';
+    // Inner scroll container: holds the horizontal scrollbar.
+    const scroll = document.createElement('div');
+    scroll.setAttribute('data-slot', 'markdown-table-scroll-inner');
+    scroll.className = 'custom-scrollbar';
+    table.parentNode?.replaceChild(frame, table);
+    scroll.appendChild(table);
+    frame.appendChild(scroll);
   }
 }
 
