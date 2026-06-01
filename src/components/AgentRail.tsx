@@ -139,7 +139,7 @@ const AGENT_STATUS_DOT: Record<AgentConnection['status'], string> = {
 export default function AgentRail() {
   const { t } = useTranslation();
   const { agent, autoExpandReasoning } = useApp();
-  const { runtime, activeSessionId, sendMessage, cancel, decidePermission, newSession } = useSession();
+  const { runtime, activeSessionId, sendMessage, cancel, decidePermission, newSession, projectMismatch, agentDefaultWorkdir, openProject } = useSession();
   const messages = runtime.messages;
   const streamingIds = runtime.streaming;
 
@@ -187,6 +187,8 @@ export default function AgentRail() {
   const inputBox = (
     <div className="bg-white dark:bg-surface-dark border border-outline dark:border-neutral-800 rounded-lg px-3 pt-2.5 pb-2 flex flex-col focus-within:ring-1 focus-within:ring-gray-300 dark:focus-within:ring-neutral-700 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.03)] overflow-hidden">
       <textarea
+        data-testid="chat-input"
+        data-agent-clickable
         placeholder={t('agent.placeholder')}
         rows={3}
         value={inputText}
@@ -195,13 +197,15 @@ export default function AgentRail() {
         className="w-full resize-none overflow-y-auto custom-scrollbar bg-transparent outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 text-[12.5px] leading-relaxed"
       />
       <div className="flex items-center justify-between mt-1">
-        <button type="button" className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-outline dark:border-neutral-700 bg-surface-muted dark:bg-neutral-800/80 hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-600 dark:text-gray-300 text-[11.5px] font-semibold transition-colors">
+        <button type="button" data-testid="choose-file" data-agent-clickable className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-outline dark:border-neutral-700 bg-surface-muted dark:bg-neutral-800/80 hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-600 dark:text-gray-300 text-[11.5px] font-semibold transition-colors">
           <Plus className="w-3 h-3" />
           <span>{t('agent.chooseFile')}</span>
         </button>
         {isStreaming ? (
           <button
             type="button"
+            data-testid="stop-stream"
+            data-agent-clickable
             aria-label={t('common.stop')}
             onClick={cancel}
             className="p-1.5 rounded-full transition-colors bg-gray-800 dark:bg-gray-200 hover:bg-gray-700 dark:hover:bg-gray-300 text-white dark:text-gray-800"
@@ -211,6 +215,8 @@ export default function AgentRail() {
         ) : (
           <button
             type="button"
+            data-testid="send-message"
+            data-agent-clickable
             aria-label={t('common.send')}
             disabled={!inputText.trim() || agent.status !== 'connected'}
             onClick={handleSend}
@@ -343,24 +349,49 @@ export default function AgentRail() {
       ) : (
         <div className="flex-1 flex items-center justify-center px-3">
           <div className="w-full max-w-[360px]">
-            <div className="text-center mb-4">
-              <div className="w-10 h-10 mx-auto rounded-lg bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow-sm mb-3">W</div>
-              <p className="text-gray-500 dark:text-gray-400 text-[12px]">{t('agent.welcome')}</p>
-            </div>
-            {activeSessionId ? (
-              inputBox
+            {projectMismatch ? (
+              // Project mismatch: the user's localStorage currentProject doesn't
+              // match the sidecar's default workdir, and the current project has
+              // no sessions. Point them to the right project.
+              <div className="text-center">
+                <div className="w-10 h-10 mx-auto rounded-lg bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-sm mb-3">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <p className="text-gray-500 dark:text-gray-400 text-[12px] mb-2">{t('agent.projectMismatch')}</p>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-4 font-mono truncate px-2" title={agentDefaultWorkdir ?? ''}>
+                  {agentDefaultWorkdir}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { if (agentDefaultWorkdir) void openProject(agentDefaultWorkdir); }}
+                  disabled={agent.status !== 'connected'}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-outline bg-white px-3 py-2.5 text-[12.5px] font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-800 dark:bg-surface-dark dark:text-gray-200 dark:hover:bg-neutral-800"
+                >
+                  <span>{t('agent.switchToProject')}</span>
+                </button>
+              </div>
             ) : (
-              // No active session (e.g. the last one was just deleted): the input
-              // would send into the void, so offer a way back in instead.
-              <button
-                type="button"
-                onClick={() => void newSession()}
-                disabled={agent.status !== 'connected'}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-outline bg-white px-3 py-2.5 text-[12.5px] font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-800 dark:bg-surface-dark dark:text-gray-200 dark:hover:bg-neutral-800"
-              >
-                <Plus className="h-4 w-4" />
-                <span>{t('agent.newSession')}</span>
-              </button>
+              <>
+                <div className="text-center mb-4">
+                  <div className="w-10 h-10 mx-auto rounded-lg bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow-sm mb-3">W</div>
+                  <p className="text-gray-500 dark:text-gray-400 text-[12px]">{t('agent.welcome')}</p>
+                </div>
+                {activeSessionId ? (
+                  inputBox
+                ) : (
+                  // No active session (e.g. the last one was just deleted): the input
+                  // would send into the void, so offer a way back in instead.
+                  <button
+                    type="button"
+                    onClick={() => void newSession()}
+                    disabled={agent.status !== 'connected'}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-outline bg-white px-3 py-2.5 text-[12.5px] font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-800 dark:bg-surface-dark dark:text-gray-200 dark:hover:bg-neutral-800"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>{t('agent.newSession')}</span>
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

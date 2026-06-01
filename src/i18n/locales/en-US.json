@@ -44,6 +44,8 @@
       "heartbeatFailed": "Heartbeat failed",
       "reconnecting": "Disconnected, reconnecting"
     },
+    "projectMismatch": "No sessions in the current project. The agent is running in a different directory — switch over?",
+    "switchToProject": "Switch to agent project",
     "feedback": {
       "copy": "Copy",
       "good": "Good",

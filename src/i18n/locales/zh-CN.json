@@ -44,6 +44,8 @@
       "heartbeatFailed": "心跳检测失败",
       "reconnecting": "连接已断开，正在重连"
     },
+    "projectMismatch": "当前项目下没有会话。Agent 运行在其他目录，要切换过去吗？",
+    "switchToProject": "切换到 Agent 项目",
     "feedback": {
       "copy": "复制",
       "good": "好用",
