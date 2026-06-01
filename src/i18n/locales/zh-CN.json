@@ -49,7 +49,13 @@
     "switch": "切换项目",
     "open": "打开路径…",
     "pathPlaceholder": "输入项目路径并回车",
-    "current": "当前项目"
+    "current": "当前项目",
+    "browse": "浏览文件夹…",
+    "browseTitle": "选择项目文件夹",
+    "parentDir": "上级目录",
+    "openThisFolder": "打开此文件夹",
+    "noSubfolders": "没有子文件夹",
+    "loading": "加载中…"
   },
   "settings": {
     "title": "设置",

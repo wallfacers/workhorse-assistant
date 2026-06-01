@@ -77,9 +77,11 @@
         `AgentBridge::fs_list` in `agent/mod.rs`, mapping 404→not_found,
         400/403→validation) + `fsList(path?)` IPC wrapper with `FsEntry`/`FsListing`
         types, re-exported from `src/ipc/index.ts`. `cargo check` + `tsc` clean.
-      - [ ] C1b Browser UI: a folder-tree/list picker that calls `fsList`,
-        surfaces 403/404/400 messages, and feeds the chosen path into project
-        selection. (UI — pending design grounding.)
+      - [x] C1b Browser UI: `src/components/ProjectBrowser.tsx` — a sidecar-namespace
+        folder navigator (starts at `default_workdir`, parent/into navigation,
+        surfaces 403/404/400 messages, "open this folder" → `openProject`). Wired
+        into the TitleBar `ProjectSwitcher` as a "Browse folders…" entry alongside
+        the manual path input. i18n keys added (zh-CN/en-US). `tsc` clean.
 - [ ] C2 `wsl` terminal profile: spawn `wsl.exe -d <distro> --cd <wslpath>`
       (PTY stays host-side). Default the profile from `/health` platform/distro.
       **Prereq (larger than one line):** today `resolve_profile` (`src-tauri/src/pty/mod.rs`)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Copy as CopyIcon, FolderOpen, Minus, Square, X } from 'lucide-react';
+import { ChevronDown, Copy as CopyIcon, FolderOpen, FolderSearch, Minus, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   isTauri,
@@ -8,6 +8,7 @@ import {
   closeWindow,
 } from '../ipc';
 import { useSession } from '../session/SessionProvider';
+import ProjectBrowser from './ProjectBrowser';
 
 interface TitleBarProps {
   /** Synced maximize state (owned by App via useWindowState). */
@@ -74,8 +75,16 @@ function ProjectSwitcher() {
   const { projects, recentProjects, currentProject, openProject } = useSession();
   const [open, setOpen] = useState(false);
   const [entering, setEntering] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const [pathText, setPathText] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+
+  const closeMenu = () => {
+    setOpen(false);
+    setEntering(false);
+    setBrowsing(false);
+    setPathText('');
+  };
 
   // Known paths = sidecar projects (eventual source of truth) ∪ locally-
   // remembered recents ∪ the current selection, most-relevant first, deduped.
@@ -94,8 +103,7 @@ function ProjectSwitcher() {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setEntering(false);
+        closeMenu();
       }
     };
     document.addEventListener('mousedown', onDown);
@@ -110,9 +118,7 @@ function ProjectSwitcher() {
     const next = pathText.trim();
     if (next) {
       void openProject(next);
-      setOpen(false);
-      setEntering(false);
-      setPathText('');
+      closeMenu();
     }
   };
 
@@ -132,49 +138,70 @@ function ProjectSwitcher() {
       </button>
       {open && (
         <div className="absolute left-0 top-7 z-50 min-w-[240px] overflow-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
-          {knownPaths.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => {
+          {browsing ? (
+            <ProjectBrowser
+              onPick={(p) => {
                 void openProject(p);
-                setOpen(false);
+                closeMenu();
               }}
-              title={p}
-              className={`block w-full truncate px-3 py-1.5 text-left text-[12.5px] transition-colors hover:bg-surface-muted dark:hover:bg-surface-dark-muted ${
-                p === currentProject
-                  ? 'font-semibold text-on-surface dark:text-on-canvas-dark'
-                  : 'text-gray-600 dark:text-gray-300'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-          {knownPaths.length > 0 && <div className="my-1 border-t border-outline/50 dark:border-neutral-800/60" />}
-          {entering ? (
-            <div className="px-2 py-1">
-              <input
-                autoFocus
-                value={pathText}
-                onChange={(e) => setPathText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.nativeEvent.isComposing) return;
-                  if (e.key === 'Enter') submitPath();
-                  if (e.key === 'Escape') setEntering(false);
-                }}
-                placeholder={t('project.pathPlaceholder')}
-                className="w-full rounded border border-outline bg-white px-2 py-1 text-[12px] text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-700 dark:bg-surface-dark dark:text-gray-100 dark:focus:ring-neutral-700"
-              />
-            </div>
+            />
           ) : (
-            <button
-              type="button"
-              onClick={() => setEntering(true)}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
-            >
-              <FolderOpen className="h-3.5 w-3.5" />
-              <span>{t('project.open')}</span>
-            </button>
+            <>
+              {knownPaths.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => {
+                    void openProject(p);
+                    closeMenu();
+                  }}
+                  title={p}
+                  className={`block w-full truncate px-3 py-1.5 text-left text-[12.5px] transition-colors hover:bg-surface-muted dark:hover:bg-surface-dark-muted ${
+                    p === currentProject
+                      ? 'font-semibold text-on-surface dark:text-on-canvas-dark'
+                      : 'text-gray-600 dark:text-gray-300'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+              {knownPaths.length > 0 && <div className="my-1 border-t border-outline/50 dark:border-neutral-800/60" />}
+              {entering ? (
+                <div className="px-2 py-1">
+                  <input
+                    autoFocus
+                    value={pathText}
+                    onChange={(e) => setPathText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.nativeEvent.isComposing) return;
+                      if (e.key === 'Enter') submitPath();
+                      if (e.key === 'Escape') setEntering(false);
+                    }}
+                    placeholder={t('project.pathPlaceholder')}
+                    className="w-full rounded border border-outline bg-white px-2 py-1 text-[12px] text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-700 dark:bg-surface-dark dark:text-gray-100 dark:focus:ring-neutral-700"
+                  />
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setBrowsing(true)}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
+                  >
+                    <FolderSearch className="h-3.5 w-3.5" />
+                    <span>{t('project.browse')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEntering(true)}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    <span>{t('project.open')}</span>
+                  </button>
+                </>
+              )}
+            </>
           )}
         </div>
       )}
