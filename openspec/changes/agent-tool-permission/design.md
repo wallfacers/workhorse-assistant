@@ -63,5 +63,8 @@ command, which POSTs `{type:"permission_decision", request_id, decision}` to
 - **Stale prompt after timeout** — if the user ignores the card past the sidecar's
   ~300s window, the upstream wait expires and a later decision is a no-op. Acceptable
   for V1; the card stays visible but inert. A future enhancement could expire it.
-- **Single-session V1** — the listener is bound to the active session id; re-attach
-  tears it down with the rest of the session wiring.
+- **Multi-session aware** — after the `add-project-sessions` refactor a
+  `permission_request` listener is registered per wired session (not only the
+  active one), and `decidePermission` routes a decision to the session whose
+  runtime actually holds the `requestId`, not merely whichever session is active.
+  Listeners are torn down with their session's wiring.

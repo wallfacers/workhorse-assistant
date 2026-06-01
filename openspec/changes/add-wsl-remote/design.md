@@ -69,7 +69,17 @@ localStorage recent-projects list — already shipped (commit `9385a0c`).
   in `add-project-sessions`, commit `127dbfd`) keeps B3 contained.
 - **D-WSL-5 — Terminal is the 80% solution.** `wsl.exe -d <distro> --cd <path>`;
   the PTY stays on the Windows host, the shell process is the WSL bridge. No
-  server-side PTY (out of scope).
+  server-side PTY (out of scope). **Caveat:** the PTY layer currently has no way
+  for the renderer to pass a target `workdir`/`distro` — `resolve_profile` takes
+  only a `profile_id` and `ProfileId` is a closed union. C2 must add a `workdir`
+  channel through `pty_spawn` → `SessionRegistry::spawn` → `resolve_profile` and
+  extend `ProfileId` with `wsl`; this is the largest engineering item in the change.
+- **D-WSL-6 — `platform`/`distro` are top-level `/health` fields, not `capabilities`.**
+  `capabilities` is a flat `Vec<String>` feature-flag list and cannot carry
+  key→value scalars. `platform`/`distro` join `default_workdir` as new optional
+  top-level fields on `HealthInfo` (Rust + TS). These additions are **additive and
+  backward-compatible** and MUST NOT bump `protocol_version` (so
+  `wire-reasoning-stream`'s `"1"` handshake precheck stays valid).
 
 ## Cross-change ledger (what moved where)
 

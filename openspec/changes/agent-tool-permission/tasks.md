@@ -20,10 +20,10 @@
 
 ## 4. Renderer — card + flow
 
-- [x] 4.1 Add a `permission` `MessagePart` variant (`requestId, tool, resource, dangerous, reason, status`) in `AgentRail.tsx`
-- [x] 4.2 Add a `PermissionCard` component: tone/badge for dangerous, resource + reason, allow (`allow_session`) / deny (`deny`) actions, resolved state after a decision
-- [x] 4.3 Subscribe to `agent://permission_request/{sessionId}`, dedupe by `requestId`, and append the part to the last assistant message (or a new one)
-- [x] 4.4 `handlePermission(requestId, decision)` calls `sendPermissionDecision` and flips the matching part's status to `allowed`/`denied`
+- [x] 4.1 Add a `permission` `MessagePart` variant (`requestId, tool, resource, dangerous, reason, status`) in `src/session/types.ts`
+- [x] 4.2 Add a `PermissionCard` component in `AgentRail.tsx`: tone/badge for dangerous, resource + reason, allow (`allow_session`) / deny (`deny`) actions, resolved state after a decision; consumes `decidePermission` via `useSession()`
+- [x] 4.3 In `src/session/events.ts`, subscribe to `agent://permission_request/{sessionId}`, dedupe by `requestId`, and append the part to the last assistant message (or a new one)
+- [x] 4.4 `decidePermission(requestId, decision)` in `src/session/SessionProvider.tsx` finds the session whose runtime holds the `requestId` (not merely the active one), calls `sendPermissionDecision`, and flips the matching part's status to `allowed`/`denied`
 
 ## 5. Verify & gate
 

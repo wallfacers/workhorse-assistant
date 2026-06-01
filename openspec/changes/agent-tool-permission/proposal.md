@@ -48,6 +48,16 @@ only genuinely sensitive operations re-prompt.
   invoke handler.
 - `src/ipc/agent.ts` + `src/ipc/index.ts`: `sendPermissionDecision()` wrapper and
   the `PermissionDecision` type.
-- `src/components/AgentRail.tsx`: `permission` message part, `PermissionCard`,
-  `agent://permission_request/{sessionId}` listener, `handlePermission` handler.
+- `src/session/types.ts`: `permission` `MessagePart` variant.
+- `src/session/events.ts`: `agent://permission_request/{sessionId}` listener —
+  dedupe by `requestId`, append to the last assistant message.
+- `src/session/SessionProvider.tsx`: `decidePermission()` — finds the session
+  whose runtime actually holds the `requestId` (not merely the active one) and
+  routes the decision there.
+- `src/components/AgentRail.tsx`: `PermissionCard` UI only (consumes
+  `decidePermission` via `useSession()`).
 - No new dependencies; no renderer→sidecar network calls.
+
+> Note: the in-chat permission wiring (message part, listener, decision handler)
+> moved from `AgentRail.tsx` into the `src/session/` layer with the
+> `add-project-sessions` refactor; only the card itself remains in `AgentRail.tsx`.

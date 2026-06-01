@@ -36,14 +36,16 @@ paused, new content SHALL NOT force the viewport downward.
 - **WHEN** the user drags a finger downward (scrolling content up) on a touch device
 - **THEN** the list stops auto-following
 
-### Requirement: Re-engage following at strict bottom
+### Requirement: Re-engage following near bottom
 
-The list SHALL re-enable following when the user scrolls back to within a strict
-bottom threshold (<= 2px), so subsequent content resumes pinning to the bottom.
+The list SHALL re-enable following when the user scrolls back to within a
+near-bottom threshold (<= 60px), so subsequent content resumes pinning to the
+bottom. The threshold is generous (not a strict 0–2px) so a user who scrolls
+"close enough" to the bottom is treated as wanting to follow again.
 
-#### Scenario: Scrolling back to bottom resumes follow
+#### Scenario: Scrolling back near bottom resumes follow
 
-- **WHEN** a paused user scrolls all the way back down to the strict bottom
+- **WHEN** a paused user scrolls back down to within 60px of the bottom
 - **THEN** following re-engages and the next delta pins the list to the bottom again
 
 ### Requirement: Forced re-follow on user send

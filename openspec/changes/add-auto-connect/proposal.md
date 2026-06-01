@@ -17,10 +17,19 @@ The agent bridge currently requires the user to click a manual "连接 Agent" bu
 ## Capabilities
 
 ### New Capabilities
-- `agent-auto-connect`: automatic sidecar discovery, health-probe verification, and session attachment with bounded exponential-backoff retry.
+- `agent-auto-connect`: automatic sidecar discovery and health-probe verification with bounded exponential-backoff retry plus a 30 s connection heartbeat.
 
 ### Modified Capabilities
-- `agent-bridge-transport`: the Rust bridge gains a `agent_health_check` command that calls `GET /health` before the first `attach`. The `attach` flow is unchanged.
+<!-- None with a spec delta. `agent_health_check` is a new Rust command that
+     conceptually belongs to `agent-bridge-transport`, but its contract is
+     specified under the agent-auto-connect spec above; the existing attach flow
+     in agent-bridge-transport is unchanged, so no separate delta is included. -->
+
+> Note: after `f519e4c` (*decouple health probe from session creation*) the
+> `useAgentConnection` hook became a **pure health probe** — it no longer attaches
+> a session or holds a `sessionId`; session attach/lifecycle moved to
+> `SessionProvider`. Any mention of "attach" below reflects the original design
+> and is superseded by the reconciled `specs/agent-auto-connect/spec.md`.
 
 ## Impact
 

@@ -13,9 +13,12 @@
 
 - [ ] A1 `GET /health` returns `default_workdir` (the sidecar's default project
       path) so the renderer can cold-start with no host-cwd fallback (D-WSL-2).
-- [ ] A2 `GET /health` `capabilities` expose `platform` (e.g. `linux`/`windows`)
-      and, on WSL, `distro` — so the UI can default the terminal to `wsl` and
-      know it is talking to a remote sidecar.
+- [ ] A2 `GET /health` exposes `platform` (e.g. `linux`/`windows`) and, on WSL,
+      `distro` as **new top-level optional fields** (NOT inside `capabilities`) —
+      so the UI can default the terminal to `wsl` and know it is talking to a
+      remote sidecar. Note: `capabilities` is a flat `Vec<String>` feature-flag
+      list (`["frontend_tools", ...]`) and cannot carry these key→value scalars;
+      add them alongside `default_workdir` on `HealthInfo` (Rust + `src/ipc/agent.ts`).
 - [ ] A3 `GET /v1/fs/list?path=<dir>` enumerates directory entries in the
       sidecar namespace (for a namespace-correct project browser). Returns
       `{ entries: [{ name, path, isDir }] }`; `path` omitted → sidecar default.
@@ -48,9 +51,16 @@
       (replaces today's manual path entry; local recents stay as a fast path).
 - [ ] C2 `wsl` terminal profile: spawn `wsl.exe -d <distro> --cd <wslpath>`
       (PTY stays host-side). Default the profile from `/health` platform/distro.
+      **Prereq (larger than one line):** today `resolve_profile` (`src-tauri/src/pty/mod.rs`)
+      takes only a `profile_id` — `cwd` is always `None` and falls back to
+      `home_dir`, and `pty_spawn` (`src/ipc/pty.ts`) passes only `{profileId, cols, rows}`.
+      So C2 must (a) thread an optional `workdir` (+ `distro`) through
+      `pty_spawn` → `SessionRegistry::spawn` → `resolve_profile`/`LaunchProfile.cwd`/args,
+      and (b) add `wsl` to the closed `ProfileId` union (`pty.ts`, `profiles.ts`,
+      and the Rust `match`) + `PROFILE_LABELS`/`PROFILE_ORDER`.
 - [ ] C3 Project ↔ terminal coupling: switching to a WSL project makes new
       terminals WSL shells at that path (the coupling deferred by
-      `add-project-sessions`, tech-debt D4).
+      `add-project-sessions`, tech-debt D4). Depends on the C2 `workdir` channel above.
 
 ## D. Docs / verification
 

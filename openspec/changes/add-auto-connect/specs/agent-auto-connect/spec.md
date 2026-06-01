@@ -29,7 +29,7 @@ The sidecar's `GET /health` endpoint SHALL return `protocol_version` (a string i
 
 ### Requirement: Rust-side health probe command
 
-The Rust bridge SHALL expose a `agent_health_check` Tauri command that performs a `GET /health` request to the configured sidecar endpoint. It returns a typed response `{ok, version, protocol_version, capabilities}` on success, or an `AgentError` on failure (`transient` for network errors, `internal` for unexpected response shapes). The renderer calls this command to verify the sidecar before attaching.
+The Rust bridge SHALL expose a `agent_health_check` Tauri command that performs a `GET /health` request to the configured sidecar endpoint. It returns a typed response `{ok, version, protocol_version, capabilities}` on success, or an `AgentError` on failure (`transient` for network errors, `internal` for unexpected response shapes). The renderer calls this command to verify the sidecar is reachable and compatible; session attach is a separate concern owned by `SessionProvider` (see note on the auto-connect flow).
 
 #### Scenario: Successful health probe
 
@@ -49,20 +49,20 @@ The Rust bridge SHALL expose a `agent_health_check` Tauri command that performs 
 - **AND** the response has `protocol_version:"99"` or is missing the field
 - **THEN** the command returns `AgentError{kind:"internal", message:"incompatible sidecar: protocol_version ..."}`
 
-### Requirement: Auto-connect with probe–verify–attach flow
+### Requirement: Auto-connect with probe–verify flow (health only)
 
-The renderer SHALL automatically connect to the sidecar on app startup without requiring manual user action. The connection follows a probe–verify–attach sequence:
+The renderer SHALL automatically establish connection health to the sidecar on app startup without requiring manual user action. The hook is a **pure health probe** — it does NOT attach a session, hold a `sessionId`, or listen to per-session events; session attach/lifecycle is owned by `SessionProvider`. `connected` here means "a compatible sidecar is reachable." The flow is:
 
 1. **Probe**: call `agent_health_check`.
-2. **Verify**: check `protocol_version` matches the expected value (`"1"`) and `capabilities` contains `"frontend_tools"`.
-3. **Attach**: if verified, call `agent_attach` to create a session.
-4. **Retry**: on transient failure (unreachable), retry the entire sequence with exponential backoff starting at 1 s, capped at 30 s.
-5. **Stop**: on incompatible response, stop retrying and surface the error. On explicit user disconnect (via Settings), stop retrying.
+2. **Verify**: check `protocol_version` matches the expected value (`"1"`). `capabilities` (e.g. `frontend_tools`) is parsed and surfaced but is NOT gated on — auto-connect proceeds even if a capability is absent.
+3. **Connected**: if verified, mark the connection `connected` and start the heartbeat (see below).
+4. **Retry**: on transient failure (unreachable), retry the probe with exponential backoff starting at 1 s, capped at 30 s.
+5. **Stop**: on incompatible response, stop retrying and surface the error. On explicit user disconnect (via Settings), pause probing.
 
 #### Scenario: Sidecar already running when frontend starts
 
 - **WHEN** the frontend starts and the sidecar is already listening
-- **THEN** probe succeeds, verification passes, and attach creates a session within a few seconds
+- **THEN** probe succeeds, verification passes, the connection is marked `connected` within a few seconds
 - **AND** the status dot turns green
 
 #### Scenario: Frontend starts before sidecar
@@ -70,7 +70,7 @@ The renderer SHALL automatically connect to the sidecar on app startup without r
 - **WHEN** the frontend starts and the sidecar is not yet listening
 - **THEN** probe fails with `transient`, the status shows "连接中…"
 - **AND** retries continue with backoff until the sidecar appears
-- **WHEN** the sidecar starts, the next probe succeeds, verification passes, and attach creates a session
+- **WHEN** the sidecar starts, the next probe succeeds and the connection is marked `connected`
 
 #### Scenario: Sidecar is incompatible
 
@@ -81,13 +81,27 @@ The renderer SHALL automatically connect to the sidecar on app startup without r
 #### Scenario: User manually disconnects
 
 - **WHEN** the user clicks "断开连接" in Settings
-- **THEN** the session is detached, retry timer is cleared, and auto-connect pauses
+- **THEN** the retry and heartbeat timers are cleared and probing pauses
 - **AND** the status dot shows idle
 
 #### Scenario: User manually reconnects after disconnect
 
 - **WHEN** the user clicks "重新连接" in Settings after a manual disconnect
-- **THEN** auto-connect resumes from the probe step
+- **THEN** probing resumes from the probe step
+
+### Requirement: Connection heartbeat while connected
+
+While `connected`, the renderer SHALL re-probe `GET /health` on a fixed interval (30 s) to detect a sidecar that has gone away. On a failed heartbeat the connection drops to `error` and a retry is scheduled with backoff; an incompatible heartbeat response stops the heartbeat. The heartbeat is cleared on manual disconnect and on unmount.
+
+#### Scenario: Sidecar disappears while connected
+
+- **WHEN** the connection is `connected` and a 30 s heartbeat probe fails
+- **THEN** the connection drops to `error` and a retry is scheduled with backoff
+
+#### Scenario: Heartbeat cleared on disconnect
+
+- **WHEN** the user manually disconnects (or the component unmounts)
+- **THEN** the heartbeat interval is cleared and no further heartbeat probes run
 
 ### Requirement: Connection status indicator
 
@@ -119,7 +133,7 @@ The Settings modal SHALL include an "Agent" tab that shows: the current connecti
 #### Scenario: Disconnecting from settings
 
 - **WHEN** the user clicks "断开连接" in Settings → Agent tab
-- **THEN** the session is detached, auto-retry pauses, the dot turns gray, and the "重新连接" button appears
+- **THEN** auto-retry and the heartbeat pause, the dot turns gray, and the "重新连接" button appears
 
 ## MODIFIED Requirements
 

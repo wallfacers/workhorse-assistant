@@ -49,8 +49,9 @@ A `ResizeObserver` shares the same `handleContentGrowth` handler so late layout
 changes (code highlight finishing, images) also re-pin while following.
 
 `handleScroll` tracks `lastScrollTop`; `movedUp && distanceFromBottom > 0` →
-pause; `distanceFromBottom ≤ 2px` (strict) → re-engage. Wheel (`deltaY < 0`) and
-touch (finger moving down) set the paused state directly.
+pause; `distanceFromBottom ≤ RE_ENGAGE_PX` (60px, near-bottom — a user who
+scrolls "close enough" is treated as wanting to follow again) → re-engage. Wheel
+(`deltaY < 0`) and touch (finger moving down) set the paused state directly.
 
 **Why over the current approach:** today's hook scrolls on both the deps effect
 and the MO callback with no suppression, which is the literal cause of the double
@@ -71,31 +72,43 @@ called with `themes:{light,dark}, defaultColor:false`. Shiki then emits
 between them by the ancestor `.dark` class. This gives theme switching with **zero
 JS re-highlight**.
 
-Languages bundled: `javascript, typescript, python, rust, bash, json, html, css,
-sql, yaml, markdown` (extendable). Lazy loading keeps the WASM engine off the
-initial render path.
+Languages bundled (27): `javascript, typescript, jsx, tsx, python, java, kotlin,
+c, cpp, csharp, go, rust, php, ruby, swift, bash, json, html, xml, css, scss,
+sql, yaml, toml, markdown, dockerfile, diff`. The highlighter is created with
+Shiki's **JavaScript RegExp engine** (`createJavaScriptRegexEngine()` from
+`shiki/engine/javascript`), not the default WASM/Oniguruma engine — see D6. Lazy
+loading keeps it off the initial render path.
 
 **Alternative considered:** `react-syntax-highlighter` / Prism. Heavier React
 re-render per block, weaker theming story, and no first-class dual-theme CSS-var
 output. Shiki's `defaultColor:false` is purpose-built for exactly this.
 
-### D3: `CodeBlock.tsx` owns the block chrome; `MarkdownContent` delegates
+### D3: `MarkdownContent` = marked + DOMPurify + morphdom, with imperative code chrome
 
-`MarkdownContent`'s `code` component renders `<CodeBlock language code streaming>`
-when `className` starts with `language-`; its `pre` component becomes a thin
-pass-through (CodeBlock renders its own `<pre>`). Block detection relies solely on
-`className?.startsWith('language-')` — dropping the unreliable `\n`-in-children
-heuristic. `CodeBlock` holds `highlighted: string | null` state, calls
-`highlightCode()` in an effect, renders the language pill + copy button, and skips
-highlighting while `streaming` (sets `data-streaming-code="true"`, renders plain
-text). data- attribute names mirror data-talk
-(`data-component="markdown-code"`, `data-slot="markdown-code-bar|language|actions"`).
+`MarkdownContent` does **not** use `react-markdown` (which re-parses and
+re-reconciles the entire string on every streaming tick — the flicker root cause).
+Instead it: (1) parses Markdown to an HTML string with `marked`, (2) sanitises
+with `DOMPurify`, (3) patches the live DOM with `morphdom` so only changed nodes
+update. `markdown-stream.ts` splits the in-flight Markdown into stable prose
+blocks plus a single in-progress code fence (`renderStreamingCodeBlock`) so the
+already-settled prose is never re-morphed.
+
+The code-block chrome (language pill + copy button) is built **imperatively** by
+`decorateCodeBlocks(root)`, which walks the parsed `<pre>` elements and wraps each
+in the `data-component="markdown-code"` shell (`data-slot="markdown-code-bar|
+language|actions"`, mirroring data-talk). There is **no React `CodeBlock`
+component**. Copy is handled by a single document-level delegated click listener
+(not a per-block handler), and it routes through the Rust `writeClipboardText`
+IPC, not `navigator.clipboard` directly. A still-streaming fence renders as plain
+`data-streaming-code="true"` text and is highlighted only once complete.
 
 ### D4: `StreamingText` bypasses pacing on code fences
 
 `StreamingText` (in `AgentRail.tsx`) gains data-talk's `PacedMarkdown` rule: if
-`streaming && /```|~~~/.test(target)`, set `shown = target` immediately and skip
-the timer. This prevents the paced reveal from feeding a code body
+`streaming && /^(`{3,}|~{3,})/m.test(target)`, set `shown = target` immediately
+and skip the timer. The regex is **anchored to line start** (multiline) so an
+inline triple-backtick mid-sentence does not spuriously disable pacing. This
+prevents the paced reveal from feeding a code body
 character-by-character (each tick currently remounts a growing block). Combined
 with D3's "no highlight while streaming," code stays plain+stable mid-stream and
 highlights once on completion.
@@ -111,11 +124,12 @@ and `.dark … { color: var(--shiki-dark) }`, tokens `background:transparent`.
 
 ## Risks / Trade-offs
 
-- **[Shiki WASM bundle size inflates the build]** → Lazy singleton: the engine
-  loads only when the first code block renders, off the initial path. Bundle only
-  the ~11 languages actually used.
-- **[First code block shows unhighlighted for a beat while WASM loads]** →
-  Acceptable: it renders as readable plain `pre` first, then upgrades. Matches
+- **[Shiki bundle size inflates the build]** → Lazy singleton: the highlighter
+  loads only when the first code block renders, off the initial path, and uses the
+  lightweight JS RegExp engine (no WASM). 27 grammars are bundled (see D2); revisit
+  if bundle size becomes a problem.
+- **[First code block shows unhighlighted for a beat while the highlighter loads]**
+  → Acceptable: it renders as readable plain `pre` first, then upgrades. Matches
   data-talk behaviour.
 - **[Auto-scroll rewrite regresses an edge case (e.g. resize loops)]** → The
   `ResizeObserver` + rAF guard de-dupes; verify the classic cases manually in
@@ -124,6 +138,16 @@ and `.dark … { color: var(--shiki-dark) }`, tokens `background:transparent`.
 - **[`defaultColor:false` markup differs from a normal Shiki block]** → CSS must
   target `pre.shiki` and set token `background:transparent` to avoid double
   backgrounds; covered in D5.
+
+### D6: Shiki JS RegExp engine (not WASM) — forced by the Tauri webview CSP
+
+Shiki defaults to a WASM/Oniguruma grammar engine. In the Tauri webview the
+default Content-Security-Policy blocks the WASM compile, which **silently
+disabled highlighting** (blocks rendered as plain text with no error). The
+highlighter therefore uses `createJavaScriptRegexEngine()` from
+`shiki/engine/javascript`, which runs as ordinary JS with no WASM/CSP
+dependency. This supersedes the original "WASM bundle size is the main risk"
+framing — the WASM engine is not shipped at all.
 
 ## Migration Plan
 
@@ -134,6 +158,6 @@ verifiable in `npm run dev` and gated by `npm run lint`.
 
 ## Open Questions
 
-- Exact final language set for Shiki — start with the 11 above; add on demand.
+- ~~Exact final language set for Shiki~~ — Resolved: 27 languages bundled (see D2).
 - Whether to expose a "wrap long lines" toggle on code blocks — deferred; not in
   this change's scope.

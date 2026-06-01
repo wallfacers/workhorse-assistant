@@ -36,10 +36,12 @@
   --color-on-canvas: #101012;
   --color-surface: #ffffff;
   --color-on-surface: #101012;
+  --color-on-surface-muted: #6b7280;
   --color-surface-muted: #f4f6f8;
 
   --color-canvas-dark: #101012;
   --color-on-canvas-dark: #eceff2;
+  --color-on-canvas-dark-muted: #9ca3af;
   --color-surface-dark: #161618;
   --color-surface-dark-muted: #1a202c;
   --color-surface-dark-elevated: #1e1e22;
@@ -265,10 +267,10 @@
     font-weight: 500;
     letter-spacing: 0.025em;
     text-transform: uppercase;
-    color: #6b7280;                  /* gray-500 */
+    color: var(--color-on-surface-muted);
   }
   .dark [data-component="markdown-code"] [data-slot="markdown-code-language"] {
-    color: #9ca3af;                  /* gray-400 */
+    color: var(--color-on-canvas-dark-muted);
   }
 
   /* Copy button (right) — icon button with a subtle hover wash. */
@@ -280,20 +282,20 @@
     border: 0;
     border-radius: 0.25rem;          /* rounded */
     background: transparent;
-    color: #9ca3af;                  /* gray-400 */
+    color: var(--color-on-surface-muted);
     cursor: pointer;
     transition: background-color 0.15s ease, color 0.15s ease;
   }
   [data-component="markdown-code"] [data-slot="markdown-copy-button"]:hover {
-    background: rgb(229 231 235 / 0.6);   /* gray-200/60 */
-    color: #4b5563;                        /* gray-600 */
+    background: color-mix(in srgb, var(--color-on-surface) 8%, transparent);
+    color: var(--color-on-surface);
   }
   .dark [data-component="markdown-code"] [data-slot="markdown-copy-button"] {
-    color: #6b7280;                  /* gray-500 */
+    color: var(--color-on-canvas-dark-muted);
   }
   .dark [data-component="markdown-code"] [data-slot="markdown-copy-button"]:hover {
-    background: rgb(64 64 64 / 0.6);      /* neutral-700/60 */
-    color: #d1d5db;                        /* gray-300 */
+    background: color-mix(in srgb, var(--color-on-canvas-dark) 10%, transparent);
+    color: var(--color-on-canvas-dark);
   }
 
   /* Streaming code (plain text, pre-highlight). Same metrics as pre.shiki so the
@@ -346,7 +348,7 @@
   .dark [data-component="markdown"] :not(pre) > code { background: rgb(38 38 38 / 1); }
   [data-component="markdown"] blockquote {
     border-left: 2px solid rgb(2 74 68 / 0.4); padding-left: 0.75rem;
-    margin: 0.5rem 0; font-style: italic; color: var(--color-on-surface-muted, #6b7280);
+    margin: 0.5rem 0; font-style: italic; color: var(--color-on-surface-muted);
   }
   .dark [data-component="markdown"] blockquote { border-left-color: rgb(77 208 225 / 0.4); }
   [data-component="markdown"] hr { margin: 0.75rem 0; border: 0; border-top: 1px solid var(--color-outline); }

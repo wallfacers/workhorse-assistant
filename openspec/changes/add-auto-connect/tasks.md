@@ -22,13 +22,15 @@ per `feedback_multi-agent-git-coordination`.
 
 ## 3. TS: useAgentConnection 自动连接重写
 
-- [x] 3.1 新增 refs: `pausedRef`、`attemptRef`、`retryTimerRef`
-- [x] 3.2 `tryConnect()`：`checkAgentHealth()` → 验证（Rust 侧 protocol_version + ok）→ `attachAgentSession()`
+<!-- 注：f519e4c 后该 hook 改为纯健康探活，不再 attach。以下为实际落地形态。 -->
+- [x] 3.1 新增 refs: `pausedRef`、`attemptRef`、`retryTimerRef`、`heartbeatRef`
+- [x] 3.2 `probe()`：`checkAgentHealth()` → 验证（Rust 侧 protocol_version + ok）→ 标记 `connected` 并 `startHeartbeat()`（不 attach session）
 - [x] 3.3 `scheduleRetry()`：指数退避 `min(1000 * 2^n, 30000)`
-- [x] 3.4 `disconnect()`：设 `pausedRef = true`，清 timer，调 `detachAgentSession()`
-- [x] 3.5 `reconnect()`：设 `pausedRef = false`，reset attempt，调 `tryConnect()`
-- [x] 3.6 mount effect：非 Tauri 直接 return；否则自动 `tryConnect()`；unmount 清 timer + detach
-- [x] 3.7 `AgentConnection` 接口：移除 `connect`，新增 `reconnect`
+- [x] 3.4 `startHeartbeat()`：connected 时每 30 s 重新 `probe()`；失败降级 `error` + 退避重试，incompatible 则停心跳
+- [x] 3.5 `disconnect()`：设 `pausedRef = true`，清 retry/heartbeat timer（不 detach session）
+- [x] 3.6 `reconnect()`：设 `pausedRef = false`，reset attempt，调 `probe()`
+- [x] 3.7 mount effect：非 Tauri 直接 return；否则自动 `probe()`；unmount 清 retry + heartbeat timer
+- [x] 3.8 `AgentConnection` 接口：移除 `connect`，新增 `reconnect`
 
 ## 4. TS: agent.ts 新增 checkAgentHealth
 
