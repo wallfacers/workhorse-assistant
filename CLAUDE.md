@@ -34,3 +34,12 @@ npm run design:lint    # validate docs/DESIGN.md
   routes through Rust commands in [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs).
 - Do **not** create top-level docs without adding a link to
   [`AGENTS.md`](./AGENTS.md) — orphan docs rot.
+
+## LLM Tool Conventions
+
+Frontend tools (`src/agent/`) are consumed by an LLM — design for model comprehension:
+
+- **Never return bare `null` from actions.** Return a structured confirmation (e.g. `{ focused: true, index, label }`) so the model can verify without an extra read.
+- **Enrich errors with self-repair context.** Include valid range, available options, or a suggested fix — the model must correct in one retry.
+- **Add `description` to every JSON Schema property.** LLMs parse schema descriptions natively; bare `{ type: "integer" }` forces guesswork.
+- **Use Markdown in tool descriptions** when behaviour is non-trivial — bullet lists, inline code, and short examples help the model more than prose.

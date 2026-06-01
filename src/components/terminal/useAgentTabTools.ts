@@ -6,6 +6,7 @@ import {
   ToolError,
 } from '../../agent';
 import type { ProfileId } from '../../ipc';
+import { PROFILE_LABELS } from './profiles';
 import type { Workspace, WorkspaceAction } from './workspaceReducer';
 
 /**
@@ -59,13 +60,28 @@ export function useAgentTabTools(
           name: 'open_tab',
           description:
             'Open a new terminal tab running the given launch profile. ' +
-            `Valid profileId values: ${VALID_PROFILES.join(', ')}.`,
+            `Valid \`profileId\` values: \`${VALID_PROFILES.join('`, `')}\`.`,
           inputSchema: {
             type: 'object',
-            properties: { profileId: { type: 'string', enum: VALID_PROFILES } },
+            properties: {
+              profileId: {
+                type: 'string',
+                enum: VALID_PROFILES,
+                description: 'The launch profile to open. Must be one of the predefined profile IDs.',
+              },
+            },
             required: ['profileId'],
           },
-          outputSchema: { type: 'null' },
+          outputSchema: {
+            type: 'object',
+            properties: {
+              opened: { type: 'boolean', description: 'Whether the tab was successfully opened.' },
+              index: { type: 'integer', description: 'Zero-based index of the newly opened tab.' },
+              label: { type: 'string', description: 'Display label of the newly opened tab.' },
+              profileId: { type: 'string', description: 'The launch profile that was used.' },
+            },
+            required: ['opened', 'index', 'label', 'profileId'],
+          },
         },
         (input) => {
           const profileId = (input as OpenTabInput)?.profileId;
@@ -75,11 +91,18 @@ export function useAgentTabTools(
           ) {
             throw new ToolError(
               'validation',
-              `unknown profileId; expected one of ${VALID_PROFILES.join(', ')}`,
+              `unknown profileId "${String(profileId)}"; valid values: ${VALID_PROFILES.join(', ')}`,
             );
           }
+          const { groups } = stateRef.current;
+          const newIndex = groups.length;
           dispatchRef.current({ type: 'addGroup', profileId: profileId as ProfileId });
-          return null;
+          return {
+            opened: true,
+            index: newIndex,
+            label: PROFILE_LABELS[profileId as ProfileId],
+            profileId,
+          };
         },
       ),
       registerAction(
@@ -87,13 +110,27 @@ export function useAgentTabTools(
           name: 'focus_tab',
           description:
             'Activate (bring to front) an existing terminal tab by its ' +
-            'zero-based index, as listed by get_open_tabs.',
+            'zero-based `index`, as listed by `get_open_tabs`.',
           inputSchema: {
             type: 'object',
-            properties: { index: { type: 'integer', minimum: 0 } },
+            properties: {
+              index: {
+                type: 'integer',
+                minimum: 0,
+                description: 'Zero-based position of the tab to activate, as returned by get_open_tabs.',
+              },
+            },
             required: ['index'],
           },
-          outputSchema: { type: 'null' },
+          outputSchema: {
+            type: 'object',
+            properties: {
+              focused: { type: 'boolean', description: 'Whether the tab was successfully focused.' },
+              index: { type: 'integer', description: 'The index of the focused tab.' },
+              label: { type: 'string', description: 'The label of the focused tab.' },
+            },
+            required: ['focused', 'index', 'label'],
+          },
         },
         (input) => {
           const index = (input as FocusTabInput)?.index;
@@ -103,17 +140,20 @@ export function useAgentTabTools(
           }
           const group = groups[index];
           if (!group) {
-            throw new ToolError('not_found', `no tab at index ${index}`);
+            throw new ToolError(
+              'not_found',
+              `no tab at index ${index}; currently ${groups.length} tab(s) open (indices 0–${groups.length - 1}). Call get_open_tabs for the full list.`,
+            );
           }
           dispatchRef.current({ type: 'activateGroup', groupId: group.id });
-          return null;
+          return { focused: true, index, label: group.label };
         },
       ),
       registerState(
         {
           name: 'get_open_tabs',
           description:
-            'List the open terminal tabs as {index, label, active}. The active ' +
+            'List the open terminal tabs as `{index, label, active}`. The active ' +
             'tab is the one currently shown.',
           inputSchema: { type: 'object', properties: {} },
           outputSchema: {
@@ -121,9 +161,9 @@ export function useAgentTabTools(
             items: {
               type: 'object',
               properties: {
-                index: { type: 'integer' },
-                label: { type: 'string' },
-                active: { type: 'boolean' },
+                index: { type: 'integer', description: 'Zero-based position of the tab in the tab bar.' },
+                label: { type: 'string', description: 'Display label of the tab.' },
+                active: { type: 'boolean', description: 'Whether this is the currently shown tab.' },
               },
               required: ['index', 'label', 'active'],
             },
@@ -142,19 +182,24 @@ export function useAgentTabTools(
         {
           name: 'get_button_state',
           description:
-            "Read a button's state by its data-testid: whether it is disabled, " +
+            "Read a button's state by its `data-testid`: whether it is disabled, " +
             'visible, and its label text. Side-effect-free.',
           inputSchema: {
             type: 'object',
-            properties: { testId: { type: 'string' } },
+            properties: {
+              testId: {
+                type: 'string',
+                description: 'The data-testid attribute value of the button to inspect.',
+              },
+            },
             required: ['testId'],
           },
           outputSchema: {
             type: 'object',
             properties: {
-              disabled: { type: 'boolean' },
-              visible: { type: 'boolean' },
-              label: { type: 'string' },
+              disabled: { type: 'boolean', description: 'Whether the button is disabled.' },
+              visible: { type: 'boolean', description: 'Whether the button is laid out and non-empty.' },
+              label: { type: 'string', description: 'The button\'s accessible label text.' },
             },
             required: ['disabled', 'visible', 'label'],
           },
