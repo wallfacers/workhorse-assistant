@@ -49,6 +49,7 @@ import {
 } from '../ipc';
 import { subscribeSession } from './events';
 import { emptyRuntime, isPendingOnly, type ChatMessage, type ChatRuntime, type SessionScratch } from './types';
+import i18n from '../i18n';
 
 const LS_PROJECT = 'workhorse:currentProject';
 const LS_RECENT = 'workhorse:recentProjects';
@@ -102,6 +103,14 @@ interface SessionContextValue {
   projectMismatch: boolean;
   /** The sidecar's reported default workdir (agent process CWD). */
   agentDefaultWorkdir: string | null;
+  /** Request the project picker to open pre-navigated to `path`. Resolves with
+   *  the user's picked path, or `null` if the picker was cancelled/dismissed.
+   *  A second call while one is pending cancels the outstanding request. */
+  requestPicker: (path: string) => Promise<string | null>;
+  /** The current pending picker request, observed by ProjectSwitcher. */
+  pendingPickerRequest: { path: string } | null;
+  /** Resolve the pending picker request (called by ProjectSwitcher on pick/cancel). */
+  resolvePicker: (picked: string | null) => void;
   // Sessions
   sessions: SessionListItem[];
   /** Raw AgentSessionMeta[] for the session management table (timestamps, message counts). */
@@ -150,6 +159,51 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   const [listedSessions, setListedSessions] = useState<AgentSessionMeta[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [runtimes, setRuntimes] = useState<Record<string, ChatRuntime>>({});
+
+  // --- Pending picker request (agent confirm flow, add-open-project-tool C1) ---
+  // Holds a { path, resolve } when the agent has requested the picker.
+  // ProjectSwitcher observes `pendingPickerRequest` and opens the popover
+  // pre-navigated to `path`. On pick: resolvePicker(picked); on dismiss:
+  // resolvePicker(null). Either way the entry clears and the agent's tool call settles.
+  const pickerResolveRef = useRef<((picked: string | null) => void) | null>(null);
+  const [pendingPickerRequest, setPendingPickerRequest] = useState<{
+    path: string;
+  } | null>(null);
+
+  const requestPicker = useCallback(
+    (path: string): Promise<string | null> => {
+      // D3: reject a second concurrent confirm — the agent should see a clear
+      // error instead of silently superseding the user's in-progress picker.
+      if (pickerResolveRef.current) {
+        throw new Error('Picker already open — wait for the current request to settle before opening another.');
+      }
+      return new Promise<string | null>((resolve) => {
+        pickerResolveRef.current = resolve;
+        setPendingPickerRequest({ path });
+      });
+    },
+    [],
+  );
+
+  /** Resolve the current picker request with a picked path (or null for cancel). */
+  const resolvePicker = useCallback((picked: string | null) => {
+    const resolve = pickerResolveRef.current;
+    if (!resolve) return;
+    pickerResolveRef.current = null;
+    setPendingPickerRequest(null);
+    resolve(picked);
+  }, []);
+
+  // Teardown on unmount: settle any outstanding request so the agent never hangs.
+  useEffect(() => {
+    const ref = pickerResolveRef;
+    return () => {
+      if (ref.current) {
+        ref.current(null);
+        ref.current = null;
+      }
+    };
+  }, []);
 
   const scratchRef = useRef<Map<string, SessionScratch>>(new Map());
   // Each entry carries the generation it was created under (B1). A monotonic
@@ -332,8 +386,10 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
         ...prev,
         [id]: { messages: hist.ok ? coerceHistory(hist.value) : [], streaming: new Set() },
       }));
+      // Sync the persisted session list so the management table stays up to date.
+      void refreshSessions(currentProject);
     },
-    [liveSessions, listedSessions, currentProject],
+    [liveSessions, listedSessions, currentProject, refreshSessions],
   );
 
   const newSession = useCallback(
@@ -349,8 +405,10 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
       setLiveSessions((prev) => (prev.some((s) => s.id === id) ? prev : [...prev, { id, workdir: target, title: '' }]));
       setRuntimes((prev) => (prev[id] ? prev : { ...prev, [id]: emptyRuntime() }));
       setActiveSessionId(id);
+      // Sync the persisted session list so the management table stays up to date.
+      void refreshSessions(target);
     },
-    [currentProject],
+    [currentProject, refreshSessions],
   );
 
   // --- Bootstrap: ensure a live session once the sidecar is reachable --------
@@ -524,6 +582,9 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     agentDistro: agent.distro,
     projectMismatch,
     agentDefaultWorkdir: agent.defaultWorkdir ?? null,
+    requestPicker,
+    pendingPickerRequest,
+    resolvePicker,
     sessions,
     listedSessionsMeta: listedSessions,
     activeSessionId,
