@@ -64,8 +64,13 @@
       re-spawns the SSE thread. Fixed the "stuck 连接中…" loop where
       `connection_failed` minted a brand-new session every cycle. See
       [`../../../docs/exec-plans/active/2026-06-01-decouple-health-from-session.md`](../../../docs/exec-plans/active/2026-06-01-decouple-health-from-session.md).
-- [ ] B4 Settings: editable agent endpoint + reconnect (needs a Rust
-      endpoint-mutation command). Was `add-project-sessions` §4.6.
+- [x] B4 Settings: editable agent endpoint + reconnect. Rust `AgentBridge::set_endpoint`
+      (validates `http(s)://host[:port]`, trims trailing slash) + `current_endpoint`,
+      exposed as `agent_set_endpoint`/`agent_get_endpoint` commands and
+      `setAgentEndpoint`/`getAgentEndpoint` IPC wrappers. SettingsModal's endpoint
+      field is now an input with "Save & reconnect" (saves → `agent.reconnect()`),
+      shows the validation error inline. Live sessions on the previous endpoint
+      are not migrated (V1). Rust validation test added. `cargo test` (12) + `tsc` clean.
 
 ## C. Assistant — project picker & terminal (A2/A3 now delivered)
 
@@ -97,9 +102,9 @@
       path. Captured via a ref so switching projects does not re-spawn existing
       panes — only newly-mounted ones pick up the change. `tsc` clean.
 
-> Remaining: B4 (editable agent endpoint + reconnect — needs a Rust
-> endpoint-mutation command) and the §6 manual Windows/WSL acceptance passes.
-> Everything else (A delivered by the sidecar; B1/B2/B3; C1/C2/C3) is done.
+> Remaining: only the §6 manual Windows/WSL acceptance passes (run the desktop
+> app against a real WSL sidecar). All implementation — A (sidecar-delivered),
+> B1/B2/B3/B4, C1/C2/C3 — is done and unit/type-verified.
 
 ## D. Docs / verification
 

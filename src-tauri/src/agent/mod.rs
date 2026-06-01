@@ -338,6 +338,31 @@ impl AgentBridge {
         self.inner.lock().unwrap().endpoint.clone()
     }
 
+    /// Current sidecar base endpoint, for the Settings UI to display (B4).
+    pub fn current_endpoint(&self) -> String {
+        self.endpoint()
+    }
+
+    /// Update the sidecar base endpoint (B4 — editable in Settings). Validates a
+    /// plain `http(s)://host[:port]` base URL (trailing slash trimmed) and stores
+    /// it; subsequent requests use it. Live sessions created against the previous
+    /// endpoint are not migrated (V1) — reconnecting re-probes and bootstraps.
+    pub fn set_endpoint(&self, endpoint: String) -> Result<(), AgentError> {
+        let trimmed = endpoint.trim().trim_end_matches('/').to_string();
+        let host = trimmed
+            .strip_prefix("https://")
+            .or_else(|| trimmed.strip_prefix("http://"));
+        match host {
+            Some(h) if !h.is_empty() => {
+                self.inner.lock().unwrap().endpoint = trimmed;
+                Ok(())
+            }
+            _ => Err(AgentError::validation(
+                "endpoint must be http(s)://host[:port]",
+            )),
+        }
+    }
+
     /// Attach to a sidecar session: allocate it (`POST /v1/sessions` with the
     /// required `{provider, model, workdir}` body), spawn the SSE reader, and
     /// return the sidecar-allocated session id (`id` field). `workdir` comes
@@ -916,5 +941,26 @@ mod tests {
             .forward_result("nope", "tu-1", serde_json::json!({"ok": true}))
             .expect_err("unknown session must be NotFound");
         assert!(matches!(err.kind, ErrorKind::NotFound));
+    }
+
+    #[test]
+    fn set_endpoint_validates_and_trims() {
+        let bridge = AgentBridge::default();
+
+        // Trailing slash is trimmed; a valid http(s) base URL is accepted.
+        bridge.set_endpoint("http://192.168.1.5:7821/".to_string()).unwrap();
+        assert_eq!(bridge.current_endpoint(), "http://192.168.1.5:7821");
+        bridge.set_endpoint("https://agent.example.com".to_string()).unwrap();
+        assert_eq!(bridge.current_endpoint(), "https://agent.example.com");
+
+        // Missing scheme, wrong scheme, or empty host are rejected as validation
+        // errors and leave the previous endpoint untouched.
+        for bad in ["127.0.0.1:7821", "ftp://x", "http://", "   "] {
+            let err = bridge
+                .set_endpoint(bad.to_string())
+                .expect_err("invalid endpoint must be rejected");
+            assert!(matches!(err.kind, ErrorKind::Validation));
+        }
+        assert_eq!(bridge.current_endpoint(), "https://agent.example.com");
     }
 }

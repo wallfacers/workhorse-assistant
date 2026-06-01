@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Check, ChevronDown, Moon, Sun, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { AgentConnection } from '../ipc';
+import { getAgentEndpoint, setAgentEndpoint } from '../ipc';
 import { useApp } from '../context';
 
 type NavItem = 'theme' | 'shortcuts' | 'agent';
@@ -116,6 +117,40 @@ function AgentSection({
   const isConnecting = agent.status === 'connecting';
   const isConnected = agent.status === 'connected';
 
+  // Editable endpoint (B4). Loaded from the bridge; saving validates Rust-side
+  // and then re-probes via reconnect().
+  const [endpoint, setEndpoint] = useState('');
+  const [savedEndpoint, setSavedEndpoint] = useState('');
+  const [endpointErr, setEndpointErr] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await getAgentEndpoint();
+      if (res.ok) {
+        setEndpoint(res.value);
+        setSavedEndpoint(res.value);
+      }
+    })();
+  }, []);
+
+  const endpointDirty = endpoint.trim() !== savedEndpoint && endpoint.trim() !== '';
+
+  const saveEndpoint = async () => {
+    const next = endpoint.trim();
+    if (!next || next === savedEndpoint) return;
+    setEndpointErr(null);
+    const res = await setAgentEndpoint(next);
+    if (!res.ok) {
+      setEndpointErr(res.error.message);
+      return;
+    }
+    setSavedEndpoint(next);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2000);
+    agent.reconnect();
+  };
+
   const statusLabel: Record<AgentConnection['status'], string> = {
     idle: t('agent.status.disconnected'),
     connecting: t('agent.status.connecting'),
@@ -142,15 +177,37 @@ function AgentSection({
         </div>
       )}
 
-      {/* Endpoint (read-only for V1) */}
+      {/* Endpoint (editable, B4) */}
       <div className="mb-4">
         <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">{t('settings.endpoint')}</label>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-neutral-800/60 border border-outline/40 dark:border-neutral-800/50">
-          <span className="text-[12.5px] font-mono text-gray-700 dark:text-gray-300">
-            http://127.0.0.1:7821
-          </span>
-          <span className="text-[10px] text-gray-400 dark:text-gray-500">{t('settings.defaultValue')}</span>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={endpoint}
+            spellCheck={false}
+            onChange={(e) => {
+              setEndpoint(e.target.value);
+              setEndpointErr(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === 'Enter') void saveEndpoint();
+            }}
+            placeholder="http://127.0.0.1:7821"
+            className="min-w-0 flex-1 rounded-lg border border-outline/40 bg-gray-50 px-3 py-2 font-mono text-[12.5px] text-gray-700 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-800/50 dark:bg-neutral-800/60 dark:text-gray-300 dark:focus:ring-neutral-700"
+          />
+          <button
+            type="button"
+            onClick={() => void saveEndpoint()}
+            disabled={!endpointDirty}
+            className="flex-shrink-0 rounded-lg bg-gray-800 px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-200 dark:text-gray-800 dark:hover:bg-gray-300"
+          >
+            {justSaved ? t('settings.endpointSaved') : t('settings.endpointSave')}
+          </button>
         </div>
+        {endpointErr && (
+          <p className="mt-1 text-[10.5px] text-red-600 dark:text-red-400">{endpointErr}</p>
+        )}
         <p className="mt-1 text-[10.5px] text-gray-400 dark:text-gray-500">
           {t('settings.endpointHint')}
         </p>

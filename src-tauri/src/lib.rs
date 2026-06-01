@@ -165,6 +165,19 @@ fn agent_health_check(bridge: State<'_, AgentBridge>) -> Result<HealthInfo, Agen
 }
 
 #[tauri::command(async)]
+fn agent_get_endpoint(bridge: State<'_, AgentBridge>) -> String {
+    bridge.current_endpoint()
+}
+
+#[tauri::command(async)]
+fn agent_set_endpoint(
+    bridge: State<'_, AgentBridge>,
+    endpoint: String,
+) -> Result<(), AgentError> {
+    bridge.set_endpoint(endpoint)
+}
+
+#[tauri::command(async)]
 fn agent_send_message(
     bridge: State<'_, AgentBridge>,
     session_id: String,
@@ -217,6 +230,8 @@ pub fn run() {
             agent_publish_catalog,
             agent_detach,
             agent_health_check,
+            agent_get_endpoint,
+            agent_set_endpoint,
             agent_send_message,
             agent_cancel,
             agent_permission_decision

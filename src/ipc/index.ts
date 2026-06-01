@@ -38,6 +38,8 @@ export {
   openAgentSession,
   reopenAgentSession,
   checkAgentHealth,
+  getAgentEndpoint,
+  setAgentEndpoint,
   detachAgentSession,
   sendAgentMessage,
   cancelAgentMessage,

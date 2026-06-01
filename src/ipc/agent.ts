@@ -165,6 +165,29 @@ export async function checkAgentHealth(): Promise<Result<HealthInfo>> {
   }
 }
 
+/** Current sidecar base endpoint (for the Settings UI). */
+export async function getAgentEndpoint(): Promise<Result<string>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    return ok(await invoke<string>('agent_get_endpoint'));
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
+/** Update the sidecar base endpoint (B4). Validated Rust-side to a
+ *  `http(s)://host[:port]` base URL; caller should `reconnect()` afterwards.
+ *  Live sessions from the previous endpoint are not migrated (V1). */
+export async function setAgentEndpoint(endpoint: string): Promise<Result<void>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    await invoke('agent_set_endpoint', { endpoint });
+    return ok(undefined);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
 /**
  * Attach to a sidecar agent session: the Rust bridge creates it upstream
  * (`POST /v1/sessions` with `{provider, model, workdir}`) and returns its id.
