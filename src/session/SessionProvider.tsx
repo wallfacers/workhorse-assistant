@@ -78,6 +78,8 @@ export interface SessionListItem {
   title: string;
   running: boolean;
   live: boolean;
+  /** ISO timestamp of last update (used for time-based grouping in the switcher). */
+  updatedAt?: string;
 }
 
 interface SessionContextValue {
@@ -91,12 +93,14 @@ interface SessionContextValue {
   agentDistro: string | null;
   // Sessions
   sessions: SessionListItem[];
+  /** Raw AgentSessionMeta[] for the session management table (timestamps, message counts). */
+  listedSessionsMeta: AgentSessionMeta[];
   activeSessionId: string | null;
   activeTitle: string;
   switchSession: (id: string) => Promise<void>;
   newSession: () => Promise<void>;
-  renameSession: (id: string, title: string) => Promise<void>;
-  deleteSession: (id: string) => Promise<void>;
+  renameSession: (id: string, title: string) => Promise<boolean>;
+  deleteSession: (id: string) => Promise<boolean>;
   // Active conversation
   runtime: ChatRuntime;
   sendMessage: (text: string) => void;
@@ -340,17 +344,18 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     void newSession(currentProject);
   }, [agent.status, agent.defaultWorkdir, currentProject, liveSessions.length, newSession, openProject]);
 
-  const renameSession = useCallback(async (id: string, title: string) => {
+  const renameSession = useCallback(async (id: string, title: string): Promise<boolean> => {
     const res = await renameAgentSession(id, title);
-    if (!res.ok) return;
+    if (!res.ok) return false;
     setLiveSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
     setListedSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
+    return true;
   }, []);
 
   const deleteSession = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<boolean> => {
       const res = await deleteAgentSession(id);
-      if (!res.ok) return;
+      if (!res.ok) return false;
       // Drop the local subscription (deleteAgentSession already detached the bridge).
       const entry = subsRef.current.get(id);
       if (entry) {
@@ -375,6 +380,7 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
         setActiveSession(nextActive);
         setActiveSessionId(nextActive);
       }
+      return true;
     },
     [liveSessions, activeSessionId],
   );
@@ -449,12 +455,12 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   const sessions = useMemo<SessionListItem[]>(() => {
     const byId = new Map<string, SessionListItem>();
     for (const s of listedSessions) {
-      byId.set(s.id, { id: s.id, title: s.title, running: s.status === 'running', live: false });
+      byId.set(s.id, { id: s.id, title: s.title, running: s.status === 'running', live: false, updatedAt: s.updatedAt });
     }
     for (const s of liveSessions) {
       const running = (runtimes[s.id]?.streaming.size ?? 0) > 0;
       const prev = byId.get(s.id);
-      byId.set(s.id, { id: s.id, title: s.title || prev?.title || '', running: running || (prev?.running ?? false), live: true });
+      byId.set(s.id, { id: s.id, title: s.title || prev?.title || '', running: running || (prev?.running ?? false), live: true, updatedAt: prev?.updatedAt });
     }
     return [...byId.values()];
   }, [listedSessions, liveSessions, runtimes]);
@@ -471,6 +477,7 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     openProject,
     agentDistro: agent.distro,
     sessions,
+    listedSessionsMeta: listedSessions,
     activeSessionId,
     activeTitle,
     switchSession,

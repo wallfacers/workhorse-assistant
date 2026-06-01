@@ -30,6 +30,12 @@
     "renameSession": "重命名",
     "deleteSession": "删除会话",
     "confirmDelete": "确认删除",
+    "sessionGroup": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "week": "近7天",
+      "month": "近30天"
+    },
     "status": {
       "disconnected": "未连接",
       "connecting": "连接中…",
@@ -63,7 +69,8 @@
     "nav": {
       "theme": "主题",
       "shortcuts": "快捷键",
-      "agent": "Agent"
+      "agent": "Agent",
+      "sessions": "会话"
     },
     "appearance": "外观",
     "lightTheme": "浅色",
@@ -81,6 +88,32 @@
     "autoExpandThinking": "自动展开思考过程",
     "autoExpandDescription": "流式推理时自动展开，完成后自动折叠",
     "language": "语言"
+  },
+  "sessions": {
+    "title": "会话管理",
+    "columns": {
+      "title": "标题",
+      "status": "状态",
+      "messages": "消息数",
+      "updated": "更新时间",
+      "actions": "操作"
+    },
+    "status": {
+      "idle": "空闲",
+      "running": "运行中"
+    },
+    "empty": {
+      "title": "暂无会话",
+      "description": "当前项目下还没有保存的会话"
+    },
+    "deleteSelected": "删除选中 ({{count}})",
+    "confirmBatchDelete": "确定要删除 {{count}} 个会话？此操作不可撤销。",
+    "deletedMessage": "已删除 {{count}} 个会话",
+    "selectAll": "全选",
+    "rename": "重命名",
+    "delete": "删除",
+    "confirmDelete": "确认删除",
+    "untitled": "未命名会话"
   },
   "shortcuts": {
     "newTask": "新建任务",

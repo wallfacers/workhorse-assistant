@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useSession } from '../session/SessionProvider';
+import { useSession, type SessionListItem } from '../session/SessionProvider';
 
 /** Close a popover when the user clicks outside `ref` (mirrors `ProfileMenu`). */
 function useClickOutside(open: boolean, onClose: () => void) {
@@ -16,6 +16,61 @@ function useClickOutside(open: boolean, onClose: () => void) {
   }, [open, onClose]);
   return ref;
 }
+
+// --- Time-based grouping helpers ------------------------------------------------
+
+interface SessionGroup {
+  key: string;
+  label: string;
+  sessions: SessionListItem[];
+}
+
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+function groupSessionsByTime(
+  sessions: SessionListItem[],
+  t: (key: string) => string,
+): SessionGroup[] {
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const yesterdayStart = todayStart - 86_400_000;
+  const weekAgoStart = todayStart - 7 * 86_400_000;
+  const monthAgoStart = todayStart - 30 * 86_400_000;
+
+  const groups: SessionGroup[] = [
+    { key: 'today', label: t('agent.sessionGroup.today'), sessions: [] },
+    { key: 'yesterday', label: t('agent.sessionGroup.yesterday'), sessions: [] },
+    { key: 'week', label: t('agent.sessionGroup.week'), sessions: [] },
+    { key: 'month', label: t('agent.sessionGroup.month'), sessions: [] },
+  ];
+
+  // Sort by updatedAt descending (most recent first)
+  const sorted = [...sessions].sort((a, b) => {
+    const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : Date.now();
+    const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : Date.now();
+    return tb - ta;
+  });
+
+  for (const s of sorted) {
+    const ts = s.updatedAt ? new Date(s.updatedAt).getTime() : Date.now();
+    if (ts >= todayStart) {
+      groups[0].sessions.push(s);
+    } else if (ts >= yesterdayStart) {
+      groups[1].sessions.push(s);
+    } else if (ts >= weekAgoStart) {
+      groups[2].sessions.push(s);
+    } else if (ts >= monthAgoStart) {
+      groups[3].sessions.push(s);
+    }
+    // sessions older than 30 days are omitted from the switcher
+  }
+
+  return groups.filter((g) => g.sessions.length > 0);
+}
+
+// --------------------------------------------------------------------------------
 
 /**
  * AgentRail header (add-project-sessions §4.2/4.3): the active session's title on
@@ -55,6 +110,8 @@ export default function SessionHeader() {
   });
 
   const title = activeTitle || t('agent.untitledSession');
+
+  const sessionGroups = useMemo(() => groupSessionsByTime(sessions, t), [sessions, t]);
 
   const openRename = () => {
     setMenuOpen(false);
@@ -105,25 +162,8 @@ export default function SessionHeader() {
         )}
 
         {switcherOpen && (
-          <div className="absolute left-0 z-50 mt-1 max-h-[320px] min-w-[220px] overflow-y-auto rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
-            {sessions.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => {
-                  setSwitcherOpen(false);
-                  void switchSession(s.id);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
-              >
-                <span className="flex-1 truncate">{s.title || t('agent.untitledSession')}</span>
-                {s.running && (
-                  <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-green-500" title={t('agent.sessionRunning')} />
-                )}
-                {s.id === activeSessionId && <Check className="h-3.5 w-3.5 flex-shrink-0 text-gray-500" />}
-              </button>
-            ))}
-            <div className="my-1 border-t border-outline/50 dark:border-neutral-800/60" />
+          <div className="absolute left-0 z-50 mt-1 max-h-[400px] min-w-[240px] overflow-y-auto rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
+            {/* New session — always at the top */}
             <button
               type="button"
               onClick={() => {
@@ -135,6 +175,33 @@ export default function SessionHeader() {
               <Plus className="h-3.5 w-3.5" />
               <span>{t('agent.newSession')}</span>
             </button>
+            <div className="my-1 border-t border-outline/50 dark:border-neutral-800/60" />
+
+            {/* Time-grouped session list */}
+            {sessionGroups.map((group) => (
+              <div key={group.key}>
+                <div className="px-3 pt-2 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  {group.label}
+                </div>
+                {group.sessions.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setSwitcherOpen(false);
+                      void switchSession(s.id);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
+                  >
+                    <span className="flex-1 truncate">{s.title || t('agent.untitledSession')}</span>
+                    {s.running && (
+                      <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-green-500" title={t('agent.sessionRunning')} />
+                    )}
+                    {s.id === activeSessionId && <Check className="h-3.5 w-3.5 flex-shrink-0 text-gray-500" />}
+                  </button>
+                ))}
+              </div>
+            ))}
           </div>
         )}
       </div>

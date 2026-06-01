@@ -30,6 +30,12 @@
     "renameSession": "Rename",
     "deleteSession": "Delete session",
     "confirmDelete": "Confirm delete",
+    "sessionGroup": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "week": "Last 7 Days",
+      "month": "Last 30 Days"
+    },
     "status": {
       "disconnected": "Disconnected",
       "connecting": "Connecting…",
@@ -63,7 +69,8 @@
     "nav": {
       "theme": "Theme",
       "shortcuts": "Shortcuts",
-      "agent": "Agent"
+      "agent": "Agent",
+      "sessions": "Sessions"
     },
     "appearance": "Appearance",
     "lightTheme": "Light",
@@ -81,6 +88,32 @@
     "autoExpandThinking": "Auto-expand thinking process",
     "autoExpandDescription": "Auto-expand during streaming, auto-collapse when done",
     "language": "Language"
+  },
+  "sessions": {
+    "title": "Session Management",
+    "columns": {
+      "title": "Title",
+      "status": "Status",
+      "messages": "Messages",
+      "updated": "Updated",
+      "actions": "Actions"
+    },
+    "status": {
+      "idle": "Idle",
+      "running": "Running"
+    },
+    "empty": {
+      "title": "No sessions",
+      "description": "This project has no saved sessions yet"
+    },
+    "deleteSelected": "Delete selected ({{count}})",
+    "confirmBatchDelete": "Delete {{count}} sessions? This cannot be undone.",
+    "deletedMessage": "Deleted {{count}} sessions",
+    "selectAll": "Select all",
+    "rename": "Rename",
+    "delete": "Delete",
+    "confirmDelete": "Confirm delete",
+    "untitled": "Untitled"
   },
   "shortcuts": {
     "newTask": "New task",
