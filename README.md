@@ -48,6 +48,43 @@ npm run tauri:build
 
 Bundled artifacts land in `src-tauri/target/release/bundle/`.
 
+## Remote sidecar in WSL2 (Windows host)
+
+The natural "develop in WSL" setup mirrors **VS Code Remote-WSL**: a
+Windows-native build of the assistant on the host, the `workhorse-agent` sidecar
+running **inside WSL2**, and the opened project living at a WSL path
+(`/home/<you>/proj`). The renderer never touches the network directly —
+everything privileged crosses the Rust bridge's loopback HTTP boundary to the
+sidecar — so the sidecar is effectively a localhost "remote".
+
+**Networking.** The bridge reaches the sidecar over `http://localhost:<port>`.
+
+- Recent Windows builds forward `localhost` from the host into the running WSL2
+  distro automatically — no setup needed in the common case.
+- If `localhost` does not reach the sidecar (older builds, multiple distros, VPN
+  interference), enable **mirrored networking mode** in `%UserProfile%\.wslconfig`
+  and restart WSL (`wsl --shutdown`):
+
+  ```ini
+  [wsl2]
+  networkingMode=mirrored
+  ```
+
+- Transient forward drops do **not** require a restart: the bridge's SSE stream
+  reconnects on its own, and live sessions re-subscribe rather than being
+  recreated.
+
+**Pointing at the sidecar.** Set the agent endpoint in **Settings** (it is
+editable and reconnects in place). The project picker browses the *sidecar's*
+filesystem namespace (WSL paths), and on a Windows host a new terminal opens as a
+WSL shell rooted at the project (`wsl.exe -d <distro> --cd <path>`) when the
+sidecar reports it runs under WSL.
+
+> **Same-host note.** If you instead run a *Linux* build of the assistant inside
+> the same WSL distro as the sidecar, there is no host↔WSL boundary to bridge:
+> terminals launch as a local shell at the project path, and `wsl.exe` is never
+> invoked (the bridge is Windows-host-only). See `add-wsl-remote` D-WSL-7.
+
 ## Project Layout
 
 ```
