@@ -69,7 +69,7 @@ export default function ProjectBrowser({
           {path ?? t('project.loading')}
         </span>
       </div>
-      <div className="max-h-[240px] overflow-y-auto py-1">
+      <div className="max-h-[240px] overflow-y-auto custom-scrollbar py-1">
         {parent !== null && (
           <button
             type="button"
@@ -112,7 +112,7 @@ export default function ProjectBrowser({
           type="button"
           disabled={!path}
           onClick={() => path && onPick(path)}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-800 px-3 py-1.5 text-[12.5px] font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-200 dark:text-gray-800 dark:hover:bg-gray-300"
+          className="flex w-full items-center justify-center gap-2 rounded-sm bg-tertiary px-3 py-1.5 text-[12.5px] font-medium text-on-tertiary transition-colors hover:bg-primary-container hover:text-on-primary-container disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Folder className="h-3.5 w-3.5" />
           <span>{t('project.openThisFolder')}</span>
