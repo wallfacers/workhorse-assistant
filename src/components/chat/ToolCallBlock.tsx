@@ -38,9 +38,9 @@ export default function ToolCallBlock({ tool }: { tool: ToolCallData }) {
     <details
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="my-1.5"
+      className="my-1.5 rounded-md border border-outline/40 dark:border-neutral-700/50 bg-surface-muted/60 dark:bg-neutral-800/40"
     >
-      <summary className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none text-[11.5px] hover:bg-gray-100/60 dark:hover:bg-neutral-800/60 transition-colors">
+      <summary className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none text-[11.5px] hover:bg-gray-100/60 dark:hover:bg-neutral-800/60 rounded-md transition-colors">
         {open ? (
           <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
         ) : (
@@ -56,7 +56,7 @@ export default function ToolCallBlock({ tool }: { tool: ToolCallData }) {
         </span>
       </summary>
       {(tool.input !== undefined || tool.output !== undefined) && (
-        <div className="ml-5 mt-1.5 rounded-sm border border-outline/30 dark:border-neutral-700/40 bg-white dark:bg-neutral-900 p-2 space-y-1.5">
+        <div className="px-2.5 pb-2 space-y-1.5">
           {tool.input !== undefined && (
             <div>
               <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-0.5">{t('toolCall.input')}</p>

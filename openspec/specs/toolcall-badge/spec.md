@@ -27,15 +27,15 @@ The tool name SHALL appear before the status dot and status label.
 - **THEN** the tool name styling remains identical
 - **AND** the status dot is red without animation
 
-### Requirement: Summary row is lightweight without border or background
+### Requirement: Tool call block is wrapped in a card frame
 
-The summary row of the tool call block SHALL NOT have a border, border-radius, or background color. It SHALL render as a lightweight horizontal bar matching the visual style of `ReasoningPart`.
+The tool call block SHALL be wrapped in a rounded card frame with a border and muted background, so the whole block reads as a single contained unit.
 
-#### Scenario: Summary row appearance
+#### Scenario: Block frame appearance
 
 - **WHEN** any tool call block is rendered
-- **THEN** the outer details/summary container has no `border`, `rounded-md`, or `bg-surface-muted` classes
-- **AND** the summary row has only `my-1.5` margin for spacing
+- **THEN** the outer details container has `rounded-md`, a border (`border-outline/40` / `dark:border-neutral-700/50`), and a muted background (`bg-surface-muted/60` / `dark:bg-neutral-800/40`)
+- **AND** the summary row carries `rounded-md` so its hover state matches the frame corners
 
 ### Requirement: Dark mode adapts all badge and row styles
 
@@ -56,6 +56,7 @@ When the summary row is clicked to expand the block, the system SHALL display th
 - **WHEN** a tool call with both input and output is expanded
 - **THEN** an "Input" label and pre block are displayed
 - **AND** an "Output" label and pre block are displayed
+- **AND** the expanded area is inset within the card frame (`px-2.5 pb-2`) with no extra left indent or nested card
 - **AND** both pre blocks are styled with mono font, white/dark background, and border
 
 #### Scenario: Expanded tool call with only input
@@ -66,7 +67,7 @@ When the summary row is clicked to expand the block, the system SHALL display th
 
 ### Requirement: Chevron icon indicates expand/collapse state
 
-A chevron icon SHALL be rendered to the left of the badge. It SHALL point right (`ChevronRight`) when collapsed and down (`ChevronDown`) when expanded, with a 200ms rotation transition.
+A chevron icon SHALL be rendered to the left of the tool name. It SHALL point right (`ChevronRight`) when collapsed and down (`ChevronDown`) when expanded, with a 200ms rotation transition.
 
 #### Scenario: Collapsed state chevron
 
