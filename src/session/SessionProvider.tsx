@@ -182,6 +182,15 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     [],
   );
 
+  // Live title update (sidecar derived it from the first user message). The
+  // merged `sessions` list prefers the live title, so updating liveSessions is
+  // enough to re-render the sidebar.
+  const setTitleFor = useCallback(
+    (id: string) => (title: string) =>
+      setLiveSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s))),
+    [],
+  );
+
   // --- Keep SSE listeners mounted for every live session (D2/§3.3) -----------
   useEffect(() => {
     const want = new Set(liveSessions.map((s) => s.id));
@@ -196,6 +205,7 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
           setMessages: setMessagesFor(id),
           setStreaming: setStreamingFor(id),
           scratch: scratchFor(id),
+          setTitle: setTitleFor(id),
           // Stream gave up → re-open the SAME session (re-spawn the Rust reader),
           // never mint a new one. This replaces the old hook-level reconnect that
           // attached a fresh session on every failure (the "stuck connecting"
@@ -219,7 +229,7 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
         subGenRef.current.set(id, (subGenRef.current.get(id) ?? 0) + 1);
       }
     }
-  }, [liveSessions, setMessagesFor, setStreamingFor, scratchFor]);
+  }, [liveSessions, setMessagesFor, setStreamingFor, scratchFor, setTitleFor]);
 
   // Unsubscribe everything on unmount.
   useEffect(() => {

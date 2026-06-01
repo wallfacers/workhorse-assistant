@@ -19,6 +19,9 @@ export interface SessionEventSink {
   setStreaming: (updater: (prev: Set<string>) => Set<string>) => void;
   /** Mutable streaming scratch (assistant id + accumulated delta). */
   scratch: SessionScratch;
+  /** Update this session's display title (sidecar derived it from the first
+   *  user message). Optional — omit to ignore live title updates. */
+  setTitle?: (title: string) => void;
   /** Called when the session's SSE reader gave up (`connection_failed`). The
    *  store uses this to re-open the *same* session (re-spawn the Rust reader)
    *  rather than mint a new one. Optional — omit to ignore stream drops. */
@@ -35,7 +38,7 @@ export async function subscribeSession(
   sessionId: string,
   sink: SessionEventSink,
 ): Promise<UnlistenFn[]> {
-  const { setMessages, setStreaming, scratch, onConnectionFailed } = sink;
+  const { setMessages, setStreaming, scratch, setTitle, onConnectionFailed } = sink;
   const unlistens: UnlistenFn[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const on = async (event: string, handler: (e: any) => void) => {
@@ -189,6 +192,13 @@ export async function subscribeSession(
       return [...base, { id: `p-${Date.now()}`, role: 'assistant', parts: [part] }];
     });
   });
+
+  // --- title derived (sidecar named the session from its first message) ---
+  if (setTitle) {
+    await on(`agent://session_title/${sessionId}`, (e: { payload: { title: string } }) => {
+      if (e.payload.title) setTitle(e.payload.title);
+    });
+  }
 
   // --- connection failed (SSE reader gave up after its bounded retries) ---
   if (onConnectionFailed) {

@@ -227,6 +227,16 @@ struct ErrorPayload {
     recoverable: bool,
 }
 
+/// Payload of `agent://session_title/{sessionId}` — the sidecar derived a title
+/// from the first user message (`session_title_updated` SSE event). Lets the
+/// renderer update its session list live without a refetch.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct SessionTitlePayload {
+    session_id: String,
+    title: String,
+}
+
 /// Payload of `agent://connection_lost/{sessionId}` — SSE reader detected
 /// the stream dropped. Emitted once per disconnect cycle; not re-emitted on
 /// each reconnect attempt.
@@ -932,6 +942,13 @@ fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &s
                 recoverable: event.get("recoverable").and_then(Value::as_bool).unwrap_or(false),
             };
             let _ = app.emit(&format!("agent://error/{session_id}"), payload);
+        }
+        Some("session_title_updated") => {
+            let payload = SessionTitlePayload {
+                session_id: session_id.to_string(),
+                title: event.get("title").and_then(Value::as_str).unwrap_or_default().to_string(),
+            };
+            let _ = app.emit(&format!("agent://session_title/{session_id}"), payload);
         }
         _ => {}
     }
