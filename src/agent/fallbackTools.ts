@@ -106,7 +106,10 @@ export function registerFallbackTools(): () => void {
         );
       }
       if (!isVisible(el)) {
-        throw new ToolError('not_found', `element "${testId}" is not visible`);
+        throw new ToolError(
+          'not_found',
+          `element "${testId}" is not visible; visible testIds: ${JSON.stringify(visibleTestIds())}`,
+        );
       }
       el.click();
       return { clicked: true, testId, tagName: el.tagName.toLowerCase() };

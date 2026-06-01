@@ -51,6 +51,11 @@ Error messages for both tools SHALL include self-repair context: for `not_found`
 - **WHEN** `click_by_testid` targets a `data-testid` that does not exist in the DOM
 - **THEN** the registry returns `{ok:false, error:{kind:"not_found", message}}` where message lists visible `data-testid` values to aid self-correction
 
+#### Scenario: Target a hidden element
+
+- **WHEN** `click_by_testid` targets an existing `data-testid` on an element that is not visible (e.g. `display:none`, zero-size bounding box)
+- **THEN** the registry returns `{ok:false, error:{kind:"not_found", message}}` where message includes the element's `data-testid` and lists visible `data-testid` values to aid self-correction
+
 ## ADDED Requirements
 
 ### Requirement: Enriched error messages for tab actions
