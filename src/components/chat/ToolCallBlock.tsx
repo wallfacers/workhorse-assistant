@@ -46,7 +46,7 @@ export default function ToolCallBlock({ tool }: { tool: ToolCallData }) {
         ) : (
           <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />
         )}
-        <span className="inline-flex items-center gap-1 font-mono font-medium text-[11px] rounded-sm border px-1.5 py-0.5 bg-secondary/10 text-secondary dark:bg-secondary/20 dark:text-[#5bb5cc] border-secondary/20 dark:border-secondary/30">
+        <span className="inline-flex items-center gap-1 font-mono font-medium text-[11px] text-secondary dark:text-[#5bb5cc]">
           <Wrench className="w-3 h-3" />
           {tool.name}
         </span>

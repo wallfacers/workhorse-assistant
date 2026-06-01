@@ -1,28 +1,30 @@
 ## ADDED Requirements
 
-### Requirement: Tool name is rendered as a colored badge
+### Requirement: Tool name is rendered as colored text with an icon
 
-The system SHALL render the tool call name inside a colored pill/badge styled with the `secondary` design token, instead of plain monospace text.
+The system SHALL render the tool call name as colored monospace text styled with the `secondary` design token. The name SHALL NOT be wrapped in a pill/badge — it SHALL have no border, border-radius, padding, or background color.
 
-The badge SHALL include a tool icon (Lucide `Wrench`) to the left of the tool name.
+The name SHALL be preceded by a tool icon (Lucide `Wrench`) to its left.
+
+The tool name SHALL appear before the status dot and status label.
 
 #### Scenario: Tool call with running status
 
 - **WHEN** a tool call part with status `running` is rendered
-- **THEN** the tool name appears inside a colored badge with `bg-secondary/10 text-secondary` (light mode) or `dark:bg-secondary/20 dark:text-[#5bb5cc]` (dark mode)
-- **AND** a `Wrench` icon is visible inside the badge to the left of the name
+- **THEN** the tool name appears as colored text with `text-secondary` (light mode) or `dark:text-[#5bb5cc]` (dark mode), with no border or background
+- **AND** a `Wrench` icon is visible to the left of the name
 - **AND** the status dot is amber with pulse animation
 
 #### Scenario: Tool call with done status
 
 - **WHEN** a tool call part with status `done` is rendered
-- **THEN** the badge styling remains identical
+- **THEN** the tool name styling remains identical
 - **AND** the status dot is green without animation
 
 #### Scenario: Tool call with error status
 
 - **WHEN** a tool call part with status `error` is rendered
-- **THEN** the badge styling remains identical
+- **THEN** the tool name styling remains identical
 - **AND** the status dot is red without animation
 
 ### Requirement: Summary row is lightweight without border or background
@@ -42,7 +44,7 @@ All color properties of the badge and summary row SHALL adapt to dark mode using
 #### Scenario: Dark mode rendering
 
 - **WHEN** the app is in dark mode
-- **THEN** the badge uses `dark:bg-secondary/20 dark:text-[#5bb5cc] dark:border-secondary/30`
+- **THEN** the tool name text uses `dark:text-[#5bb5cc]`
 - **AND** the summary hover uses `dark:hover:bg-neutral-800/60`
 
 ### Requirement: Expand/collapse preserves input and output display
