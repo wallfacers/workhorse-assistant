@@ -151,6 +151,9 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   // last attempted for, so we create at most one per project and never loop on a
   // failing attach. Reset when the connection drops so recovery re-bootstraps.
   const bootstrapForRef = useRef<string | null>(null);
+  // Tracks which project's session list has been loaded (so bootstrap can
+  // distinguish "not loaded yet" from "loaded and empty").
+  const sessionsLoadedForRef = useRef<string | null>(null);
 
   const scratchFor = useCallback((id: string): SessionScratch => {
     let s = scratchRef.current.get(id);
@@ -231,6 +234,7 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   const refreshSessions = useCallback(async (project: string) => {
     const res = await listAgentSessions(project);
     setListedSessions(res.ok ? res.value : []);
+    sessionsLoadedForRef.current = project;
   }, []);
 
   useEffect(() => {
@@ -317,32 +321,38 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   );
 
   // --- Bootstrap: ensure a live session once the sidecar is reachable --------
-  // The connection hook is now a pure health probe (it no longer mints a
-  // session). When it reports `connected` and the active project has no live
-  // session, create one here — at most once per project, so a failing attach
-  // does not loop. The guard resets when the connection drops, so a recovered
-  // connection re-bootstraps.
+  // When the agent connects and the active project has no live session:
+  //   1. Wait for the session list to load (refreshSessions completes).
+  //   2. If the project already has persisted sessions, open the most recently
+  //      updated one (reuse) instead of creating a new blank session.
+  //   3. Only create a new session when the project truly has none.
   //
-  // Cold-start precedence (D-WSL-1 / D-WSL-2): remembered project →
-  // `/health` default_workdir → (nothing; user picks a project). There is no
-  // host-cwd fallback anymore (B1), so we never attach with an empty workdir.
+  // The guard resets when the connection drops, so a recovered connection
+  // re-bootstraps. `listedSessions` in deps ensures we re-evaluate once the
+  // list arrives (the initial [] means "not loaded yet").
   useEffect(() => {
     if (agent.status !== 'connected') {
       bootstrapForRef.current = null;
+      sessionsLoadedForRef.current = null;
       return;
     }
     if (liveSessions.length > 0) return;
     if (!currentProject) {
-      // No remembered project: adopt the sidecar's default_workdir if it offered
-      // one (this re-runs the effect with currentProject set). Otherwise wait —
-      // the user must pick a project (project browser, C1b).
       if (agent.defaultWorkdir) void openProject(agent.defaultWorkdir);
       return;
     }
+    // Don't act until refreshSessions has loaded the list for this project.
+    if (sessionsLoadedForRef.current !== currentProject) return;
     if (bootstrapForRef.current === currentProject) return;
     bootstrapForRef.current = currentProject;
-    void newSession(currentProject);
-  }, [agent.status, agent.defaultWorkdir, currentProject, liveSessions.length, newSession, openProject]);
+
+    // listedSessions is sorted newest-updated first by the sidecar.
+    if (listedSessions.length > 0) {
+      void switchSession(listedSessions[0].id);
+    } else {
+      void newSession(currentProject);
+    }
+  }, [agent.status, agent.defaultWorkdir, currentProject, liveSessions.length, listedSessions, newSession, openProject, switchSession]);
 
   const renameSession = useCallback(async (id: string, title: string): Promise<boolean> => {
     const res = await renameAgentSession(id, title);

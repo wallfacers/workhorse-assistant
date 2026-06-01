@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Check, ChevronDown, Moon, Sun, X } from 'lucide-react';
+import { Check, ChevronDown, Moon, Pencil, Square, CheckSquare, Sun, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { AgentConnection } from '../ipc';
 import { getAgentEndpoint, setAgentEndpoint } from '../ipc';
 import { useApp } from '../context';
+import { useSession } from '../session/SessionProvider';
 
-type NavItem = 'theme' | 'shortcuts' | 'agent';
+type NavItem = 'theme' | 'shortcuts' | 'agent' | 'sessions';
 
 /** Display labels stay in each language's own script (i18n convention). */
 const LANGUAGES: { code: string; label: string }[] = [
@@ -47,6 +48,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     theme: t('settings.nav.theme'),
     shortcuts: t('settings.nav.shortcuts'),
     agent: t('settings.nav.agent'),
+    sessions: t('settings.nav.sessions'),
   };
 
   return (
@@ -74,7 +76,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
           {/* Left nav */}
           <div className="w-44 flex-shrink-0 border-r border-outline/40 dark:border-neutral-800/40 px-2 py-3 space-y-0.5">
-            {(['theme', 'shortcuts', 'agent'] as NavItem[]).map((item) => (
+            {(['theme', 'shortcuts', 'agent', 'sessions'] as NavItem[]).map((item) => (
               <button
                 key={item}
                 type="button"
@@ -97,6 +99,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             )}
             {activeNav === 'shortcuts' && <ShortcutsSection />}
             {activeNav === 'agent' && <AgentSection agent={agent} autoExpandReasoning={autoExpandReasoning} setAutoExpandReasoning={setAutoExpandReasoning} />}
+            {activeNav === 'sessions' && <SessionsSection />}
           </div>
         </div>
       </div>
@@ -403,6 +406,390 @@ function ShortcutsSection() {
             </kbd>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SessionsSection — session management table (add-session-management)
+// ---------------------------------------------------------------------------
+
+/** Format a date string as relative time in the current locale. */
+function relativeTime(date: string, locale: string): string {
+  const now = Date.now();
+  const then = new Date(date).getTime();
+  if (isNaN(then)) return '—';
+  const diffMs = now - then;
+  const diffSec = Math.round(diffMs / 1000);
+  const diffMin = Math.round(diffSec / 60);
+  const diffHr = Math.round(diffMin / 60);
+  const diffDay = Math.round(diffHr / 24);
+
+  const isZh = locale.startsWith('zh');
+
+  if (diffSec < 60) return isZh ? '刚刚' : 'just now';
+  if (diffMin < 60) return isZh ? `${diffMin} 分钟前` : `${diffMin}m ago`;
+  if (diffHr < 24) return isZh ? `${diffHr} 小时前` : `${diffHr}h ago`;
+  if (diffDay === 1) return isZh ? '昨天' : 'Yesterday';
+  if (diffDay < 7) return isZh ? `${diffDay} 天前` : `${diffDay}d ago`;
+  return new Date(then).toLocaleDateString(isZh ? 'zh-CN' : 'en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function SessionsSection() {
+  const { t, i18n } = useTranslation();
+  const { listedSessionsMeta, renameSession, deleteSession } = useSession();
+
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmingBatch, setConfirmingBatch] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameText, setRenameText] = useState('');
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const renameEndedRef = useRef(false);
+
+  // Clear messages after 3s.
+  useEffect(() => {
+    if (!successMessage && !errorMessage) return;
+    const id = setTimeout(() => {
+      setSuccessMessage(null);
+      setErrorMessage(null);
+    }, 3000);
+    return () => clearTimeout(id);
+  }, [successMessage, errorMessage]);
+
+  // Sort by updatedAt descending (most recently modified first).
+  const sorted = listedSessionsMeta && listedSessionsMeta.length > 0
+    ? [...listedSessionsMeta].sort((a, b) => {
+        const da = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const db = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return db - da;
+      })
+    : [];
+
+  if (sorted.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center">
+        <div className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">
+          {t('sessions.title')}
+        </div>
+        <div className="text-[12.5px] text-gray-400 dark:text-gray-500 mb-1">
+          {t('sessions.empty.title')}
+        </div>
+        <div className="text-[11px] text-gray-400/70 dark:text-gray-500/70">
+          {t('sessions.empty.description')}
+        </div>
+      </div>
+    );
+  }
+
+  const allSelected = sorted.length > 0 && selected.size === sorted.length;
+  const someSelected = selected.size > 0 && !allSelected;
+
+  const toggleAll = () => {
+    if (allSelected) setSelected(new Set());
+    else setSelected(new Set(sorted.map((s) => s.id)));
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const openRename = (id: string, title: string) => {
+    setRenamingId(id);
+    setRenameText(title);
+    renameEndedRef.current = false;
+  };
+
+  const submitRename = async () => {
+    if (renameEndedRef.current) return;
+    renameEndedRef.current = true;
+    const next = renameText.trim();
+    if (next && renamingId) {
+      const ok = await renameSession(renamingId, next);
+      if (!ok) setErrorMessage(t('common.retry'));
+    }
+    setRenamingId(null);
+  };
+
+  const cancelRename = () => {
+    renameEndedRef.current = true;
+    setRenamingId(null);
+  };
+
+  const doDelete = useCallback(async (id: string) => {
+    if (deletingId) return; // already deleting something
+    setDeletingId(id);
+    const ok = await deleteSession(id);
+    setDeletingId(null);
+    if (ok) {
+      setSuccessMessage(t('sessions.deletedMessage', { count: 1 }));
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    } else {
+      setErrorMessage(t('common.retry'));
+    }
+  }, [deleteSession, t, deletingId]);
+
+  const confirmBatchDelete = async () => {
+    if (deletingId) return;
+    setDeletingId('__batch__');
+    setConfirmingBatch(false);
+    const ids = [...selected];
+    let failed = 0;
+    for (const id of ids) {
+      const ok = await deleteSession(id);
+      if (!ok) failed++;
+    }
+    setDeletingId(null);
+    if (failed > 0) {
+      setErrorMessage(`${t('sessions.deletedMessage', { count: ids.length - failed })}，${failed} 个失败`);
+    } else {
+      setSuccessMessage(t('sessions.deletedMessage', { count: ids.length }));
+    }
+    setSelected(new Set());
+  };
+
+  const statusKey = (status: string): 'idle' | 'running' =>
+    status === 'running' ? 'running' : 'idle';
+
+  return (
+    <div>
+      {/* Title row */}
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider">
+          {t('sessions.title')}
+        </p>
+        <span className="text-[10.5px] text-gray-400 dark:text-gray-500">
+          {sorted.length} 个会话
+        </span>
+      </div>
+
+      {/* Feedback banner: error takes precedence over success */}
+      {(errorMessage || successMessage) && (
+        <div className={`mb-3 px-3 py-1.5 rounded-lg border text-[12px] flex items-center justify-between ${
+          errorMessage
+            ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300'
+            : 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900/50 text-green-700 dark:text-green-300'
+        }`}>
+          <span>{errorMessage || successMessage}</span>
+          <button
+            type="button"
+            onClick={() => { setSuccessMessage(null); setErrorMessage(null); }}
+            className="flex-shrink-0 hover:opacity-70"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
+      {/* Batch toolbar */}
+      {selected.size > 0 && (
+        <div className="mb-2 flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark-muted)]">
+          <span className="text-[11px] text-gray-600 dark:text-gray-400">
+            已选 {selected.size}/{sorted.length}
+          </span>
+          {confirmingBatch ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[10.5px] text-red-600 dark:text-red-400">
+                {t('sessions.confirmBatchDelete', { count: selected.size })}
+              </span>
+              <button
+                type="button"
+                onClick={confirmBatchDelete}
+                disabled={deletingId !== null}
+                className="px-2 py-0.5 rounded-md bg-red-600 text-[10.5px] font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {t('common.confirm')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingBatch(false)}
+                disabled={deletingId !== null}
+                className="px-2 py-0.5 rounded-md border border-outline dark:border-neutral-700 text-[10.5px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingBatch(true)}
+              disabled={deletingId !== null}
+              className="px-2 py-0.5 rounded-md text-[10.5px] font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
+            >
+              {t('sessions.deleteSelected', { count: selected.size })}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="rounded-[12px] border border-outline dark:border-outline-dark overflow-hidden">
+        <div className="overflow-y-auto max-h-[310px] custom-scrollbar">
+          <table className="w-full text-[11.5px]" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+            <thead className="sticky top-0 z-10">
+              <tr>
+                <th className="w-10 px-2 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-left">
+                  <button
+                    type="button"
+                    onClick={toggleAll}
+                    className="p-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                    aria-label={t('sessions.selectAll')}
+                  >
+                    {allSelected ? (
+                      <CheckSquare className="w-3.5 h-3.5 text-gray-700 dark:text-gray-200" />
+                    ) : someSelected ? (
+                      <CheckSquare className="w-3.5 h-3.5 text-gray-400" />
+                    ) : (
+                      <Square className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </th>
+                <th className="text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-gray-700 dark:text-gray-200">
+                  {t('sessions.columns.title')}
+                </th>
+                <th className="w-16 text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-gray-700 dark:text-gray-200">
+                  {t('sessions.columns.status')}
+                </th>
+                <th className="w-14 text-right px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-gray-700 dark:text-gray-200">
+                  {t('sessions.columns.messages')}
+                </th>
+                <th className="w-24 text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-gray-700 dark:text-gray-200">
+                  {t('sessions.columns.updated')}
+                </th>
+                <th className="w-16 px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-outline dark:border-outline-dark font-semibold text-gray-700 dark:text-gray-200">
+                  {t('sessions.columns.actions')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((s) => {
+                const isSelected = selected.has(s.id);
+                const st = statusKey(s.status);
+
+                return (
+                  <tr
+                    key={s.id}
+                    className={`border-b border-outline/50 dark:border-outline-dark/50 last:border-b-0 transition-colors ${
+                      isSelected
+                        ? 'bg-[var(--color-surface-muted)]/60 dark:bg-[var(--color-surface-dark-muted)]/60'
+                        : 'hover:bg-[var(--color-surface-muted)]/30 dark:hover:bg-[var(--color-surface-dark-muted)]/30'
+                    }`}
+                  >
+                    {/* Checkbox */}
+                    <td className="px-2 py-2 border-r border-outline/50 dark:border-outline-dark/50">
+                      <button
+                        type="button"
+                        onClick={() => toggleOne(s.id)}
+                        className="p-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="w-3.5 h-3.5 text-gray-700 dark:text-gray-200" />
+                        ) : (
+                          <Square className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </td>
+
+                    {/* Title */}
+                    <td className="px-2.5 py-2 border-r border-outline/50 dark:border-outline-dark/50">
+                      {renamingId === s.id ? (
+                        <input
+                          autoFocus
+                          value={renameText}
+                          onChange={(e) => setRenameText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.nativeEvent.isComposing) return;
+                            if (e.key === 'Enter') void submitRename();
+                            if (e.key === 'Escape') cancelRename();
+                          }}
+                          onBlur={() => void submitRename()}
+                          className="w-full rounded-md border border-outline bg-white px-2 py-0.5 text-[11.5px] text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-700 dark:bg-surface-dark dark:text-gray-100 dark:focus:ring-neutral-700"
+                        />
+                      ) : (
+                        <span
+                          className={`truncate max-w-[200px] block ${
+                            s.title
+                              ? 'text-gray-800 dark:text-gray-200'
+                              : 'text-gray-400 dark:text-gray-500 italic'
+                          }`}
+                        >
+                          {s.title || t('sessions.untitled')}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-2.5 py-2 border-r border-outline/50 dark:border-outline-dark/50">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            st === 'running' ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                          }`}
+                        />
+                        <span className="text-[10.5px] text-gray-500 dark:text-gray-400">
+                          {t(`sessions.status.${st}`)}
+                        </span>
+                      </span>
+                    </td>
+
+                    {/* Message count */}
+                    <td className="px-2.5 py-2 text-right text-[10.5px] text-gray-500 dark:text-gray-400 tabular-nums border-r border-outline/50 dark:border-outline-dark/50">
+                      {s.messageCount ?? 0}
+                    </td>
+
+                    {/* Updated time */}
+                    <td className="px-2.5 py-2 text-[10.5px] text-gray-500 dark:text-gray-400 whitespace-nowrap border-r border-outline/50 dark:border-outline-dark/50">
+                      {s.updatedAt ? relativeTime(s.updatedAt, i18n.language) : '—'}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-2.5 py-2">
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          aria-label={t('sessions.rename')}
+                          disabled={deletingId !== null}
+                          onClick={() => openRename(s.id, s.title)}
+                          className="p-1 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={t('sessions.delete')}
+                          disabled={deletingId !== null}
+                          onClick={() => void doDelete(s.id)}
+                          className={`p-1 rounded transition-colors disabled:opacity-40 ${
+                            deletingId === s.id
+                              ? 'text-red-400 dark:text-red-500 cursor-wait'
+                              : 'text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40'
+                          }`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

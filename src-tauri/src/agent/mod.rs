@@ -48,6 +48,11 @@ const DEFAULT_PROVIDER: &str = "anthropic";
 const PROVIDER_ENV: &str = "WORKHORSE_AGENT_PROVIDER";
 const MODEL_ENV: &str = "WORKHORSE_AGENT_MODEL";
 const HTTP_TIMEOUT: Duration = Duration::from_secs(10);
+/// Read timeout for SSE connections. Each line must arrive within this window,
+/// otherwise the reader treats it as a stream error and reconnects. This also
+/// ensures a stopped reader thread exits promptly instead of blocking on
+/// `BufRead::lines()` forever on an idle session stream.
+const SSE_READ_TIMEOUT: Duration = Duration::from_secs(30);
 const RECONNECT_MAX_ATTEMPTS: u32 = 5;
 const RECONNECT_BASE_DELAY_MS: u64 = 250;
 const SHUTDOWN_DRAIN_BUDGET: Duration = Duration::from_millis(500);
@@ -685,9 +690,12 @@ impl AgentBridge {
 /// Signal a session's reader thread to stop and join it.
 fn stop_session(mut handle: SessionHandle) {
     handle.stop.store(true, Ordering::SeqCst);
-    if let Some(reader) = handle.reader.take() {
-        let _ = reader.join();
-    }
+    // Detach the reader thread instead of joining. The reader blocks on
+    // BufReader::lines() waiting for SSE events; an idle session may never
+    // produce another line, causing join() to block the caller indefinitely.
+    // The detached thread checks the stop flag on each line and also exits
+    // when the read timeout fires (READ_TIMEOUT), so it will not leak.
+    handle.reader.take();
 }
 
 /// SSE reader thread: subscribe to the session's event stream, parse `tool_use`
@@ -704,11 +712,18 @@ fn spawn_sse_reader(
 ) -> JoinHandle<()> {
     std::thread::spawn(move || {
         let url = format!("{endpoint}/v1/sessions/{session_id}/stream");
+        // Agent with read timeout so idle SSE connections don't block forever.
+        // Each BufRead::lines() call will error if no data arrives within
+        // SSE_READ_TIMEOUT, unblocking the reader and allowing it to check the
+        // stop flag (or reconnect).
+        let agent = ureq::AgentBuilder::new()
+            .timeout_read(SSE_READ_TIMEOUT)
+            .build();
         let mut attempts: u32 = 0;
         let mut lost_emitted: bool = false;
 
         while !stop.load(Ordering::SeqCst) {
-            match ureq::get(&url).call() {
+            match agent.get(&url).call() {
                 Ok(resp) => {
                     // Reconnected (or first connect).
                     if lost_emitted {
