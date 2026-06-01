@@ -350,13 +350,17 @@ impl AgentBridge {
         // Model is optional: when WORKHORSE_AGENT_MODEL is unset, omit it so the
         // sidecar falls back to its config's `models.default` (e.g. "anthropic:qwen3.6-plus").
         let model_override = std::env::var(MODEL_ENV).ok();
-        let workdir = if workdir.trim().is_empty() {
-            std::env::current_dir()
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_else(|_| ".".to_string())
-        } else {
-            workdir
-        };
+        // B1 / D-WSL-1: no host-cwd fallback. A session must be rooted at an
+        // explicit project path — for a remote (WSL) sidecar the host cwd is the
+        // wrong namespace entirely. The renderer resolves the workdir
+        // (remembered project → `/health` default_workdir → picker) before
+        // attaching, so an empty value here is a programming error, not a default.
+        let workdir = workdir.trim().to_string();
+        if workdir.is_empty() {
+            return Err(AgentError::validation(
+                "attach requires a non-empty workdir (no host-cwd fallback)",
+            ));
+        }
         let mut body = json!({
             "provider": provider,
             "workdir": workdir,

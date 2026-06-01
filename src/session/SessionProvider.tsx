@@ -292,33 +292,50 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     [liveSessions, listedSessions, currentProject],
   );
 
-  const newSession = useCallback(async () => {
-    const res = await attachAgentSession(currentProject);
-    if (!res.ok) return;
-    const id = res.value;
-    setLiveSessions((prev) => (prev.some((s) => s.id === id) ? prev : [...prev, { id, workdir: currentProject, title: '' }]));
-    setRuntimes((prev) => (prev[id] ? prev : { ...prev, [id]: emptyRuntime() }));
-    setActiveSessionId(id);
-  }, [currentProject]);
+  const newSession = useCallback(
+    async (workdir?: string) => {
+      // B1: attach requires an explicit project — the Rust host-cwd fallback is
+      // gone. Without a project there is nothing to root a session at, so no-op
+      // (the UI should route the user to the project picker instead).
+      const target = (workdir ?? currentProject).trim();
+      if (!target) return;
+      const res = await attachAgentSession(target);
+      if (!res.ok) return;
+      const id = res.value;
+      setLiveSessions((prev) => (prev.some((s) => s.id === id) ? prev : [...prev, { id, workdir: target, title: '' }]));
+      setRuntimes((prev) => (prev[id] ? prev : { ...prev, [id]: emptyRuntime() }));
+      setActiveSessionId(id);
+    },
+    [currentProject],
+  );
 
   // --- Bootstrap: ensure a live session once the sidecar is reachable --------
   // The connection hook is now a pure health probe (it no longer mints a
   // session). When it reports `connected` and the active project has no live
   // session, create one here — at most once per project, so a failing attach
   // does not loop. The guard resets when the connection drops, so a recovered
-  // connection re-bootstraps. (D-WSL-2's remembered-project → default_workdir →
-  // picker precedence is batch-2; for now an empty project keeps the Rust
-  // host-cwd fallback so "open app → chat" still works.)
+  // connection re-bootstraps.
+  //
+  // Cold-start precedence (D-WSL-1 / D-WSL-2): remembered project →
+  // `/health` default_workdir → (nothing; user picks a project). There is no
+  // host-cwd fallback anymore (B1), so we never attach with an empty workdir.
   useEffect(() => {
     if (agent.status !== 'connected') {
       bootstrapForRef.current = null;
       return;
     }
     if (liveSessions.length > 0) return;
+    if (!currentProject) {
+      // No remembered project: adopt the sidecar's default_workdir if it offered
+      // one (this re-runs the effect with currentProject set). Otherwise wait —
+      // the user must pick a project (project browser, C1b).
+      if (agent.defaultWorkdir) void openProject(agent.defaultWorkdir);
+      return;
+    }
     if (bootstrapForRef.current === currentProject) return;
     bootstrapForRef.current = currentProject;
-    void newSession();
-  }, [agent.status, currentProject, liveSessions.length, newSession]);
+    void newSession(currentProject);
+  }, [agent.status, agent.defaultWorkdir, currentProject, liveSessions.length, newSession, openProject]);
 
   const renameSession = useCallback(async (id: string, title: string) => {
     const res = await renameAgentSession(id, title);

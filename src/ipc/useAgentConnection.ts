@@ -29,6 +29,14 @@ export type AgentStatus = 'idle' | 'connecting' | 'connected' | 'error';
 export interface AgentConnection {
   status: AgentStatus;
   error: string | null;
+  /** The sidecar's default project path from the last successful `/health`
+   *  probe; `SessionProvider` uses it for cold-start when no project is
+   *  remembered. `null` until first success, or if the sidecar omits it. */
+  defaultWorkdir: string | null;
+  /** Sidecar host platform (`linux`/`windows`/`darwin`) from `/health`. */
+  platform: string | null;
+  /** Linux distro name; non-null only when the sidecar runs under WSL. */
+  distro: string | null;
   /** Manual disconnect — pauses auto-retry/heartbeat. */
   disconnect: () => void;
   /** Resume probing after a manual disconnect (or force a re-probe). */
@@ -41,6 +49,11 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 export function useAgentConnection(): AgentConnection {
   const [status, setStatus] = useState<AgentStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  // Host facts from the last successful /health probe (D-WSL-2 cold start +
+  // C2 terminal default). Kept null until a probe succeeds.
+  const [defaultWorkdir, setDefaultWorkdir] = useState<string | null>(null);
+  const [platform, setPlatform] = useState<string | null>(null);
+  const [distro, setDistro] = useState<string | null>(null);
 
   // Guards
   const busy = useRef(false);
@@ -110,6 +123,9 @@ export function useAgentConnection(): AgentConnection {
         if (health.ok) {
           setStatus('connected');
           setError(null);
+          setDefaultWorkdir(health.value.default_workdir ?? null);
+          setPlatform(health.value.platform ?? null);
+          setDistro(health.value.distro ?? null);
           attemptRef.current = 0; // reset backoff on success
           startHeartbeat();
         } else {
@@ -171,5 +187,5 @@ export function useAgentConnection(): AgentConnection {
     };
   }, [probe, clearRetry, clearHeartbeat]);
 
-  return { status, error, disconnect, reconnect };
+  return { status, error, defaultWorkdir, platform, distro, disconnect, reconnect };
 }

@@ -36,9 +36,9 @@
 
 ## B. Assistant — connection & cold start (needs A1)
 
-- [ ] B1 Drop the Rust `attach` host-cwd fallback (`std::env::current_dir()` in
-      `src-tauri/src/agent/mod.rs`); require an explicit non-empty `workdir`
-      (§1.7 / D-WSL-1).
+- [x] B1 Drop the Rust `attach` host-cwd fallback (`std::env::current_dir()` in
+      `src-tauri/src/agent/mod.rs`); empty `workdir` now returns a `validation`
+      error instead of defaulting to the host cwd (§1.7 / D-WSL-1).
 - [ ] B2 Renderer cold-start precedence: remembered project → `/health
       default_workdir` → project picker (D-WSL-2). Extend `HealthInfo` (Rust
       `src-tauri/src/agent/mod.rs` + TS `src/ipc/agent.ts`) with the now-delivered
@@ -48,9 +48,11 @@
       - [x] B2a Data layer: extended `HealthInfo` (Rust `agent/mod.rs` +
         TS `src/ipc/agent.ts`) with optional `default_workdir`/`platform`/`distro`
         (`#[serde(default)]`, backward-compatible). `cargo check` + `tsc` clean.
-      - [ ] B2b Cold-start precedence in `SessionProvider`: thread the probe's
-        `default_workdir` into bootstrap; order remembered → `default_workdir` →
-        picker. (Lands atomically with B1.)
+      - [x] B2b Cold-start precedence in `SessionProvider`: `useAgentConnection`
+        now exposes `defaultWorkdir`/`platform`/`distro` from the probe; the
+        bootstrap effect resolves remembered `currentProject` → `defaultWorkdir`
+        (adopted via `openProject`) → otherwise wait for the picker. No empty
+        attach (pairs with B1). `cargo check` + `tsc` clean.
 - [x] B3 Full health/session decoupling (D-WSL-4): `useAgentConnection` → pure
       health probe (no `attachAgentSession`, no `sessionId`); `SessionProvider`
       owns bootstrap creation on `connected`; per-live-session
