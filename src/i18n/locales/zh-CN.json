@@ -63,7 +63,9 @@
     "parentDir": "上级目录",
     "openThisFolder": "打开此文件夹",
     "noSubfolders": "没有子文件夹",
-    "loading": "加载中"
+    "loading": "加载中",
+    "pickerHint": "已为你打开项目选择器，请确认路径",
+    "pickerAlreadyOpen": "项目选择器已打开，请先完成当前选择"
   },
   "settings": {
     "title": "设置",

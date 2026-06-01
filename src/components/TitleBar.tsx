@@ -72,7 +72,7 @@ export default function TitleBar({ maximized }: TitleBarProps) {
  */
 function ProjectSwitcher() {
   const { t } = useTranslation();
-  const { projects, recentProjects, currentProject, openProject } = useSession();
+  const { projects, recentProjects, currentProject, openProject, pendingPickerRequest, resolvePicker } = useSession();
   const [open, setOpen] = useState(false);
   const [entering, setEntering] = useState(false);
   const [browsing, setBrowsing] = useState(false);
@@ -84,6 +84,11 @@ function ProjectSwitcher() {
     setEntering(false);
     setBrowsing(false);
     setPathText('');
+    // If the agent had a pending picker request and the user dismissed the
+    // popover by clicking outside, settle it with null (cancel).
+    if (pendingPickerRequest) {
+      resolvePicker(null);
+    }
   };
 
   // Known paths = sidecar projects (eventual source of truth) ∪ locally-
@@ -109,6 +114,29 @@ function ProjectSwitcher() {
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
+
+  // Agent confirm flow (D5): when a pending picker request arrives, open the
+  // popover in browsing mode pre-navigated to the candidate path.
+  useEffect(() => {
+    if (!pendingPickerRequest) return;
+    setOpen(true);
+    setBrowsing(true);
+    setEntering(false);
+  }, [pendingPickerRequest]);
+
+  // Track the live request so the unmount cleanup (deps `[]`) can read it
+  // without capturing a stale snapshot.
+  const pendingRef = useRef(pendingPickerRequest);
+  pendingRef.current = pendingPickerRequest;
+
+  // Cleanup (D5 / spec "Pending request never leaks"): if this switcher unmounts
+  // while a request is outstanding, cancel it so the agent's tool call settles
+  // instead of hanging on a picker that is no longer mounted.
+  useEffect(() => {
+    return () => {
+      if (pendingRef.current) resolvePicker(null);
+    };
+  }, [resolvePicker]);
 
   const label = currentProject
     ? currentProject.split(/[/\\]/).filter(Boolean).pop() || currentProject
@@ -140,9 +168,17 @@ function ProjectSwitcher() {
         <div className="absolute left-0 top-7 z-50 min-w-[240px] overflow-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
           {browsing ? (
             <ProjectBrowser
+              initialPath={pendingPickerRequest?.path}
               onPick={(p) => {
-                void openProject(p);
-                closeMenu();
+                if (pendingPickerRequest) {
+                  resolvePicker(p);
+                } else {
+                  void openProject(p);
+                }
+                setOpen(false);
+                setEntering(false);
+                setBrowsing(false);
+                setPathText('');
               }}
             />
           ) : (

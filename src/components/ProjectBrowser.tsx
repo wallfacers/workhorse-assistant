@@ -24,7 +24,16 @@ function parentOf(path: string): string | null {
   return /^[A-Za-z]:$/.test(parent) ? `${parent}\\` : parent;
 }
 
-export default function ProjectBrowser({ onPick }: { onPick: (path: string) => void }) {
+export default function ProjectBrowser({
+  onPick,
+  initialPath,
+}: {
+  onPick: (path: string) => void;
+  /** When set, the initial `load()` starts at this directory instead of the
+   *  sidecar's default workdir. Used by the agent confirm flow to pre-fill the
+   *  picker with the candidate path. Manual open passes nothing → unchanged. */
+  initialPath?: string;
+}) {
   const { t } = useTranslation();
   const [path, setPath] = useState<string | null>(null);
   const [entries, setEntries] = useState<FsEntry[]>([]);
@@ -46,8 +55,8 @@ export default function ProjectBrowser({ onPick }: { onPick: (path: string) => v
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(initialPath);
+  }, [load, initialPath]);
 
   const parent = path ? parentOf(path) : null;
   const rowClass =

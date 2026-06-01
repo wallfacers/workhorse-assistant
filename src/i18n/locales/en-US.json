@@ -63,7 +63,9 @@
     "parentDir": "Parent directory",
     "openThisFolder": "Open this folder",
     "noSubfolders": "No subfolders",
-    "loading": "Loading"
+    "loading": "Loading",
+    "pickerHint": "Project picker opened — please confirm the path",
+    "pickerAlreadyOpen": "Project picker is already open — finish the current selection first"
   },
   "settings": {
     "title": "Settings",
