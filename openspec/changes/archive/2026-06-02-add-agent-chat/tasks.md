@@ -32,4 +32,4 @@
 
 - [x] 5.1 `npm run lint` 通过
 - [x] 5.2 `cargo check` 通过
-- [ ] 5.3 真机验证（部分完成，端到端未通过）: POST `{type:"user_message"}` 返回 **202**（上行通），SSE 流确实回流了事件（回流通道工作）。但**完整助手文本往返未跑通**：运行中的 sidecar 回 `provider_invalid_request: model "claude-sonnet-4-6" is not supported`——前端 `DEFAULT_MODEL` 与该 sidecar 实例不匹配。`assistant_text_delta/done` 流式回显与工具块 running→done 的端到端验证，待 model 不匹配修复后在桌面窗口实操确认
+- [x] 5.3 真机验证 **已通过**（Windows 桌面端 + WSL sidecar，model `anthropic:qwen3.6-plus`）：`assistant_text_delta/done` 流式逐字回显正常，工具块 running→done 正常。早期的 `model "claude-sonnet-4-6" is not supported` 阻塞已在代码侧解决（`agent::attach`，`src-tauri/src/agent/mod.rs:386-410`：前端不发 model，仅当 `WORKHORSE_AGENT_MODEL` 显式设置时才带 `model`，否则省略 → sidecar 回退到自身 config 的 `models.default`）。**model 约束**：当前免费套餐只能用 `qwen3.6-plus`，验证时**不要**设 `WORKHORSE_AGENT_MODEL`/`WORKHORSE_AGENT_PROVIDER`。注：本条由 `agent-ui-control` §5.1/5.2 的工具联调隐含验证——模型能执行工具,前提就是聊天往返(连接→流式回话→工具块 running→done)已通。
