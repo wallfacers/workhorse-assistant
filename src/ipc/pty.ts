@@ -11,8 +11,11 @@ import { isTauri } from './runtime';
  * renderer passes only a `profile_id` (plus size/input) — never a command line.
  */
 
-/** S0 launch profiles resolved core-side. */
-export type ProfileId = 'terminal' | 'claude-opus' | 'claude-glm' | 'codex';
+/** Launch profiles resolved core-side. `wsl` (add-wsl-remote C2) bridges a
+ *  Windows host into a WSL distro via `wsl.exe -d <distro> --cd <path>`; it is
+ *  not user-listed in the picker but is selected automatically when the sidecar
+ *  reports it runs under WSL. */
+export type ProfileId = 'terminal' | 'claude-opus' | 'claude-glm' | 'codex' | 'wsl';
 
 /** Payload of `pty://output/{session_id}`. */
 export interface PtyOutput {
@@ -32,10 +35,16 @@ export async function ptySpawn(
   profileId: ProfileId,
   cols?: number,
   rows?: number,
+  /** Project path to root the session at. For a local sidecar it becomes the
+   *  child's cwd; for a WSL sidecar (see `distro`) it is passed to
+   *  `wsl.exe --cd` and ignored by host-side profiles (the path is not host-valid). */
+  workdir?: string,
+  /** WSL distro from `/health`; when set, the `wsl` profile targets it. */
+  distro?: string,
 ): Promise<Result<string>> {
   if (!isTauri()) return notInTauri();
   try {
-    const sessionId = await invoke<string>('pty_spawn', { profileId, cols, rows });
+    const sessionId = await invoke<string>('pty_spawn', { profileId, cols, rows, workdir, distro });
     return ok(sessionId);
   } catch (e) {
     return { ok: false, error: toIpcError(e) };

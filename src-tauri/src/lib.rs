@@ -38,8 +38,10 @@ fn pty_spawn(
     profile_id: String,
     cols: Option<u16>,
     rows: Option<u16>,
+    workdir: Option<String>,
+    distro: Option<String>,
 ) -> Result<String, PtyError> {
-    registry.spawn(&app, &profile_id, cols, rows)
+    registry.spawn(&app, &profile_id, cols, rows, workdir.as_deref(), distro.as_deref())
 }
 
 #[tauri::command]

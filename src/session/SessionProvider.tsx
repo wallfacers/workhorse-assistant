@@ -86,6 +86,9 @@ interface SessionContextValue {
   recentProjects: string[];
   currentProject: string;
   openProject: (path: string) => Promise<void>;
+  /** WSL distro reported by the sidecar's `/health` (null when not WSL). Lets
+   *  the terminal launch a WSL shell rooted at the project (add-wsl-remote C3). */
+  agentDistro: string | null;
   // Sessions
   sessions: SessionListItem[];
   activeSessionId: string | null;
@@ -466,6 +469,7 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     recentProjects,
     currentProject,
     openProject,
+    agentDistro: agent.distro,
     sessions,
     activeSessionId,
     activeTitle,

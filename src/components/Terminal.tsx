@@ -14,6 +14,7 @@ import {
   type ProfileId,
 } from '../ipc';
 import { useApp } from '../context';
+import { useSession } from '../session/SessionProvider';
 
 const RESIZE_DEBOUNCE_MS = 80;
 
@@ -83,6 +84,12 @@ export default function Terminal({ profileId, onTitle }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const isDark = useApp().isDarkMode;
+  // Project + WSL context, captured at spawn time (add-wsl-remote C3). Read via
+  // a ref so changing the project does not re-run the spawn effect — existing
+  // terminals keep their session; only newly-mounted panes pick up the change.
+  const { currentProject, agentDistro } = useSession();
+  const spawnCtxRef = useRef({ workdir: currentProject, distro: agentDistro });
+  spawnCtxRef.current = { workdir: currentProject, distro: agentDistro };
 
   // Sync xterm theme when dark mode changes.
   // xterm.css defaults .xterm-viewport to #000; we must force the viewport
@@ -159,12 +166,21 @@ export default function Terminal({ profileId, onTitle }: TerminalProps) {
     if (hasSize) fit.fit();
 
     void (async () => {
+      // C3: when the sidecar runs under WSL, a generic `terminal` pane launches
+      // as a WSL shell rooted at the project; explicit CLI profiles are left as
+      // chosen. workdir/distro are passed for the core to resolve (a WSL workdir
+      // is not a host-valid cwd, so only the `wsl` profile consumes it).
+      const { workdir, distro } = spawnCtxRef.current;
+      const effectiveProfile: ProfileId =
+        profileId === 'terminal' && distro ? 'wsl' : profileId;
+      const wd = workdir || undefined;
+      const ds = distro || undefined;
       const spawned = hasSize
-        ? await ptySpawn(profileId, term.cols, term.rows)
-        : await ptySpawn(profileId);
+        ? await ptySpawn(effectiveProfile, term.cols, term.rows, wd, ds)
+        : await ptySpawn(effectiveProfile, undefined, undefined, wd, ds);
       if (!spawned.ok) {
         // Render the failure inline rather than leaving a blank pane.
-        term.writeln(`\x1b[31mFailed to start "${profileId}": ${spawned.error.message}\x1b[0m`);
+        term.writeln(`\x1b[31mFailed to start "${effectiveProfile}": ${spawned.error.message}\x1b[0m`);
         if (spawned.error.kind === 'validation') {
           term.writeln(
             '\x1b[90m(Embedded terminals need the desktop app — run `npm run tauri:dev`.)\x1b[0m',

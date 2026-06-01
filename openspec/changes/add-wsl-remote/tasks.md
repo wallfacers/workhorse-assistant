@@ -82,18 +82,24 @@
         surfaces 403/404/400 messages, "open this folder" → `openProject`). Wired
         into the TitleBar `ProjectSwitcher` as a "Browse folders…" entry alongside
         the manual path input. i18n keys added (zh-CN/en-US). `tsc` clean.
-- [ ] C2 `wsl` terminal profile: spawn `wsl.exe -d <distro> --cd <wslpath>`
-      (PTY stays host-side). Default the profile from `/health` platform/distro.
-      **Prereq (larger than one line):** today `resolve_profile` (`src-tauri/src/pty/mod.rs`)
-      takes only a `profile_id` — `cwd` is always `None` and falls back to
-      `home_dir`, and `pty_spawn` (`src/ipc/pty.ts`) passes only `{profileId, cols, rows}`.
-      So C2 must (a) thread an optional `workdir` (+ `distro`) through
-      `pty_spawn` → `SessionRegistry::spawn` → `resolve_profile`/`LaunchProfile.cwd`/args,
-      and (b) add `wsl` to the closed `ProfileId` union (`pty.ts`, `profiles.ts`,
-      and the Rust `match`) + `PROFILE_LABELS`/`PROFILE_ORDER`.
-- [ ] C3 Project ↔ terminal coupling: switching to a WSL project makes new
-      terminals WSL shells at that path (the coupling deferred by
-      `add-project-sessions`, tech-debt D4). Depends on the C2 `workdir` channel above.
+- [x] C2 `wsl` terminal profile: `resolve_profile(profile_id, workdir, distro)`
+      now takes the project + distro; `pty_spawn`/`SessionRegistry::spawn` thread
+      them through. The `wsl` profile spawns `wsl.exe [-d <distro>] [--cd <path>]`
+      (PTY stays host-side). `wsl` added to the `ProfileId` union (`pty.ts`),
+      `PROFILE_LABELS`, and the Rust `match`; kept OUT of `PROFILE_ORDER` (not a
+      manual pick — would "command not found" on non-Windows). cwd rule: a WSL
+      `workdir` is NOT used as a host cwd (sidecar-namespace path); a local
+      `workdir` is. New Rust tests cover both. `cargo check`/`cargo test`/`tsc` clean.
+- [x] C3 Project ↔ terminal coupling: `SessionProvider` exposes `agentDistro`;
+      `Terminal.tsx` captures `{currentProject, agentDistro}` at spawn time and
+      (a) launches a `terminal` pane as `wsl` rooted at the project when the
+      sidecar is WSL, (b) passes `workdir` so local terminals open at the project
+      path. Captured via a ref so switching projects does not re-spawn existing
+      panes — only newly-mounted ones pick up the change. `tsc` clean.
+
+> Remaining: B4 (editable agent endpoint + reconnect — needs a Rust
+> endpoint-mutation command) and the §6 manual Windows/WSL acceptance passes.
+> Everything else (A delivered by the sidecar; B1/B2/B3; C1/C2/C3) is done.
 
 ## D. Docs / verification
 

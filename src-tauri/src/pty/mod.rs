@@ -64,10 +64,29 @@ struct LaunchProfile {
 /// Resolve a `profile_id` to its launch profile. Settings paths are built from
 /// the real home directory (never a literal `~`, since the child is spawned
 /// without a terminal). See design D4.
-fn resolve_profile(profile_id: &str) -> Option<LaunchProfile> {
+///
+/// `workdir`/`distro` come from the renderer (the current project + the
+/// sidecar's `/health` distro, add-wsl-remote C2/C3). A WSL `workdir` is a
+/// *sidecar-namespace* path that does not exist on the host, so a host-side
+/// profile must NOT chdir into it — only the `wsl` profile consumes it, via
+/// `wsl.exe --cd`. When the sidecar is local (no `distro`), `workdir` is a real
+/// host path and becomes the child's cwd.
+fn resolve_profile(
+    profile_id: &str,
+    workdir: Option<&str>,
+    distro: Option<&str>,
+) -> Option<LaunchProfile> {
     let home = dirs::home_dir();
     let settings = |file: &str| -> Option<String> {
         home.as_ref().map(|h| h.join(".claude").join(file).to_string_lossy().into_owned())
+    };
+    // A host-valid cwd: only when the sidecar is local (no WSL distro).
+    let host_cwd = || -> Option<PathBuf> {
+        if distro.is_some() {
+            None
+        } else {
+            workdir.filter(|w| !w.trim().is_empty()).map(PathBuf::from)
+        }
     };
     match profile_id {
         "terminal" => {
@@ -77,26 +96,42 @@ fn resolve_profile(profile_id: &str) -> Option<LaunchProfile> {
             let command = "powershell.exe".to_string();
             #[cfg(not(windows))]
             let command = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
-            Some(LaunchProfile { command, args: Vec::new(), cwd: None, env: Vec::new() })
+            Some(LaunchProfile { command, args: Vec::new(), cwd: host_cwd(), env: Vec::new() })
         }
         "claude-opus" => Some(LaunchProfile {
             command: "claude".into(),
             args: vec!["--settings".into(), settings("settings.json.cc_w")?],
-            cwd: None,
+            cwd: host_cwd(),
             env: Vec::new(),
         }),
         "claude-glm" => Some(LaunchProfile {
             command: "claude".into(),
             args: vec!["--settings".into(), settings("settings.json.glm_w")?],
-            cwd: None,
+            cwd: host_cwd(),
             env: Vec::new(),
         }),
         "codex" => Some(LaunchProfile {
             command: "codex".into(),
             args: Vec::new(),
-            cwd: None,
+            cwd: host_cwd(),
             env: Vec::new(),
         }),
+        "wsl" => {
+            // Windows host → WSL sidecar (add-wsl-remote D-WSL-5). The PTY stays
+            // host-side; `wsl.exe` is the bridge into the distro, rooted at the
+            // project's WSL path. `-d <distro>` and `--cd <path>` are both
+            // optional so a bare `wsl` still opens the default distro at ~.
+            let mut args = Vec::new();
+            if let Some(d) = distro.filter(|d| !d.trim().is_empty()) {
+                args.push("-d".to_string());
+                args.push(d.to_string());
+            }
+            if let Some(w) = workdir.filter(|w| !w.trim().is_empty()) {
+                args.push("--cd".to_string());
+                args.push(w.to_string());
+            }
+            Some(LaunchProfile { command: "wsl.exe".into(), args, cwd: None, env: Vec::new() })
+        }
         _ => None,
     }
 }
@@ -147,8 +182,10 @@ impl SessionRegistry {
         profile_id: &str,
         cols: Option<u16>,
         rows: Option<u16>,
+        workdir: Option<&str>,
+        distro: Option<&str>,
     ) -> Result<String, PtyError> {
-        let profile = resolve_profile(profile_id)
+        let profile = resolve_profile(profile_id, workdir, distro)
             .ok_or_else(|| PtyError::validation(format!("unknown profile id: {profile_id}")))?;
         ensure_command_available(&profile.command)?;
 
@@ -378,16 +415,44 @@ mod tests {
 
     #[test]
     fn profiles_resolve_core_side() {
-        let term = resolve_profile("terminal").expect("terminal profile exists");
+        let term = resolve_profile("terminal", None, None).expect("terminal profile exists");
         assert!(!term.command.is_empty());
 
-        let glm = resolve_profile("claude-glm").expect("glm profile exists");
+        let glm = resolve_profile("claude-glm", None, None).expect("glm profile exists");
         assert_eq!(glm.command, "claude");
         assert_eq!(glm.args.first().map(String::as_str), Some("--settings"));
         assert!(glm.args[1].ends_with("settings.json.glm_w"));
         assert!(!glm.args[1].contains('~'), "no literal tilde reaches the command");
 
-        assert!(resolve_profile("does-not-exist").is_none());
+        assert!(resolve_profile("does-not-exist", None, None).is_none());
+    }
+
+    #[test]
+    fn local_workdir_becomes_cwd_but_wsl_workdir_does_not() {
+        // Local sidecar (no distro): a host-valid workdir is the child's cwd.
+        let local = resolve_profile("terminal", Some("/home/u/proj"), None)
+            .expect("terminal profile exists");
+        assert_eq!(local.cwd, Some(PathBuf::from("/home/u/proj")));
+
+        // WSL sidecar (distro present): the workdir is a sidecar-namespace path,
+        // so a host-side profile must not chdir into it.
+        let remote = resolve_profile("terminal", Some("/home/u/proj"), Some("Ubuntu"))
+            .expect("terminal profile exists");
+        assert_eq!(remote.cwd, None);
+    }
+
+    #[test]
+    fn wsl_profile_builds_distro_and_cd_args() {
+        let wsl = resolve_profile("wsl", Some("/home/u/proj"), Some("Ubuntu-22.04"))
+            .expect("wsl profile exists");
+        assert_eq!(wsl.command, "wsl.exe");
+        assert_eq!(wsl.args, vec!["-d", "Ubuntu-22.04", "--cd", "/home/u/proj"]);
+        assert_eq!(wsl.cwd, None);
+
+        // Bare wsl (no distro/workdir) still resolves to the default distro at ~.
+        let bare = resolve_profile("wsl", None, None).expect("wsl profile exists");
+        assert_eq!(bare.command, "wsl.exe");
+        assert!(bare.args.is_empty());
     }
 
     // Real PTY round-trip through portable-pty's openpty/spawn/read — the same
@@ -442,7 +507,7 @@ mod tests {
     // resolve on the host for the embedded terminal to work at all.
     #[test]
     fn resolvable_command_is_available() {
-        let term = resolve_profile("terminal").expect("terminal profile exists");
+        let term = resolve_profile("terminal", None, None).expect("terminal profile exists");
         assert!(ensure_command_available(&term.command).is_ok());
     }
 }
