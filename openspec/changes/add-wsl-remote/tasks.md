@@ -48,7 +48,7 @@
 - [x] B1 Drop the Rust `attach` host-cwd fallback (`std::env::current_dir()` in
       `src-tauri/src/agent/mod.rs`); empty `workdir` now returns a `validation`
       error instead of defaulting to the host cwd (§1.7 / D-WSL-1).
-- [ ] B2 Renderer cold-start precedence: remembered project → `/health
+- [x] B2 Renderer cold-start precedence: remembered project → `/health
       default_workdir` → project picker (D-WSL-2). Extend `HealthInfo` (Rust
       `src-tauri/src/agent/mod.rs` + TS `src/ipc/agent.ts`) with the now-delivered
       top-level fields `default_workdir` (string) plus optional `platform` and
@@ -83,7 +83,7 @@
 
 ## C. Assistant — project picker & terminal (A2/A3 now delivered)
 
-- [ ] C1 Namespace-correct project browser backed by `GET /v1/fs/list`
+- [x] C1 Namespace-correct project browser backed by `GET /v1/fs/list`
       (replaces today's manual path entry; local recents stay as a fast path).
       Confirmed contract: `{ "path": "<dir>", "entries": [{ "name", "path", "isDir" }] }`
       (`isDir` camelCase; `path` omitted → sidecar `default_workdir`).
@@ -127,18 +127,25 @@
       also requires `await hostIsWindows()`, so off-Windows the pane stays
       `terminal` (local shell at `workdir`); C4 remains the hard backstop. `tsc` clean.
 
-> Remaining: §6 manual Windows/WSL acceptance passes (run the desktop app against
-> a real WSL sidecar) **plus** the host-OS gate / distro-name fixes (A4, C4, C5)
-> surfaced 2026-06-01 when the assistant was launched **inside** WSL and the
-> ungated `terminal`→`wsl` promotion ran `wsl.exe -d "<PRETTY_NAME>"` →
-> `WSL_E_DISTRO_NOT_FOUND` (exit 255). A/B1/B2/B3/B4/C1/C2/C3 done and
-> unit/type-verified; A4/C4/C5 specced, not yet implemented.
+> Remaining: **only D2** — the manual Windows-host acceptance pass (run the
+> desktop app on Windows against a real WSL2 sidecar). All implementation is done
+> and unit/type-verified: A (sidecar) incl. A4, B1–B4, C1–C5, D1, D3 checks. The
+> host-OS gate / distro-name fixes (A4/C4/C5) were surfaced 2026-06-01 when the
+> assistant was launched **inside** WSL and the ungated `terminal`→`wsl` promotion
+> ran `wsl.exe -d "<PRETTY_NAME>"` → `WSL_E_DISTRO_NOT_FOUND` (exit 255); now
+> fixed. Archive (D3 tail) is gated on D2, which needs a Windows machine.
 
 ## D. Docs / verification
 
-- [ ] D1 Document WSL2 localhost-forwarding / mirrored-networking setup in the
-      README; note reliance on the bridge's existing SSE reconnect.
+- [x] D1 Document WSL2 localhost-forwarding / mirrored-networking setup in the
+      README; note reliance on the bridge's existing SSE reconnect. Added a
+      "Remote sidecar in WSL2 (Windows host)" section (networking + mirrored mode
+      `.wslconfig`, editable endpoint, WSL terminal, same-host D-WSL-7 caveat).
 - [ ] D2 Real-machine: Windows-host renderer + WSL2 sidecar, open a `/home/...`
       project, get a WSL terminal, sessions persist + rebuild across restart.
-- [ ] D3 `npm run lint` + `cargo check`; move this change to archived once
-      verified (`add-project-sessions` is already archived).
+      **BLOCKED — requires a Windows host; cannot be run in this Linux/WSL dev
+      environment.** This is the only remaining gate before archive.
+- [ ] D3 `npm run lint` + `cargo check` pass (verified 2026-06-01, clean), and
+      `cargo test --lib` (12) + `go test ./internal/api/` green — the *checks* are
+      done. This task stays open only for the final **archive** step, which is
+      deferred until D2 (Windows real-machine acceptance) is done.
