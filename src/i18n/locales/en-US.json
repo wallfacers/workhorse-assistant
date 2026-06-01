@@ -38,11 +38,11 @@
     },
     "status": {
       "disconnected": "Disconnected",
-      "connecting": "Connecting…",
+      "connecting": "Connecting",
       "connected": "Connected",
       "failed": "Connection failed: {{error}}",
       "heartbeatFailed": "Heartbeat failed",
-      "reconnecting": "Disconnected, reconnecting…"
+      "reconnecting": "Disconnected, reconnecting"
     },
     "feedback": {
       "copy": "Copy",
@@ -53,15 +53,15 @@
   "project": {
     "default": "Default project",
     "switch": "Switch project",
-    "open": "Open path…",
+    "open": "Open path",
     "pathPlaceholder": "Enter a project path and press Enter",
     "current": "Current project",
-    "browse": "Browse folders…",
+    "browse": "Browse folders",
     "browseTitle": "Choose a project folder",
     "parentDir": "Parent directory",
     "openThisFolder": "Open this folder",
     "noSubfolders": "No subfolders",
-    "loading": "Loading…"
+    "loading": "Loading"
   },
   "settings": {
     "title": "Settings",
@@ -130,7 +130,7 @@
   "tasks": {
     "title": "Task List",
     "closeTaskList": "Close task list",
-    "searchPlaceholder": "Search tasks…",
+    "searchPlaceholder": "Search tasks",
     "noMatch": "No matching tasks"
   },
   "workspace": {
@@ -163,7 +163,7 @@
     "splitDown": "Split down"
   },
   "toolCall": {
-    "running": "Running…",
+    "running": "Running",
     "done": "Done",
     "error": "Error",
     "input": "Input",
@@ -174,7 +174,7 @@
     "unknown": "Unknown rendering error"
   },
   "reasoning": {
-    "thinking": "Thinking…",
+    "thinking": "Thinking",
     "redacted": "Hidden reasoning",
     "duration": "Thought for {{seconds}}s",
     "redactedMessage": "This reasoning block is encrypted (redacted) and cannot be viewed",

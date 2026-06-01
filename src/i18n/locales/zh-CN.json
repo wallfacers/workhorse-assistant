@@ -38,11 +38,11 @@
     },
     "status": {
       "disconnected": "未连接",
-      "connecting": "连接中…",
+      "connecting": "连接中",
       "connected": "已连接",
       "failed": "连接失败：{{error}}",
       "heartbeatFailed": "心跳检测失败",
-      "reconnecting": "连接已断开，正在重连…"
+      "reconnecting": "连接已断开，正在重连"
     },
     "feedback": {
       "copy": "复制",
@@ -53,15 +53,15 @@
   "project": {
     "default": "默认项目",
     "switch": "切换项目",
-    "open": "打开路径…",
+    "open": "打开路径",
     "pathPlaceholder": "输入项目路径并回车",
     "current": "当前项目",
-    "browse": "浏览文件夹…",
+    "browse": "浏览文件夹",
     "browseTitle": "选择项目文件夹",
     "parentDir": "上级目录",
     "openThisFolder": "打开此文件夹",
     "noSubfolders": "没有子文件夹",
-    "loading": "加载中…"
+    "loading": "加载中"
   },
   "settings": {
     "title": "设置",
@@ -130,7 +130,7 @@
   "tasks": {
     "title": "任务列表",
     "closeTaskList": "关闭任务列表",
-    "searchPlaceholder": "搜索任务…",
+    "searchPlaceholder": "搜索任务",
     "noMatch": "无匹配任务"
   },
   "workspace": {
@@ -163,7 +163,7 @@
     "splitDown": "向下分屏"
   },
   "toolCall": {
-    "running": "运行中…",
+    "running": "运行中",
     "done": "完成",
     "error": "出错",
     "input": "输入",
@@ -174,7 +174,7 @@
     "unknown": "未知渲染错误"
   },
   "reasoning": {
-    "thinking": "思考中…",
+    "thinking": "思考中",
     "redacted": "已隐藏的推理",
     "duration": "深度思考 {{seconds}} 秒",
     "redactedMessage": "此推理块已加密（redacted），内容不可见",
