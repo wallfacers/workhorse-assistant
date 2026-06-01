@@ -33,6 +33,15 @@
       `default_workdir`. Rejects virtual FS (`/proc`,`/sys`,`/dev`,`/run`) and
       paths escaping `default_workdir` with 403; 404 missing; 400 not-a-dir.
       (`internal/api/fs.go:33-93`, route `internal/api/server.go:134`)
+- [x] A4 **(cross-repo, `workhorse-agent`)** `/health.distro` is now the WSL
+      **registration name** (D-WSL-8). `getDistro()` (`internal/api/health.go`)
+      prefers `os.Getenv("WSL_DISTRO_NAME")` (the `wsl -l` name, e.g. `Ubuntu`),
+      falling back to the `/etc/os-release` PRETTY_NAME (`"Ubuntu 24.04.3 LTS"` —
+      not a valid `wsl.exe -d` arg) only when unset. Selection extracted to a pure
+      `distroName(envName)` helper with `TestDistroName_PrefersEnvOverOSRelease`.
+      Additive, no `protocol_version` bump. `go test ./internal/api/` + `go vet`
+      clean. **Committed separately in the `workhorse-agent` repo** (two repos
+      cannot share one commit); assistant-side C4/C5 land in the assistant commit.
 
 ## B. Assistant — connection & cold start (needs A1)
 
@@ -101,10 +110,29 @@
       sidecar is WSL, (b) passes `workdir` so local terminals open at the project
       path. Captured via a ref so switching projects does not re-spawn existing
       panes — only newly-mounted ones pick up the change. `tsc` clean.
+- [x] C4 **Rust host-OS gate (authoritative, D-WSL-7).** `resolve_profile`'s
+      `wsl` branch (`src-tauri/src/pty/mod.rs`) now splits on `#[cfg(windows)]`:
+      on Windows it builds `wsl.exe [-d <distro>] [--cd <path>]` as before; under
+      `#[cfg(not(windows))]` it falls back to a local shell (`$SHELL`/`bash`)
+      rooted at the (same-host) `workdir` — a non-Windows build NEVER spawns
+      `wsl.exe`, even with a `distro` (interop-reachable from inside WSL, so
+      `ensure_command_available` does not save us). Split the test into
+      `wsl_profile_builds_distro_and_cd_args_on_windows` (`#[cfg(windows)]`) and
+      `wsl_profile_falls_back_to_local_shell_off_windows` (`#[cfg(not(windows))]`).
+      `cargo test --lib` (12) green.
+- [x] C5 **Renderer host gate (D-WSL-7).** Added `host_is_windows` Rust command
+      (`cfg!(windows)`, registered in `lib.rs`) + `hostIsWindows()` IPC wrapper
+      in `src/ipc/runtime.ts` (returns `false` off-Tauri/browser dev), re-exported
+      from `src/ipc/index.ts`. `Terminal.tsx`'s `terminal`→`wsl` auto-promotion now
+      also requires `await hostIsWindows()`, so off-Windows the pane stays
+      `terminal` (local shell at `workdir`); C4 remains the hard backstop. `tsc` clean.
 
-> Remaining: only the §6 manual Windows/WSL acceptance passes (run the desktop
-> app against a real WSL sidecar). All implementation — A (sidecar-delivered),
-> B1/B2/B3/B4, C1/C2/C3 — is done and unit/type-verified.
+> Remaining: §6 manual Windows/WSL acceptance passes (run the desktop app against
+> a real WSL sidecar) **plus** the host-OS gate / distro-name fixes (A4, C4, C5)
+> surfaced 2026-06-01 when the assistant was launched **inside** WSL and the
+> ungated `terminal`→`wsl` promotion ran `wsl.exe -d "<PRETTY_NAME>"` →
+> `WSL_E_DISTRO_NOT_FOUND` (exit 255). A/B1/B2/B3/B4/C1/C2/C3 done and
+> unit/type-verified; A4/C4/C5 specced, not yet implemented.
 
 ## D. Docs / verification
 

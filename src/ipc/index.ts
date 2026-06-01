@@ -11,7 +11,7 @@ export type { AppInfo } from './app';
 export { getAppInfo, greet } from './app';
 export type { IpcError, IpcErrorKind, Result } from './result';
 export { ok, err } from './result';
-export { isTauri } from './runtime';
+export { isTauri, hostIsWindows } from './runtime';
 export { writeClipboardText, readClipboardText } from './clipboard';
 export {
   minimizeWindow,

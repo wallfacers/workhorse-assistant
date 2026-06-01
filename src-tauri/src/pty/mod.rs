@@ -117,20 +117,38 @@ fn resolve_profile(
             env: Vec::new(),
         }),
         "wsl" => {
+            // The `wsl` profile bridges a *Windows host* into a WSL distro. On a
+            // non-Windows host — including a build running *inside* WSL — there is
+            // nothing to bridge: `wsl.exe` is interop-reachable from within WSL, so
+            // `ensure_command_available` does NOT save us; the spawn would reach
+            // `-d <distro>` and die late with WSL_E_DISTRO_NOT_FOUND. Fall back to a
+            // local shell rooted at the (same-host) project path, which is a valid
+            // host cwd here. The renderer also gates the `terminal`→`wsl` promotion
+            // behind `host_is_windows`; this `cfg` is the hard backstop.
+            // (add-wsl-remote D-WSL-7 / C4)
+            #[cfg(not(windows))]
+            {
+                let command = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+                let cwd = workdir.filter(|w| !w.trim().is_empty()).map(PathBuf::from);
+                Some(LaunchProfile { command, args: Vec::new(), cwd, env: Vec::new() })
+            }
             // Windows host → WSL sidecar (add-wsl-remote D-WSL-5). The PTY stays
             // host-side; `wsl.exe` is the bridge into the distro, rooted at the
             // project's WSL path. `-d <distro>` and `--cd <path>` are both
             // optional so a bare `wsl` still opens the default distro at ~.
-            let mut args = Vec::new();
-            if let Some(d) = distro.filter(|d| !d.trim().is_empty()) {
-                args.push("-d".to_string());
-                args.push(d.to_string());
+            #[cfg(windows)]
+            {
+                let mut args = Vec::new();
+                if let Some(d) = distro.filter(|d| !d.trim().is_empty()) {
+                    args.push("-d".to_string());
+                    args.push(d.to_string());
+                }
+                if let Some(w) = workdir.filter(|w| !w.trim().is_empty()) {
+                    args.push("--cd".to_string());
+                    args.push(w.to_string());
+                }
+                Some(LaunchProfile { command: "wsl.exe".into(), args, cwd: None, env: Vec::new() })
             }
-            if let Some(w) = workdir.filter(|w| !w.trim().is_empty()) {
-                args.push("--cd".to_string());
-                args.push(w.to_string());
-            }
-            Some(LaunchProfile { command: "wsl.exe".into(), args, cwd: None, env: Vec::new() })
         }
         _ => None,
     }
@@ -442,7 +460,8 @@ mod tests {
     }
 
     #[test]
-    fn wsl_profile_builds_distro_and_cd_args() {
+    #[cfg(windows)]
+    fn wsl_profile_builds_distro_and_cd_args_on_windows() {
         let wsl = resolve_profile("wsl", Some("/home/u/proj"), Some("Ubuntu-22.04"))
             .expect("wsl profile exists");
         assert_eq!(wsl.command, "wsl.exe");
@@ -453,6 +472,19 @@ mod tests {
         let bare = resolve_profile("wsl", None, None).expect("wsl profile exists");
         assert_eq!(bare.command, "wsl.exe");
         assert!(bare.args.is_empty());
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn wsl_profile_falls_back_to_local_shell_off_windows() {
+        // D-WSL-7 / C4: a non-Windows host (incl. a build inside WSL) must NEVER
+        // spawn `wsl.exe`; the `wsl` profile degrades to a local shell rooted at
+        // the (same-host) project path, even when a distro is reported.
+        let wsl = resolve_profile("wsl", Some("/home/u/proj"), Some("Ubuntu"))
+            .expect("wsl profile exists");
+        assert_ne!(wsl.command, "wsl.exe");
+        assert!(wsl.args.is_empty());
+        assert_eq!(wsl.cwd, Some(PathBuf::from("/home/u/proj")));
     }
 
     // Real PTY round-trip through portable-pty's openpty/spawn/read — the same

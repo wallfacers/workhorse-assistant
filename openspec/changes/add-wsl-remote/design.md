@@ -80,6 +80,31 @@ localStorage recent-projects list — already shipped (commit `9385a0c`).
   top-level fields on `HealthInfo` (Rust + TS). These additions are **additive and
   backward-compatible** and MUST NOT bump `protocol_version` (so
   `wire-reasoning-stream`'s `"1"` handshake precheck stays valid).
+- **D-WSL-7 — The `wsl` profile is host-Windows-only; gate in two layers.**
+  C3 promoted a `terminal` pane to `wsl` whenever the sidecar reported a `distro`,
+  which conflated three distinct things: the **host OS** (where the PTY/`wsl.exe`
+  runs), the **sidecar OS** (`health.platform` = `runtime.GOOS`), and the
+  **distro name**. The only correct signal for "can we run `wsl.exe`" is the host
+  OS. Fix: (a) the Rust PTY layer is authoritative — `resolve_profile`'s `wsl`
+  branch falls back to a local shell under `#[cfg(not(windows))]`, so no
+  non-Windows build can ever spawn `wsl.exe` regardless of what the renderer
+  sends; (b) the renderer also gates the `terminal`→`wsl` auto-promotion behind a
+  new `host_is_windows` command so the UI does not even request the bridge
+  off-Windows. Two layers because the Rust `cfg` is the hard guarantee while the
+  renderer gate keeps the UI honest (it picks the profile it will actually get).
+  Why a same-host WSL build degrades cleanly: the project `workdir` is a
+  sidecar-namespace path, but when host and sidecar are the *same* WSL distro that
+  path is also host-valid, so the local profile's `cwd` is correct. (Non-WSL
+  remotes where the path is not host-valid stay out of scope per the proposal.)
+- **D-WSL-8 — `distro` is the WSL registration name (`$WSL_DISTRO_NAME`), not
+  PRETTY_NAME.** Resolves the long-standing source mismatch: A2 sourced `distro`
+  from `/etc/os-release` `PRETTY_NAME` (e.g. `"Ubuntu 24.04.3 LTS"`), but
+  `wsl.exe -d` needs the registration name (`Ubuntu`), so even a correct
+  Windows-host bridge would hit `WSL_E_DISTRO_NOT_FOUND`. WSL sets
+  `$WSL_DISTRO_NAME` to the registration name inside every distro; the sidecar
+  MUST prefer it, falling back to PRETTY_NAME only when unset. This supersedes
+  A2's PRETTY_NAME source and is a **cross-repo** change in `workhorse-agent`
+  (tracked as A4). Still additive/backward-compatible — no `protocol_version` bump.
 
 ## Cross-change ledger (what moved where)
 

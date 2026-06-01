@@ -11,6 +11,7 @@ import {
   onPtyExit,
   readClipboardText,
   writeClipboardText,
+  hostIsWindows,
   type ProfileId,
 } from '../ipc';
 import { useApp } from '../context';
@@ -170,9 +171,15 @@ export default function Terminal({ profileId, onTitle }: TerminalProps) {
       // as a WSL shell rooted at the project; explicit CLI profiles are left as
       // chosen. workdir/distro are passed for the core to resolve (a WSL workdir
       // is not a host-valid cwd, so only the `wsl` profile consumes it).
+      //
+      // C5 / D-WSL-7: only promote to `wsl` on a *Windows host* — `wsl.exe` only
+      // bridges from Windows. Off-Windows (incl. a build running inside WSL) the
+      // pane stays a local shell rooted at the project path; `host_is_windows`
+      // is the host-OS signal (the Rust `resolve_profile` `cfg` is the backstop).
       const { workdir, distro } = spawnCtxRef.current;
+      const onWindows = await hostIsWindows();
       const effectiveProfile: ProfileId =
-        profileId === 'terminal' && distro ? 'wsl' : profileId;
+        profileId === 'terminal' && distro && onWindows ? 'wsl' : profileId;
       const wd = workdir || undefined;
       const ds = distro || undefined;
       const spawned = hasSize

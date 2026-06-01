@@ -27,6 +27,16 @@ fn greet(name: &str) -> String {
     format!("Hello, {name}! You are talking to Workhorse Assistant.")
 }
 
+// Whether the assistant's *host* process runs on Windows. The renderer uses this
+// to gate the `terminal`→`wsl` auto-promotion: `wsl.exe` only bridges into a
+// distro from a Windows host, so off-Windows (incl. a build running inside WSL)
+// the UI keeps a local shell. Authoritative backstop lives in `resolve_profile`
+// (`#[cfg(not(windows))]`). add-wsl-remote D-WSL-7 / C5.
+#[tauri::command]
+fn host_is_windows() -> bool {
+    cfg!(windows)
+}
+
 // Runs off the main (event-loop) thread: on Windows the ConPTY spawn
 // (CreatePseudoConsole + launching the child) is heavy enough to stall the GUI
 // message loop and trip IsHungAppWindow. `(async)` makes Tauri dispatch this
@@ -214,6 +224,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app_info,
             greet,
+            host_is_windows,
             pty_spawn,
             pty_write,
             pty_resize,
