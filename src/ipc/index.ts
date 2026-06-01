@@ -36,6 +36,7 @@ export {
 export {
   attachAgentSession,
   openAgentSession,
+  reopenAgentSession,
   checkAgentHealth,
   detachAgentSession,
   sendAgentMessage,

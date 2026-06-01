@@ -33,7 +33,7 @@
     "status": {
       "disconnected": "Disconnected",
       "connecting": "Connecting…",
-      "connected": "Connected (session {{sessionId}})",
+      "connected": "Connected",
       "failed": "Connection failed: {{error}}",
       "heartbeatFailed": "Heartbeat failed",
       "reconnecting": "Disconnected, reconnecting…"

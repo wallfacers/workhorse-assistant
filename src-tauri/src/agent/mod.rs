@@ -284,8 +284,14 @@ struct ReasoningEndPayload {
 
 /// One attached agent session: a stop flag and the SSE reader thread relaying
 /// downstream `tool_use`. The seq counter lives inside the reader thread.
+///
+/// `alive` is set `false` by the reader *before* it emits `connection_failed`
+/// and exits, so `subscribe` can tell a given-up reader from a live one and
+/// re-spawn it on a reopen (race-free: the renderer's reopen is ordered strictly
+/// after it observes that failed event).
 struct SessionHandle {
     stop: Arc<AtomicBool>,
+    alive: Arc<AtomicBool>,
     reader: Option<JoinHandle<()>>,
 }
 
@@ -375,21 +381,33 @@ impl AgentBridge {
     fn subscribe(&self, app: &AppHandle, session_id: String) {
         let endpoint = self.endpoint();
         let mut inner = self.inner.lock().unwrap();
-        if inner.sessions.contains_key(&session_id) {
-            return;
+        if let Some(handle) = inner.sessions.get(&session_id) {
+            // A still-alive reader is left untouched — switching back to a live
+            // session must not restart its stream. A reader that gave up
+            // (`connection_failed`) cleared `alive`; drop its dead handle so the
+            // code below re-spawns a fresh one (this is the reopen path).
+            if handle.alive.load(Ordering::SeqCst) {
+                return;
+            }
+            let dead = inner.sessions.remove(&session_id);
+            if let Some(dead) = dead {
+                stop_session(dead);
+            }
         }
         let seq = Arc::new(AtomicU64::new(0));
         let stop = Arc::new(AtomicBool::new(false));
+        let alive = Arc::new(AtomicBool::new(true));
         let reader = spawn_sse_reader(
             app.clone(),
             endpoint,
             session_id.clone(),
             seq,
             Arc::clone(&stop),
+            Arc::clone(&alive),
         );
         inner
             .sessions
-            .insert(session_id, SessionHandle { stop, reader: Some(reader) });
+            .insert(session_id, SessionHandle { stop, alive, reader: Some(reader) });
     }
 
     /// List the sessions persisted for a project (`GET /v1/sessions?workdir=`).
@@ -603,6 +621,7 @@ fn spawn_sse_reader(
     session_id: String,
     seq: Arc<AtomicU64>,
     stop: Arc<AtomicBool>,
+    alive: Arc<AtomicBool>,
 ) -> JoinHandle<()> {
     std::thread::spawn(move || {
         let url = format!("{endpoint}/v1/sessions/{session_id}/stream");
@@ -669,13 +688,18 @@ fn spawn_sse_reader(
                     }
                     attempts += 1;
                     if attempts > RECONNECT_MAX_ATTEMPTS {
+                        // Mark not-alive *before* emitting so a reopen triggered
+                        // by this event re-spawns the reader instead of seeing a
+                        // still-"alive" handle and no-opping (subscribe relies on
+                        // this ordering).
+                        alive.store(false, Ordering::SeqCst);
                         let _ = app.emit(
                             &format!("agent://connection_failed/{session_id}"),
                             ConnectionFailedPayload {
                                 session_id: session_id.clone(),
                             },
                         );
-                        return; // give up; renderer attach can retry later
+                        return; // give up; renderer reopen re-spawns the reader
                     }
                     std::thread::sleep(Duration::from_millis(
                         RECONNECT_BASE_DELAY_MS * attempts as u64,

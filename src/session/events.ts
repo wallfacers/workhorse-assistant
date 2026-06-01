@@ -19,6 +19,10 @@ export interface SessionEventSink {
   setStreaming: (updater: (prev: Set<string>) => Set<string>) => void;
   /** Mutable streaming scratch (assistant id + accumulated delta). */
   scratch: SessionScratch;
+  /** Called when the session's SSE reader gave up (`connection_failed`). The
+   *  store uses this to re-open the *same* session (re-spawn the Rust reader)
+   *  rather than mint a new one. Optional — omit to ignore stream drops. */
+  onConnectionFailed?: () => void;
 }
 
 const newAssistantId = () => `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -31,7 +35,7 @@ export async function subscribeSession(
   sessionId: string,
   sink: SessionEventSink,
 ): Promise<UnlistenFn[]> {
-  const { setMessages, setStreaming, scratch } = sink;
+  const { setMessages, setStreaming, scratch, onConnectionFailed } = sink;
   const unlistens: UnlistenFn[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const on = async (event: string, handler: (e: any) => void) => {
@@ -185,6 +189,11 @@ export async function subscribeSession(
       return [...base, { id: `p-${Date.now()}`, role: 'assistant', parts: [part] }];
     });
   });
+
+  // --- connection failed (SSE reader gave up after its bounded retries) ---
+  if (onConnectionFailed) {
+    await on(`agent://connection_failed/${sessionId}`, () => onConnectionFailed());
+  }
 
   return unlistens;
 }

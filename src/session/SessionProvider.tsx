@@ -32,6 +32,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event';
 import {
   attachAgentSession,
   openAgentSession,
+  reopenAgentSession,
   setActiveSession,
   sendAgentMessage,
   cancelAgentMessage,
@@ -139,11 +140,10 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   // superseded subscription unlistens itself instead of leaking.
   const subsRef = useRef<Map<string, { gen: number; uns: UnlistenFn[] }>>(new Map());
   const subGenRef = useRef<Map<string, number>>(new Map());
-  // The bootstrap session id currently owned by `useAgentConnection`. Tracking
-  // it lets us REPLACE (not accumulate) when a reconnect mints a new id (B3),
-  // and means a project switch clearing live sessions is not undone by this
-  // effect re-firing on the `currentProject` change (B4).
-  const bootstrapRef = useRef<string | null>(null);
+  // Guards the bootstrap session creation (below): the project a bootstrap was
+  // last attempted for, so we create at most one per project and never loop on a
+  // failing attach. Reset when the connection drops so recovery re-bootstraps.
+  const bootstrapForRef = useRef<string | null>(null);
 
   const scratchFor = useCallback((id: string): SessionScratch => {
     let s = scratchRef.current.get(id);
@@ -172,36 +172,6 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     [],
   );
 
-  // --- Adopt / replace the bootstrap session from useAgentConnection ---------
-  // The connection hook mints a session on connect and a *new* one on each
-  // reconnect. We track the current bootstrap id and replace it when it changes
-  // so the stale (now-dead) id does not linger in the switcher (B3): it is
-  // pruned from live sessions / runtimes / scratch as the new id takes over.
-  // Its SSE subscription is torn down by the subscribe effect once it leaves
-  // `liveSessions`.
-  useEffect(() => {
-    const sid = agent.sessionId;
-    if (!sid) return;
-    const stale = bootstrapRef.current;
-    if (stale === sid) return; // unchanged — also absorbs currentProject churn (B4)
-    bootstrapRef.current = sid;
-
-    setLiveSessions((prev) => {
-      const pruned = stale ? prev.filter((s) => s.id !== stale) : prev;
-      return pruned.some((s) => s.id === sid) ? pruned : [...pruned, { id: sid, workdir: currentProject, title: '' }];
-    });
-    setRuntimes((prev) => {
-      const next = { ...prev };
-      if (stale && stale !== sid) delete next[stale];
-      if (!next[sid]) next[sid] = emptyRuntime();
-      return next;
-    });
-    if (stale && stale !== sid) scratchRef.current.delete(stale);
-    // If the active session was the one being replaced (or nothing was active),
-    // follow the new bootstrap; otherwise leave the user's selection alone.
-    setActiveSessionId((prev) => (prev === null || prev === stale ? sid : prev));
-  }, [agent.sessionId, currentProject]);
-
   // --- Keep SSE listeners mounted for every live session (D2/§3.3) -----------
   useEffect(() => {
     const want = new Set(liveSessions.map((s) => s.id));
@@ -216,6 +186,11 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
           setMessages: setMessagesFor(id),
           setStreaming: setStreamingFor(id),
           scratch: scratchFor(id),
+          // Stream gave up → re-open the SAME session (re-spawn the Rust reader),
+          // never mint a new one. This replaces the old hook-level reconnect that
+          // attached a fresh session on every failure (the "stuck connecting"
+          // loop).
+          onConnectionFailed: () => { void reopenAgentSession(id); },
         }).then((uns) => {
           const cur = subsRef.current.get(id);
           // Accept only if the slot is still ours; otherwise it was torn down or
@@ -325,6 +300,25 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     setRuntimes((prev) => (prev[id] ? prev : { ...prev, [id]: emptyRuntime() }));
     setActiveSessionId(id);
   }, [currentProject]);
+
+  // --- Bootstrap: ensure a live session once the sidecar is reachable --------
+  // The connection hook is now a pure health probe (it no longer mints a
+  // session). When it reports `connected` and the active project has no live
+  // session, create one here — at most once per project, so a failing attach
+  // does not loop. The guard resets when the connection drops, so a recovered
+  // connection re-bootstraps. (D-WSL-2's remembered-project → default_workdir →
+  // picker precedence is batch-2; for now an empty project keeps the Rust
+  // host-cwd fallback so "open app → chat" still works.)
+  useEffect(() => {
+    if (agent.status !== 'connected') {
+      bootstrapForRef.current = null;
+      return;
+    }
+    if (liveSessions.length > 0) return;
+    if (bootstrapForRef.current === currentProject) return;
+    bootstrapForRef.current = currentProject;
+    void newSession();
+  }, [agent.status, currentProject, liveSessions.length, newSession]);
 
   const renameSession = useCallback(async (id: string, title: string) => {
     const res = await renameAgentSession(id, title);

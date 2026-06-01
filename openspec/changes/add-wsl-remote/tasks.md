@@ -28,11 +28,17 @@
 - [ ] B2 Renderer cold-start precedence: remembered project → `/health
       default_workdir` → project picker (D-WSL-2). Extend `HealthInfo`
       (`src/ipc/agent.ts` + Rust struct) with `default_workdir`.
-- [ ] B3 Full health/session decoupling (D-WSL-4): `useAgentConnection` → pure
+- [x] B3 Full health/session decoupling (D-WSL-4): `useAgentConnection` → pure
       health probe (no `attachAgentSession`, no `sessionId`); `SessionProvider`
       owns bootstrap creation on `connected`; per-live-session
-      `connection_failed` → `openAgentSession(id)` re-subscribe (not re-create).
+      `connection_failed` → `reopenAgentSession(id)` re-subscribe (not re-create).
       Update `SettingsModal` / `AgentRail` status text that read `agent.sessionId`.
+      **Done 2026-06-01** (ahead of batch 2 — it does not need `default_workdir`;
+      an empty remembered project still uses the Rust host-cwd fallback until B1).
+      Rust `subscribe` now heals a given-up reader via an `alive` flag so a reopen
+      re-spawns the SSE thread. Fixed the "stuck 连接中…" loop where
+      `connection_failed` minted a brand-new session every cycle. See
+      [`../../../docs/exec-plans/active/2026-06-01-decouple-health-from-session.md`](../../../docs/exec-plans/active/2026-06-01-decouple-health-from-session.md).
 - [ ] B4 Settings: editable agent endpoint + reconnect (needs a Rust
       endpoint-mutation command). Was `add-project-sessions` §4.6.
 

@@ -179,7 +179,7 @@ export default function AgentRail() {
     switch (a.status) {
       case 'idle': return t('agent.status.disconnected');
       case 'connecting': return t('agent.status.connecting');
-      case 'connected': return t('agent.status.connected', { sessionId: a.sessionId });
+      case 'connected': return t('agent.status.connected');
       case 'error': return t('agent.status.failed', { error: a.error ?? '' });
     }
   };

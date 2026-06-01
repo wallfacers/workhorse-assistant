@@ -33,7 +33,7 @@
     "status": {
       "disconnected": "未连接",
       "connecting": "连接中…",
-      "connected": "已连接（session {{sessionId}}）",
+      "connected": "已连接",
       "failed": "连接失败：{{error}}",
       "heartbeatFailed": "心跳检测失败",
       "reconnecting": "连接已断开，正在重连…"

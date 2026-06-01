@@ -185,6 +185,23 @@ export async function openAgentSession(sessionId: string): Promise<Result<void>>
   }
 }
 
+/**
+ * Re-spawn the Rust SSE reader for a session whose stream gave up
+ * (`agent://connection_failed/{id}`). Unlike {@link openAgentSession} this does
+ * NOT short-circuit when the session is already in the local map — the TS
+ * listener layers stay mounted and only the Rust reader is restarted (the Rust
+ * `subscribe` heals a not-alive handle). No new upstream session is created.
+ */
+export async function reopenAgentSession(sessionId: string): Promise<Result<void>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    await invoke('agent_open_session', { sessionId });
+    return ok(undefined);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
 /** Send a user message to a session (defaults to the active one). */
 export async function sendAgentMessage(
   content: string,

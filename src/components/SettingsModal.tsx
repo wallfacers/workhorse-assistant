@@ -119,7 +119,7 @@ function AgentSection({
   const statusLabel: Record<AgentConnection['status'], string> = {
     idle: t('agent.status.disconnected'),
     connecting: t('agent.status.connecting'),
-    connected: t('agent.status.connected', { sessionId: agent.sessionId }),
+    connected: t('agent.status.connected'),
     error: t('agent.status.failed'),
   };
 
@@ -133,11 +133,6 @@ function AgentSection({
         <span className="text-[12.5px] font-medium text-gray-800 dark:text-gray-200">
           {statusLabel[agent.status]}
         </span>
-        {agent.sessionId && (
-          <span className="text-[11px] text-gray-400 dark:text-gray-500 font-mono">
-            {agent.sessionId.slice(0, 12)}
-          </span>
-        )}
       </div>
 
       {/* Error message */}

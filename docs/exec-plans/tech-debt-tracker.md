@@ -98,6 +98,17 @@ Do not delete rows; the history is the asset.
       scanning `runtimes` for the request id and targets that session. See
       `src/session/SessionProvider.tsx`.
 
+- [x] **Auto-connect stuck on "连接中…" (connection_failed loop)**: the health
+      probe eagerly attached an empty-workdir session, and on `connection_failed`
+      `useAgentConnection.reconnect()` minted a *brand-new* session every cycle
+      (status flapping `connecting↔error`, a session leaked per loop). — discovered
+      2026-06-01 from a real run — closed 2026-06-01 by the full D-WSL-4 decouple
+      (B3): `useAgentConnection` is now a pure `/health` probe; `SessionProvider`
+      owns bootstrap creation and re-opens the *same* session on
+      `connection_failed` via `reopenAgentSession`; Rust `subscribe` heals a
+      given-up reader through an `alive` flag. See
+      [`2026-06-01-decouple-health-from-session.md`](2026-06-01-decouple-health-from-session.md).
+
 ## Closed
 
 - [x] Lock down CSP in `src-tauri/tauri.conf.json`. — closed 2026-05-25 by

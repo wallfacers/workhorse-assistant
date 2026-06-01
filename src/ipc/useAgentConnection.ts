@@ -1,38 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { attachAgentSession, checkAgentHealth, detachAgentSession } from './agent';
+import { checkAgentHealth } from './agent';
 import { isTauri } from './runtime';
 import i18n from '../i18n';
 
 /**
- * Auto-connect hook: on mount, probes `GET /health` to verify the sidecar is
- * a compatible workhorse-agent, then attaches. If unreachable, retries with
- * exponential backoff (1 s → 30 s cap). Three failure modes:
+ * Auto-connect hook: a **pure health probe** for the sidecar (D-WSL-4 / B3). It
+ * answers exactly one question — "is a compatible workhorse-agent reachable?" —
+ * and nothing about sessions. Session lifecycle (bootstrap creation, per-session
+ * stream reconnect) lives in `SessionProvider`, which keys off `status`.
  *
- *   1. **Unreachable** (`transient`) → retry with backoff.
- *   2. **Incompatible** (`internal: incompatible`) → stop, surface error.
- *   3. **Manual disconnect** → paused, no retry until `reconnect()`.
+ * On mount it probes `GET /health`; three outcomes:
  *
- * After connecting, two health-monitoring layers keep the status dot accurate:
+ *   1. **Reachable & compatible** → `connected`.
+ *   2. **Unreachable** (`transient`) → `connecting`, retry with exponential
+ *      backoff (1 s → 30 s cap).
+ *   3. **Incompatible** (`internal`) → `error`, stop (no retry).
  *
- *   **Layer 1 (Rust events)**: the SSE reader thread emits
- *   `connection_lost` / `connection_restored` / `connection_failed` events
- *   that this hook listens for, giving instant feedback when the stream drops.
+ * While connected, a 30 s heartbeat re-probes `/health`; a failure drops back to
+ * `error` and schedules a retry. A manual `disconnect()` pauses the probe (no
+ * retry) until `reconnect()`.
  *
- *   **Layer 2 (heartbeat)**: a 30 s periodic `checkAgentHealth()` call
- *   catches cases where the Rust events are lost or the thread is stuck.
- *
- * In non-Tauri mode (browser dev server), auto-connect is skipped entirely.
+ * It does NOT attach a session, hold a `sessionId`, or listen to per-session
+ * connection events — those are `SessionProvider`'s concern. In non-Tauri mode
+ * (browser dev server) the probe is skipped entirely.
  */
 export type AgentStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
 export interface AgentConnection {
   status: AgentStatus;
-  sessionId: string | null;
   error: string | null;
-  /** Manual disconnect — pauses auto-retry. */
+  /** Manual disconnect — pauses auto-retry/heartbeat. */
   disconnect: () => void;
-  /** Resume auto-connect after a manual disconnect. */
+  /** Resume probing after a manual disconnect (or force a re-probe). */
   reconnect: () => void;
 }
 
@@ -41,7 +40,6 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 
 export function useAgentConnection(): AgentConnection {
   const [status, setStatus] = useState<AgentStatus>('idle');
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Guards
@@ -50,12 +48,8 @@ export function useAgentConnection(): AgentConnection {
   const pausedRef = useRef(false);
   const attemptRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Layer 1: Rust connection lifecycle event unlisteners.
-  const unlistenConnRef = useRef<UnlistenFn[]>([]);
-  // Layer 2: heartbeat timer.
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Indirect ref for scheduleRetry — avoids circular useCallback deps.
+  // Indirect ref for scheduleRetry — avoids a circular useCallback dep chain.
   const scheduleRetryRef = useRef<() => void>(() => {});
 
   const clearRetry = useCallback(() => {
@@ -72,12 +66,7 @@ export function useAgentConnection(): AgentConnection {
     }
   }, []);
 
-  const clearConnListeners = useCallback(() => {
-    unlistenConnRef.current.forEach((fn) => fn());
-    unlistenConnRef.current = [];
-  }, []);
-
-  /** Kick off the Layer 2 heartbeat timer (only when connected). */
+  /** Kick off the heartbeat timer (only while connected). */
   const startHeartbeat = useCallback(() => {
     clearHeartbeat();
     heartbeatRef.current = setInterval(() => {
@@ -85,7 +74,7 @@ export function useAgentConnection(): AgentConnection {
       void (async () => {
         try {
           const health = await checkAgentHealth();
-          if (!mounted.current) return;
+          if (!mounted.current || pausedRef.current) return;
           if (!health.ok) {
             setError(health.error.message);
             setStatus('error');
@@ -93,7 +82,7 @@ export function useAgentConnection(): AgentConnection {
             scheduleRetryRef.current();
           }
         } catch {
-          if (!mounted.current) return;
+          if (!mounted.current || pausedRef.current) return;
           setError(i18n.t('agent.status.heartbeatFailed'));
           setStatus('error');
           clearHeartbeat();
@@ -103,10 +92,8 @@ export function useAgentConnection(): AgentConnection {
     }, HEARTBEAT_INTERVAL_MS);
   }, [clearHeartbeat]);
 
-  // Stable reference to tryConnect so the retry timer and mount effect can
-  // call it without stale closures. We rebuild via useCallback when the
-  // clearRetry dependency changes (it doesn't — stable).
-  const tryConnect = useCallback(() => {
+  // Probe /health once. Stable across renders (no changing deps).
+  const probe = useCallback(() => {
     if (busy.current || pausedRef.current || !mounted.current) return;
     if (!isTauri()) {
       pausedRef.current = true;
@@ -118,31 +105,22 @@ export function useAgentConnection(): AgentConnection {
 
     void (async () => {
       try {
-        // 1. Probe
         const health = await checkAgentHealth();
         if (!mounted.current || pausedRef.current) return;
-        if (!health.ok) {
-          // Incompatible or protocol error — stop retrying
-          setError(health.error.message);
-          setStatus('error');
-          return;
-        }
-
-        // 2. Attach
-        const res = await attachAgentSession();
-        if (!mounted.current || pausedRef.current) return;
-        if (res.ok) {
-          setSessionId(res.value);
+        if (health.ok) {
           setStatus('connected');
           setError(null);
           attemptRef.current = 0; // reset backoff on success
+          startHeartbeat();
         } else {
-          setError(res.error.message);
+          setError(health.error.message);
           setStatus('error');
-          scheduleRetryRef.current();
+          // Unreachable (`transient`) → retry with backoff; incompatible
+          // (`internal`) → stop and leave the error surfaced.
+          if (health.error.kind === 'transient') scheduleRetryRef.current();
         }
       } catch (e) {
-        if (!mounted.current) return;
+        if (!mounted.current || pausedRef.current) return;
         setError(e instanceof Error ? e.message : String(e));
         setStatus('error');
         scheduleRetryRef.current();
@@ -150,7 +128,7 @@ export function useAgentConnection(): AgentConnection {
         busy.current = false;
       }
     })();
-  }, [clearRetry]);
+  }, [startHeartbeat]);
 
   const scheduleRetry = useCallback(() => {
     if (pausedRef.current || !mounted.current) return;
@@ -158,109 +136,40 @@ export function useAgentConnection(): AgentConnection {
     attemptRef.current++;
     retryTimerRef.current = setTimeout(() => {
       retryTimerRef.current = null;
-      if (!pausedRef.current && mounted.current) tryConnect();
+      if (!pausedRef.current && mounted.current) probe();
     }, delay);
-  }, [tryConnect]);
+  }, [probe]);
 
-  // Wire the indirect ref so startHeartbeat can call scheduleRetry without
-  // creating a circular useCallback dependency chain.
+  // Wire the indirect ref so the heartbeat can schedule a retry without a
+  // circular useCallback dependency.
   scheduleRetryRef.current = scheduleRetry;
 
   const disconnect = useCallback(() => {
     pausedRef.current = true;
     clearRetry();
     clearHeartbeat();
-    clearConnListeners();
-    void detachAgentSession().finally(() => {
-      if (!mounted.current) return;
-      setSessionId(null);
-      setError(null);
-      setStatus('idle');
-    });
-  }, [clearRetry, clearHeartbeat, clearConnListeners]);
+    if (!mounted.current) return;
+    setError(null);
+    setStatus('idle');
+  }, [clearRetry, clearHeartbeat]);
 
   const reconnect = useCallback(() => {
     pausedRef.current = false;
     attemptRef.current = 0;
-    tryConnect();
-  }, [tryConnect]);
-
-  // --- Layer 1: subscribe to Rust connection lifecycle events when connected ---
-  useEffect(() => {
-    const sid = sessionId;
-    if (status !== 'connected' || !sid || !isTauri()) {
-      // Not connected — ensure listeners are cleaned up.
-      clearConnListeners();
-      return;
-    }
-
-    let cancelled = false;
-
-    const topics = [
-      {
-        event: `agent://connection_lost/${sid}`,
-        handler: () => {
-          if (!mounted.current || cancelled) return;
-          setStatus('connecting');
-          setError(null);
-          clearHeartbeat(); // pause heartbeat while Rust retries
-        },
-      },
-      {
-        event: `agent://connection_restored/${sid}`,
-        handler: () => {
-          if (!mounted.current || cancelled) return;
-          setStatus('connected');
-          setError(null);
-          startHeartbeat(); // restart heartbeat after restore
-        },
-      },
-      {
-        event: `agent://connection_failed/${sid}`,
-        handler: () => {
-          if (!mounted.current || cancelled) return;
-          setError(i18n.t('agent.status.reconnecting'));
-          setStatus('error');
-          clearHeartbeat();
-          // SSE reader thread exited — full reconnect cycle needed.
-          reconnect();
-        },
-      },
-    ];
-
-    Promise.all(
-      topics.map(({ event, handler }) => listen(event, handler)),
-    ).then((fns) => {
-      if (cancelled) {
-        fns.forEach((fn) => fn());
-        return;
-      }
-      unlistenConnRef.current = fns;
-    });
-
-    // Start Layer 2 heartbeat.
-    startHeartbeat();
-
-    return () => {
-      cancelled = true;
-      clearConnListeners();
-      clearHeartbeat();
-    };
-  }, [status, sessionId, clearConnListeners, clearHeartbeat, startHeartbeat, reconnect]);
+    clearRetry();
+    probe();
+  }, [clearRetry, probe]);
 
   // --- Mount / unmount ---
   useEffect(() => {
     mounted.current = true;
-    // Kick off auto-connect on mount
-    tryConnect();
+    probe();
     return () => {
       mounted.current = false;
       clearRetry();
       clearHeartbeat();
-      clearConnListeners();
-      void detachAgentSession();
     };
-  }, [tryConnect, clearRetry, clearHeartbeat, clearConnListeners]);
+  }, [probe, clearRetry, clearHeartbeat]);
 
-  return { status, sessionId, error, disconnect, reconnect };
+  return { status, error, disconnect, reconnect };
 }
