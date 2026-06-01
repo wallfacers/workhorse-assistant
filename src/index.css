@@ -159,12 +159,14 @@
     transition: background-color 0.15s;
   }
   [data-separator].separator-handle[aria-orientation='vertical']::before {
-    inset: var(--radius-md) 2px;
+    inset: var(--radius-md) 0;
     width: 1px;
+    margin-inline: auto;
   }
   [data-separator].separator-handle[aria-orientation='horizontal']::before {
-    inset: 2px var(--radius-md);
+    inset: 0 var(--radius-md);
     height: 1px;
+    margin-block: auto;
   }
   [data-separator].separator-handle:hover::before,
   [data-separator].separator-handle:active::before {
