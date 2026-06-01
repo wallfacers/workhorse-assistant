@@ -63,7 +63,9 @@
     "parentDir": "上级目录",
     "openThisFolder": "打开此文件夹",
     "noSubfolders": "没有子文件夹",
-    "loading": "加载中"
+    "loading": "加载中",
+    "pickerHint": "已为你打开项目选择器，请确认路径",
+    "pickerAlreadyOpen": "项目选择器已打开，请先完成当前选择"
   },
   "settings": {
     "title": "设置",
@@ -89,7 +91,24 @@
     "reasoningDisplay": "推理显示",
     "autoExpandThinking": "自动展开思考过程",
     "autoExpandDescription": "流式推理时自动展开，完成后自动折叠",
-    "language": "语言"
+    "language": "语言",
+    "wsl": {
+      "title": "WSL 托管 Sidecar",
+      "managedLabel": "在 WSL 中自动启动 Sidecar",
+      "managedDescription": "开启后，启动时自动在所选 WSL 发行版中拉起并托管 workhorse-agent，退出时回收",
+      "distro": "WSL 发行版",
+      "advancedCommand": "启动命令（高级）",
+      "advancedHint": "留空使用约定默认：workhorse-agent serve --host 127.0.0.1 --port <端口>",
+      "state": {
+        "disabled": "未托管",
+        "probing": "探测中…",
+        "starting": "启动中…",
+        "healthy": "运行中",
+        "adopted": "已复用现有实例",
+        "restarting": "重启中…",
+        "failed": "启动失败"
+      }
+    }
   },
   "sessions": {
     "title": "会话管理",

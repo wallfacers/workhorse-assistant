@@ -8,7 +8,7 @@
 - [x] 1.6 Add wheel (`deltaY < 0`) and touch (touchstart/touchmove downward) upward-intent detection that pauses following
 - [x] 1.7 Add the two `useLayoutEffect`s: `deps` → structural scroll + suppression; `resetDeps` → forced re-follow + scroll
 - [x] 1.8 Update `AgentRail.tsx`: add a `userSendVersion` ref incremented in `handleSend`, pass `deps={[messages.length]}` and `resetDeps={[userSendVersion]}`, and attach the hook's callback ref to the scroll container
-- [ ] 1.9 Verify in `npm run dev`: stream a long reply (stays pinned, no jump), scroll up mid-stream (pauses), send while scrolled up (snaps to bottom), scroll back to bottom (re-engages), scroll-to-bottom button toggles by opacity
+- [x] 1.9 Verify in `npm run dev`: stream a long reply (stays pinned, no jump), scroll up mid-stream (pauses), send while scrolled up (snaps to bottom), scroll back to bottom (re-engages), scroll-to-bottom button toggles by opacity — **verified** (WSL Vite :5180 + Playwright)
 
 ## 2. Phase 2 — Code-block enrichment
 
@@ -18,13 +18,13 @@
 - [x] 2.4 Add `decorateCodeBlocks(root)` that imperatively wraps each parsed `<pre>` in the `data-component="markdown-code"` shell with a language-label pill (`LANGUAGE_LABELS`) and copy button (a document-level delegated click listener; copy routes through the Rust `writeClipboardText` IPC, shows a confirmed state ~2s) — no React `CodeBlock` component
 - [x] 2.5 Wire highlighting: a settled fence is highlighted via `highlightCode()`; a still-streaming fence renders as plain text with `data-streaming-code="true"`; keep the lightweight inline-code pill
 - [x] 2.6 Add code-block + Shiki dual-theme CSS to `src/index.css` **below** the generated `@theme` block, using `var(--color-*)` tokens (no hand-tuned hex); `pre.shiki` → `--shiki-light`, `.dark … pre.shiki` → `--shiki-dark`, token `background:transparent`
-- [ ] 2.7 Verify in `npm run dev`: a fenced block highlights, copy works with confirm state, language pill is correct, and the block stays legible after toggling light/dark with no re-highlight flash
+- [x] 2.7 Verify in `npm run dev`: a fenced block highlights, copy works with confirm state, language pill is correct, and the block stays legible after toggling light/dark with no re-highlight flash — **verified** (highlight/pill/theme-toggle via WSL Vite + Playwright; copy-confirm state via `tauri:dev` where the `writeClipboardText` IPC is live)
 
 ## 3. Phase 3 — Streaming stability
 
 - [x] 3.1 Update `StreamingText` in `AgentRail.tsx` to bypass pacing when `streaming && /^(`{3,}|~{3,})/m.test(target)` (line-anchored so inline backticks don't misfire; set `shown = target` immediately, skip the timer)
-- [ ] 3.2 Confirm a streaming code block renders as stable plain text mid-stream (no per-tick re-highlight) and highlights once on completion (interplay of 3.1 + 2.3)
-- [ ] 3.3 Verify in `npm run dev`: stream a reply containing a multi-line code fence — no flicker while growing, correct highlight after `assistant_text_done`
+- [x] 3.2 Confirm a streaming code block renders as stable plain text mid-stream (no per-tick re-highlight) and highlights once on completion (interplay of 3.1 + 2.3) — **verified**
+- [x] 3.3 Verify in `npm run dev`: stream a reply containing a multi-line code fence — no flicker while growing, correct highlight after `assistant_text_done` — **verified** (WSL Vite :5180 + Playwright)
 
 ## 4. Gate
 

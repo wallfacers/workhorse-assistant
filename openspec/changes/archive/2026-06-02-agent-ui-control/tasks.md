@@ -14,6 +14,7 @@
 - [x] 2.6 Register first real actions/state in existing components: `open_tab`, `focus_tab` (groups are addressed by index, not UUID), `get_button_state`, `get_open_tabs`; add `data-testid` + `data-agent-clickable` to key buttons (`open-work-panel`, `new-terminal-group`)
 - [x] 2.7 Unit tests (vitest + jsdom): each registry (register/execute/miss), opt-in refusal (`forbidden`), hidden-element (`not_found`), `read_by_testid` field subset, `seq`-ordered serialization, catalog assembly + re-publish — 22 tests passing
 - [x] 2.8 Activation entry point (closes the "client built but never called" gap): `useAgentConnection` hook + an explicit "连接 Agent" control in `AgentRail` footer that calls `attachAgentSession()` (attach + publish catalog + subscribe). Without this the bridge client is dead code; with it the assistant half of the loop is live and waits only on a running sidecar + §4.
+- [x] 2.9 testid coverage follow-up (surfaced by §5.1/5.2 manual run — the chat-input affordances had no `data-testid`, so the model could only reach them via the fallback's listed-testIds error): added `data-testid` + `data-agent-clickable` to the chat input (`chat-input`), send (`send-message`), stop (`stop-stream`), and choose-file (`choose-file`) controls in `AgentRail.tsx`, matching the `App.tsx` convention. `npm run lint` green.
 
 ## 3. Rust bridge transport (`agent-bridge-transport`)
 
@@ -37,9 +38,9 @@
 ## 5. End-to-end verification
 
 - [~] 5.0 Mock validation (no Go): renderer-side execution validated at unit level — `dispatch.test.ts` injects synthetic `tool_use` payloads and confirms execute→result round-trip; Rust error paths covered by `cargo test`. Full injection through the *running* Rust bridge (emit→listen→forward) still needs the live app.
-- [ ] 5.1 Manual (needs running app + live sidecar): agent opens a tab, reads a button's state, and clicks a button via a registered action
-- [ ] 5.2 Manual (needs running app + live sidecar): agent clicks a long-tail button via `click_by_testid`
-- [ ] 5.3 Manual (needs running app + live sidecar): drop a renderer result and confirm the agent recovers with an error tool_result
+- [x] 5.1 Manual (needs running app + live sidecar): agent opens a tab, reads a button's state, and clicks a button via a registered action — **verified** (Windows host + WSL sidecar): `get_open_tabs`/`open_tab`/`focus_tab`/`get_button_state`/`read_by_testid`/`click_by_testid` all round-trip; missing-testid fallbacks return a self-repair error that lists visible testIds
+- [x] 5.2 Manual (needs running app + live sidecar): agent clicks a long-tail button via `click_by_testid` — **verified**: clicked `new-terminal-group` (no dedicated action) via `click_by_testid`
+- [x] 5.3 Manual (needs running app + live sidecar): drop a renderer result and confirm the agent recovers with an error tool_result — **verified**: model started a slow tool, sidecar was externally killed mid-call; the agent synthesized an `is_error` tool_result on timeout and the turn kept moving (no hang).
 - [x] 5.4 Confirm renderer makes no direct network call to the sidecar — verified by code review: `src/ipc/agent.ts` only `invoke`s Rust commands + `listen`s for events; no `fetch`/`EventSource`/`WebSocket`. All sidecar HTTP lives in `src-tauri/src/agent/mod.rs`.
 - [x] 5.5 `npm run lint` passes (exit 0); docs updated in the same change (`contract.md` added, design.md "Implementation Notes")
 
@@ -54,18 +55,19 @@
 
 > §5.1–5.3 的手动 E2E 需要本机同时起 assistant 桌面端 + 一个 live workhorse-agent sidecar。代码侧已全绿(§6.4);以下是把链路真正跑通所需的前置条件、联调步骤,以及会影响联调的另一仓未决项。
 
-### 7.1 前置条件
-- [ ] workhorse-agent 仓起 sidecar(`serve`),监听默认 `127.0.0.1:7821`;非默认地址用 `WORKHORSE_AGENT_ENDPOINT` 覆盖
-- [ ] 确认默认 provider/model(`anthropic` / `claude-sonnet-4-6`)是 sidecar provider 注册表认识的;否则用 `WORKHORSE_AGENT_PROVIDER` / `WORKHORSE_AGENT_MODEL` 覆盖,否则 `POST /v1/sessions` 4xx → attach 报 `transient`
-- [ ] sidecar 自身配好 LLM 凭证(agent 仓配置),否则 turn 起不来
-- [ ] `npm run tauri:dev` 起 assistant,点 AgentRail 底部"连接 Agent"
+### 7.1 前置条件 — **联调时已满足**(Windows host + WSL sidecar，model 走默认 `anthropic:qwen3.6-plus`)
+- [x] workhorse-agent 仓起 sidecar(`serve`),监听默认 `127.0.0.1:7821`;非默认地址用 `WORKHORSE_AGENT_ENDPOINT` 覆盖
+- [x] model 留空走 sidecar 默认:Rust 不再硬编码 model,`WORKHORSE_AGENT_MODEL` 未设时省略 `model` 字段,让 sidecar 用其 config 的 `models.default`(本机 `anthropic:qwen3.6-plus`;当前套餐**只能**用它/免费)。默认 provider `anthropic` 已与该前缀匹配。**不要**为"对齐"去设 `WORKHORSE_AGENT_MODEL=claude-...`,否则 `POST /v1/sessions` 4xx → attach 报 `transient`
+- [x] sidecar 自身配好 LLM 凭证(agent 仓配置),否则 turn 起不来
+- [x] `npm run tauri:dev` 起 assistant,点 AgentRail 底部"连接 Agent"
 
-### 7.2 联调步骤(= §5.1–5.3)
-- [ ] 5.1 attach 拿到 sidecar `id`;catalog publish 后 `agent://published/{id}` 回来的 `registered` 含 `open_tab`/`focus_tab`/`get_open_tabs`/`get_button_state` + 兜底 `click_by_testid`/`read_by_testid`;模型开 tab、读按钮态、点按钮 → `frontend_tool_use` → 渲染层执行 → `frontend_tool_result` 回传 → turn 推进
-- [ ] 5.2 模型用 `click_by_testid` 点一个长尾按钮(无专用 action 的)
-- [ ] 5.3 中途丢一个 result(或 kill sidecar),确认 agent 侧 tool 超时合成 `is_error`、turn 不挂
+### 7.2 联调步骤(= §5.1–5.3)— **全部通过**
+- [x] 5.1 attach 拿到 sidecar `id`;catalog publish 后 `agent://published/{id}` 回来的 `registered` 含 `open_tab`/`focus_tab`/`get_open_tabs`/`get_button_state` + 兜底 `click_by_testid`/`read_by_testid`;模型开 tab、读按钮态、点按钮 → `frontend_tool_use` → 渲染层执行 → `frontend_tool_result` 回传 → turn 推进
+- [x] 5.2 模型用 `click_by_testid` 点一个长尾按钮(无专用 action 的)
+- [x] 5.3 中途丢一个 result(或 kill sidecar),确认 agent 侧 tool 超时合成 `is_error`、turn 不挂
 
 ### 7.3 会影响联调的 workhorse-agent 仓未决项(审 `add-frontend-tool-bridge` 时记录)
+> ⚠️ **归档后仍未决** — 以下在 **workhorse-agent 仓**修,不属本仓代码;归档随此 tasks.md 一并带走，后续在 agent 仓跟进。
 - [ ] 🟡 `Session.Frontend` 字段无锁读写(loop 写 / HTTP 读)——当前靠 mu 流量 + 网络 RTT 侥幸不报 race,建议上 mu 守护访问器(联调前先修)
 - [ ] 🟡 该 change 的 design D5 / tasks 3.1 与实现矛盾(惰性 clone 是必须的,"前置条件已满足"是错的)——需回填文档
 - [ ] 🟢 空 catalog 时 `frontend_tools_published` 发 `null` 而非 `[]`(assistant 的 Rust 桥已兜底归一为 `[]`,但建议 Go 侧也初始化为 `[]`)

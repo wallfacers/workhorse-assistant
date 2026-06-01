@@ -174,15 +174,32 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     (path: string): Promise<string | null> => {
       // D3: reject a second concurrent confirm — the agent should see a clear
       // error instead of silently superseding the user's in-progress picker.
+      // The tool handler maps this throw to a `transient` ToolError.
       if (pickerResolveRef.current) {
-        throw new Error('Picker already open — wait for the current request to settle before opening another.');
+        throw new Error('picker-already-open');
+      }
+      // D2: surface an assistant-visible hint in the active conversation so the
+      // user's eye is drawn to the picker opening in the TitleBar corner
+      // (it is easy to miss otherwise). Uses `setRuntimes` directly because
+      // `setMessagesFor` is declared further down (TDZ).
+      const sid = activeSessionId;
+      if (sid) {
+        const hint: ChatMessage = {
+          id: genId('note'),
+          role: 'assistant',
+          parts: [{ type: 'text', content: i18n.t('project.pickerHint') }],
+        };
+        setRuntimes((prev) => {
+          const cur = prev[sid] ?? emptyRuntime();
+          return { ...prev, [sid]: { ...cur, messages: [...cur.messages, hint] } };
+        });
       }
       return new Promise<string | null>((resolve) => {
         pickerResolveRef.current = resolve;
         setPendingPickerRequest({ path });
       });
     },
-    [],
+    [activeSessionId],
   );
 
   /** Resolve the current picker request with a picked path (or null for cancel). */

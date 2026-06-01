@@ -64,3 +64,16 @@ export type {
 } from './agent';
 export { useAgentConnection } from './useAgentConnection';
 export type { AgentStatus, AgentConnection } from './useAgentConnection';
+export {
+  wslDetect,
+  getManagedConfig,
+  setManagedConfig,
+  supervisorStatus,
+  onSupervisorStatus,
+} from './wsl';
+export type {
+  WslDetect,
+  WslManagedConfig,
+  SupervisorState,
+  SupervisorStatus,
+} from './wsl';
