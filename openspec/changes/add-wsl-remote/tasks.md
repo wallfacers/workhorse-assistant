@@ -1,27 +1,38 @@
 # Tasks — add-wsl-remote
 
-> Status: PARKED. Do not start the assistant-side items (§B/§C) until the
-> sidecar endpoints they depend on exist. Delivery order is in
-> [`design.md`](./design.md); the batch-1 sidecar contract is the standalone
+> Status: UNBLOCKED (was PARKED). The §A sidecar endpoints (`/health`
+> `default_workdir`/`platform`/`distro`, `GET /v1/fs/list`) are now **delivered**
+> by `workhorse-agent` `c30f522`, so the assistant-side items (§B/§C) are ready
+> to schedule. Delivery order is in [`design.md`](./design.md); the batch-1
+> sidecar contract is the standalone
 > [`../archive/2026-05-31-add-project-sessions/workhorse-agent-tasks.md`](../archive/2026-05-31-add-project-sessions/workhorse-agent-tasks.md).
+>
+> Integration gap to close in §B/§C: the assistant's `HealthInfo` (Rust
+> `src-tauri/src/agent/mod.rs:96` + TS `src/ipc/agent.ts:107`) does **not** yet
+> carry `default_workdir`/`platform`/`distro`, and there is **no `fs/list`
+> client** yet.
 
-## A. Sidecar (Go) — batch 2 (WSL enablement)
+## A. Sidecar (Go) — batch 2 (WSL enablement) — DELIVERED
 
-> Batch 1 (sessions / history / projects / rename / delete / tool_call_done
-> output) is specified in `add-project-sessions/workhorse-agent-tasks.md` and
-> must land first — it finishes `add-project-sessions` with no WSL involved.
+> **Delivered by `workhorse-agent` commit `c30f522` (2026-06-01), archived as
+> `workhorse-agent/openspec/changes/archive/2026-06-01-add-wsl-remote/`.** The
+> three contracts below are now live on the sidecar; the *assistant-side*
+> consumption is tracked in §B/§C. Confirmed field names/casing are recorded so
+> the assistant must match them exactly.
 
-- [ ] A1 `GET /health` returns `default_workdir` (the sidecar's default project
-      path) so the renderer can cold-start with no host-cwd fallback (D-WSL-2).
-- [ ] A2 `GET /health` exposes `platform` (e.g. `linux`/`windows`) and, on WSL,
-      `distro` as **new top-level optional fields** (NOT inside `capabilities`) —
-      so the UI can default the terminal to `wsl` and know it is talking to a
-      remote sidecar. Note: `capabilities` is a flat `Vec<String>` feature-flag
-      list (`["frontend_tools", ...]`) and cannot carry these key→value scalars;
-      add them alongside `default_workdir` on `HealthInfo` (Rust + `src/ipc/agent.ts`).
-- [ ] A3 `GET /v1/fs/list?path=<dir>` enumerates directory entries in the
-      sidecar namespace (for a namespace-correct project browser). Returns
-      `{ entries: [{ name, path, isDir }] }`; `path` omitted → sidecar default.
+- [x] A1 `GET /health` returns top-level `default_workdir` (string, non-empty:
+      config `server.default_workdir` → `os.Getwd()` fallback). (`internal/api/health.go:51`)
+- [x] A2 `GET /health` adds top-level `platform` (always, `runtime.GOOS` →
+      `linux`/`windows`/`darwin`) and `distro` (present **only on WSL**, from
+      `/etc/os-release` PRETTY_NAME). All snake_case. `capabilities` stays a flat
+      `["frontend_tools","external_agents"]` and does NOT carry these scalars —
+      they are top-level, as predicted (D-WSL-6). (`internal/api/health.go:52,55-56`)
+- [x] A3 `GET /v1/fs/list?path=<dir>` enumerates the sidecar namespace. Actual
+      response shape is `{ "path": "<dir>", "entries": [{ "name", "path", "isDir" }] }`
+      (note the top-level `path` echo; `isDir` is camelCase). `path` omitted →
+      `default_workdir`. Rejects virtual FS (`/proc`,`/sys`,`/dev`,`/run`) and
+      paths escaping `default_workdir` with 403; 404 missing; 400 not-a-dir.
+      (`internal/api/fs.go:33-93`, route `internal/api/server.go:134`)
 
 ## B. Assistant — connection & cold start (needs A1)
 
@@ -29,8 +40,13 @@
       `src-tauri/src/agent/mod.rs`); require an explicit non-empty `workdir`
       (§1.7 / D-WSL-1).
 - [ ] B2 Renderer cold-start precedence: remembered project → `/health
-      default_workdir` → project picker (D-WSL-2). Extend `HealthInfo`
-      (`src/ipc/agent.ts` + Rust struct) with `default_workdir`.
+      default_workdir` → project picker (D-WSL-2). Extend `HealthInfo` (Rust
+      `src-tauri/src/agent/mod.rs` + TS `src/ipc/agent.ts`) with the now-delivered
+      top-level fields `default_workdir` (string) plus optional `platform` and
+      `distro` (the latter feeds C2's terminal default). Field names are
+      snake_case on the wire; mirror them exactly. Currently `HealthInfo` only
+      has `ok`/`version`/`protocol_version`/`capabilities`, so this is the first
+      integration step.
 - [x] B3 Full health/session decoupling (D-WSL-4): `useAgentConnection` → pure
       health probe (no `attachAgentSession`, no `sessionId`); `SessionProvider`
       owns bootstrap creation on `connected`; per-live-session
@@ -45,10 +61,14 @@
 - [ ] B4 Settings: editable agent endpoint + reconnect (needs a Rust
       endpoint-mutation command). Was `add-project-sessions` §4.6.
 
-## C. Assistant — project picker & terminal (needs A2/A3)
+## C. Assistant — project picker & terminal (A2/A3 now delivered)
 
 - [ ] C1 Namespace-correct project browser backed by `GET /v1/fs/list`
       (replaces today's manual path entry; local recents stay as a fast path).
+      Confirmed contract: `{ "path": "<dir>", "entries": [{ "name", "path", "isDir" }] }`
+      (`isDir` camelCase; `path` omitted → sidecar `default_workdir`). Add an
+      `fsList(path?)` IPC wrapper + Rust command — no `fs/list` client exists yet.
+      Handle 403 (virtual FS / outside `default_workdir`), 404, 400 gracefully.
 - [ ] C2 `wsl` terminal profile: spawn `wsl.exe -d <distro> --cd <wslpath>`
       (PTY stays host-side). Default the profile from `/health` platform/distro.
       **Prereq (larger than one line):** today `resolve_profile` (`src-tauri/src/pty/mod.rs`)
