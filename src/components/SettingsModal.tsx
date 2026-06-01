@@ -2,8 +2,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Check, ChevronDown, Moon, Pencil, Square, CheckSquare, Sun, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { AgentConnection } from '../ipc';
-import { getAgentEndpoint, setAgentEndpoint } from '../ipc';
+import type {
+  AgentConnection,
+  WslDetect,
+  WslManagedConfig,
+  SupervisorStatus,
+  SupervisorState,
+} from '../ipc';
+import {
+  getAgentEndpoint,
+  setAgentEndpoint,
+  wslDetect,
+  getManagedConfig,
+  setManagedConfig,
+  supervisorStatus,
+  onSupervisorStatus,
+} from '../ipc';
 import { useApp } from '../context';
 import { useSession } from '../session/SessionProvider';
 
@@ -258,6 +272,168 @@ function AgentSection({
           </span>
         </button>
       </div>
+
+      {/* WSL managed sidecar — only shown on a Windows host with WSL installed. */}
+      <WslManagedSection onReconnect={agent.reconnect} />
+    </div>
+  );
+}
+
+/** Status-badge colors per supervisor state. */
+const SUPERVISOR_DOT: Record<SupervisorState, string> = {
+  disabled: 'bg-gray-400',
+  probing: 'bg-amber-400 animate-pulse',
+  starting: 'bg-amber-400 animate-pulse',
+  restarting: 'bg-amber-400 animate-pulse',
+  adopted: 'bg-green-500',
+  healthy: 'bg-green-500',
+  failed: 'bg-red-500',
+};
+
+/**
+ * WSL managed-sidecar controls (add-wsl-managed-sidecar). Detects WSL on mount
+ * and renders nothing unless the host is Windows with at least one distro. The
+ * toggle persists config and (re)drives the Rust supervisor, which spawns/reaps
+ * the sidecar inside the chosen distro; a live status badge tracks its state.
+ */
+function WslManagedSection({ onReconnect }: { onReconnect: () => void }) {
+  const { t } = useTranslation();
+  const [detect, setDetect] = useState<WslDetect | null>(null);
+  const [config, setConfig] = useState<WslManagedConfig | null>(null);
+  const [status, setStatus] = useState<SupervisorStatus>({ state: 'disabled' });
+  const [override, setOverride] = useState('');
+  const [savedOverride, setSavedOverride] = useState('');
+
+  useEffect(() => {
+    void (async () => {
+      const d = await wslDetect();
+      if (d.ok) setDetect(d.value);
+      const c = await getManagedConfig();
+      if (c.ok) {
+        setConfig(c.value);
+        setOverride(c.value.serveCmdOverride ?? '');
+        setSavedOverride(c.value.serveCmdOverride ?? '');
+      }
+      const s = await supervisorStatus();
+      if (s.ok) setStatus(s.value);
+    })();
+    let unlisten: (() => void) | undefined;
+    void onSupervisorStatus(setStatus).then((fn) => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
+  }, []);
+
+  // Persist config, re-drive the supervisor, and re-probe the connection.
+  const apply = async (next: WslManagedConfig) => {
+    setConfig(next);
+    const res = await setManagedConfig(next);
+    if (res.ok) onReconnect();
+  };
+
+  // Hidden unless this is a Windows host with WSL installed.
+  if (!detect?.available || !config) return null;
+
+  const managed = config.managed;
+  const distros = detect.distros;
+  const selectedDistro = config.distro ?? distros[0] ?? '';
+  const overrideDirty = override.trim() !== savedOverride.trim();
+
+  const toggleManaged = () => {
+    // Turning on with no distro yet picks the first detected one.
+    const distro = config.distro ?? distros[0];
+    void apply({ ...config, managed: !managed, distro });
+  };
+
+  const changeDistro = (distro: string) => {
+    void apply({ ...config, distro });
+  };
+
+  const saveOverride = () => {
+    const next = override.trim();
+    void apply({ ...config, serveCmdOverride: next === '' ? undefined : next });
+    setSavedOverride(next);
+  };
+
+  return (
+    <div className="mt-6 pt-4 border-t border-outline/40 dark:border-neutral-800/40">
+      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-3">
+        {t('settings.wsl.title')}
+      </p>
+
+      {/* Managed toggle */}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={managed}
+        onClick={toggleManaged}
+        className="w-full flex items-center justify-between gap-3 mb-4"
+      >
+        <span className="text-left">
+          <span className="block text-[12.5px] font-medium text-gray-800 dark:text-gray-200">{t('settings.wsl.managedLabel')}</span>
+          <span className="block text-[10.5px] text-gray-400 dark:text-gray-500 mt-0.5">{t('settings.wsl.managedDescription')}</span>
+        </span>
+        <span className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${managed ? 'bg-gray-800 dark:bg-gray-200' : 'bg-gray-300 dark:bg-neutral-700'}`}>
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-900 shadow transition-transform ${managed ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        </span>
+      </button>
+
+      {managed && (
+        <>
+          {/* Status badge */}
+          <div className="flex items-center gap-2.5 mb-4">
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${SUPERVISOR_DOT[status.state]}`} />
+            <span className="text-[12.5px] font-medium text-gray-800 dark:text-gray-200">
+              {t(`settings.wsl.state.${status.state}`)}
+            </span>
+            {status.reason && (
+              <span className="text-[10.5px] text-gray-400 dark:text-gray-500 truncate">{status.reason}</span>
+            )}
+          </div>
+
+          {/* Distro dropdown */}
+          <div className="mb-4">
+            <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">{t('settings.wsl.distro')}</label>
+            <select
+              value={selectedDistro}
+              onChange={(e) => changeDistro(e.target.value)}
+              className="w-full rounded-lg border border-outline/40 bg-gray-50 px-3 py-2 text-[12.5px] text-gray-700 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-800/50 dark:bg-neutral-800/60 dark:text-gray-300 dark:focus:ring-neutral-700"
+            >
+              {distros.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Advanced serve-command override */}
+          <div className="mb-2">
+            <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">{t('settings.wsl.advancedCommand')}</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={override}
+                spellCheck={false}
+                onChange={(e) => setOverride(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing) return;
+                  if (e.key === 'Enter') saveOverride();
+                }}
+                placeholder="workhorse-agent serve --host 127.0.0.1 --port 7821"
+                className="min-w-0 flex-1 rounded-lg border border-outline/40 bg-gray-50 px-3 py-2 font-mono text-[12px] text-gray-700 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-800/50 dark:bg-neutral-800/60 dark:text-gray-300 dark:focus:ring-neutral-700"
+              />
+              <button
+                type="button"
+                onClick={saveOverride}
+                disabled={!overrideDirty}
+                className="flex-shrink-0 rounded-lg bg-gray-800 px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-200 dark:text-gray-800 dark:hover:bg-gray-300"
+              >
+                {t('settings.endpointSave')}
+              </button>
+            </div>
+            <p className="mt-1 text-[10.5px] text-gray-400 dark:text-gray-500">{t('settings.wsl.advancedHint')}</p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -3,9 +3,13 @@ use serde_json::Value;
 use tauri::{AppHandle, Manager, RunEvent, State};
 
 mod agent;
+mod config;
 mod pty;
+mod wsl;
 
 use agent::{AgentBridge, AgentError, HealthInfo};
+use config::{ConfigStore, WslConfig};
+use wsl::{Supervisor, SupervisorStatus};
 use pty::{PtyError, SessionRegistry};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -35,6 +39,41 @@ fn greet(name: &str) -> String {
 #[tauri::command]
 fn host_is_windows() -> bool {
     cfg!(windows)
+}
+
+// Detect WSL availability for the managed-sidecar Settings UI. Off-Windows this
+// reports `available:false` without ever invoking `wsl.exe`. `(async)` because on
+// Windows it shells out to `wsl -l -q`.
+#[tauri::command(async)]
+fn wsl_detect() -> wsl::WslDetect {
+    wsl::detect()
+}
+
+// Current managed-sidecar settings (for the Settings UI).
+#[tauri::command(async)]
+fn get_managed_config(store: State<'_, ConfigStore>) -> WslConfig {
+    store.wsl()
+}
+
+// Persist managed-sidecar settings and (re)drive the supervisor. Turning the
+// toggle off reaps a spawned sidecar; turning it on (re)starts one. Failures in
+// the drive are surfaced via the `supervisor://status` event, not this return.
+#[tauri::command(async)]
+fn set_managed_config(
+    app: AppHandle,
+    store: State<'_, ConfigStore>,
+    supervisor: State<'_, Supervisor>,
+    bridge: State<'_, AgentBridge>,
+    config: WslConfig,
+) {
+    store.set_wsl(config.clone());
+    supervisor.drive(&app, config, bridge.current_endpoint());
+}
+
+// One-shot supervisor status (live updates arrive on `supervisor://status`).
+#[tauri::command]
+fn supervisor_status(supervisor: State<'_, Supervisor>) -> SupervisorStatus {
+    supervisor.status()
 }
 
 // Runs off the main (event-loop) thread: on Windows the ConPTY spawn
@@ -182,9 +221,14 @@ fn agent_get_endpoint(bridge: State<'_, AgentBridge>) -> String {
 #[tauri::command(async)]
 fn agent_set_endpoint(
     bridge: State<'_, AgentBridge>,
+    store: State<'_, ConfigStore>,
     endpoint: String,
 ) -> Result<(), AgentError> {
-    bridge.set_endpoint(endpoint)
+    bridge.set_endpoint(endpoint)?;
+    // Persist the normalized value the bridge actually stored (trailing slash
+    // trimmed) so the endpoint survives a restart.
+    store.set_endpoint(bridge.current_endpoint());
+    Ok(())
 }
 
 #[tauri::command(async)]
@@ -221,10 +265,31 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(SessionRegistry::default())
         .manage(AgentBridge::default())
+        .manage(Supervisor::default())
+        .setup(|app| {
+            // Load the persisted config and seed the bridge endpoint before any
+            // command runs. Resolution order: env override → config → default.
+            let store = ConfigStore::load_from(app.handle());
+            let resolved = config::resolve_endpoint(
+                std::env::var(config::ENDPOINT_ENV).ok().as_deref(),
+                &store.endpoint(),
+            );
+            let _ = app.state::<AgentBridge>().set_endpoint(resolved.clone());
+            let wsl_cfg = store.wsl();
+            app.manage(store);
+            // Drive the WSL supervisor from persisted config (no-op / Disabled
+            // when managed off or off-Windows).
+            app.state::<Supervisor>().drive(app.handle(), wsl_cfg, resolved);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             app_info,
             greet,
             host_is_windows,
+            wsl_detect,
+            get_managed_config,
+            set_managed_config,
+            supervisor_status,
             pty_spawn,
             pty_write,
             pty_resize,
@@ -255,6 +320,7 @@ pub fn run() {
             if let RunEvent::Exit = event {
                 app_handle.state::<SessionRegistry>().kill_all();
                 app_handle.state::<AgentBridge>().shutdown();
+                app_handle.state::<Supervisor>().shutdown();
             } else if let RunEvent::WindowEvent {
                 event: tauri::WindowEvent::Destroyed,
                 ..
@@ -262,6 +328,7 @@ pub fn run() {
             {
                 app_handle.state::<SessionRegistry>().kill_all();
                 app_handle.state::<AgentBridge>().shutdown();
+                app_handle.state::<Supervisor>().shutdown();
             }
         });
 }
