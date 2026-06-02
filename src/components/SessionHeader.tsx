@@ -158,7 +158,7 @@ export default function SessionHeader() {
             className="flex max-w-full items-center gap-1 rounded-md px-1.5 py-1 text-[12.5px] font-semibold text-gray-800 transition-colors hover:bg-gray-200/70 dark:text-gray-100 dark:hover:bg-neutral-800"
           >
             <Tooltip content={title}>
-              <span className="truncate">{title}</span>
+              <span className="block truncate min-w-0">{title}</span>
             </Tooltip>
             <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
           </button>
@@ -197,7 +197,7 @@ export default function SessionHeader() {
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
                   >
                     <Tooltip content={s.title || t('agent.untitledSession')}>
-                      <span className="flex-1 truncate">{s.title || t('agent.untitledSession')}</span>
+                      <span className="block truncate min-w-0">{s.title || t('agent.untitledSession')}</span>
                     </Tooltip>
                     {s.running && (
                       <Tooltip content={t('agent.sessionRunning')}>
