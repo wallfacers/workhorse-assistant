@@ -79,7 +79,7 @@ function groupSessionsByTime(
  * exposes rename / delete. Both dropdowns close on outside-click, like the
  * terminal `ProfileMenu`.
  */
-export default function SessionHeader({ containerWidth }: { containerWidth: number | null }) {
+export default function SessionHeader() {
   const { t } = useTranslation();
   const {
     sessions,
@@ -165,13 +165,7 @@ export default function SessionHeader({ containerWidth }: { containerWidth: numb
         )}
 
         {switcherOpen && (
-          <div
-            className="absolute left-0 z-50 mt-1 max-h-[400px] overflow-y-auto rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated"
-            style={{
-              minWidth: 240,
-              maxWidth: containerWidth ? Math.max(240, containerWidth - 48) : undefined,
-            }}
-          >
+          <div className="absolute left-0 z-50 mt-1 max-h-[400px] w-[320px] overflow-y-auto overflow-x-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
             {/* New session — always at the top */}
             <button
               type="button"

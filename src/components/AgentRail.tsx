@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, Copy, LayoutList, Plus, Settings, ShieldAlert, ShieldCheck, Sparkles, Square, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MockTask } from './agent-rail.mock';
@@ -154,19 +154,6 @@ export default function AgentRail() {
     [userSendVersion],
   );
 
-  // Measure the AgentRail container width so the session dropdown can be
-  // constrained to it (instead of growing unbounded).
-  const railRef = useRef<HTMLDivElement>(null);
-  const [railWidth, setRailWidth] = useState<number | null>(null);
-  const measureRail = useCallback(() => {
-    if (railRef.current) setRailWidth(railRef.current.getBoundingClientRect().width);
-  }, []);
-  useEffect(() => {
-    measureRail();
-    const ro = new ResizeObserver(measureRail);
-    if (railRef.current) ro.observe(railRef.current);
-    return () => ro.disconnect();
-  }, [measureRail]);
 
   // Task selection is a no-op until the task list is wired to real state.
   const handleSelectTask = (_task: MockTask) => { /* no-op */ };
@@ -246,9 +233,9 @@ export default function AgentRail() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div ref={railRef} className="w-full bg-white dark:bg-surface-dark-elevated flex flex-col rounded-lg border border-outline dark:border-neutral-800/60 shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full text-[13px] overflow-hidden">
+    <div className="w-full bg-white dark:bg-surface-dark-elevated flex flex-col rounded-lg border border-outline dark:border-neutral-800/60 shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full text-[13px] overflow-hidden">
 
-      {activeSessionId && <SessionHeader containerWidth={railWidth} />}
+      {activeSessionId && <SessionHeader />}
 
       {hasMessages ? (
         <>
