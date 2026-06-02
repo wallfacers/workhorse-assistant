@@ -1,13 +1,16 @@
-//! On-disk app config — the app's first persistence layer (add-wsl-managed-sidecar).
+//! On-disk app config — the app's first persistence layer (add-native-runtime-mode).
 //!
 //! A single JSON file under the Tauri app-config dir holds the sidecar endpoint
-//! and the WSL managed-mode settings. The file is the authoritative store; the
+//! and the runtime-mode settings. The file is the authoritative store; the
 //! `AgentBridge` keeps a runtime copy of the endpoint and persists changes back
-//! through [`ConfigStore`], while the WSL supervisor reads [`WslConfig`] from it.
+//! through [`ConfigStore`], while the supervisor reads [`RuntimeConfig`] from it.
 //!
 //! A missing, unreadable, or malformed file never blocks startup: it falls back
-//! to [`AppConfig::default`] (managed off, default endpoint). Writes are atomic
-//! (temp file + rename) so a crash mid-write cannot truncate the live config.
+//! to [`AppConfig::default`] (`Native` runtime, default endpoint). Writes are
+//! atomic (temp file + rename) so a crash mid-write cannot truncate the live
+//! config. There is no migration from the legacy `wsl`/`managed` schema — early
+//! stage, no backward compatibility — so an old or absent `runtime` block simply
+//! resolves to `Native`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -22,25 +25,38 @@ pub const ENDPOINT_ENV: &str = "WORKHORSE_AGENT_ENDPOINT";
 const DEFAULT_ENDPOINT: &str = "http://127.0.0.1:7821";
 const DEFAULT_PORT: u16 = 7821;
 
+/// Which runtime hosts the `workhorse-agent` sidecar. `Native` (default) runs the
+/// bundled host binary; `Wsl` runs it inside a WSL distro (Windows only, opt-in).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RuntimeKind {
+    #[default]
+    Native,
+    Wsl,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WslConfig {
-    /// The managed-sidecar toggle. Off → behaviour identical to plain attach.
-    pub managed: bool,
-    /// WSL distro registration name (`wsl -l -q`) the sidecar runs in.
+pub struct RuntimeConfig {
+    /// The runtime mode. Default `Native`; `Wsl` is opt-in and only meaningful on
+    /// a Windows host with a distro selected.
+    #[serde(default)]
+    pub mode: RuntimeKind,
+    /// WSL distro registration name (`wsl -l -q`). Required when `mode == Wsl`;
+    /// ignored otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub distro: Option<String>,
-    /// Advanced override for the in-distro command after `exec `. `None` ⇒ the
-    /// convention default (`workhorse-agent serve --host 127.0.0.1 --port <p>`).
+    /// Advanced override for the serve command. `None` ⇒ the convention default
+    /// (`workhorse-agent serve --host 127.0.0.1 --port <p>`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub serve_cmd_override: Option<String>,
-    /// Loopback port the sidecar binds inside the distro.
+    /// Loopback port the sidecar binds.
     pub port: u16,
 }
 
-impl Default for WslConfig {
+impl Default for RuntimeConfig {
     fn default() -> Self {
-        Self { managed: false, distro: None, serve_cmd_override: None, port: DEFAULT_PORT }
+        Self { mode: RuntimeKind::Native, distro: None, serve_cmd_override: None, port: DEFAULT_PORT }
     }
 }
 
@@ -49,12 +65,12 @@ impl Default for WslConfig {
 pub struct AppConfig {
     pub endpoint: String,
     #[serde(default)]
-    pub wsl: WslConfig,
+    pub runtime: RuntimeConfig,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
-        Self { endpoint: DEFAULT_ENDPOINT.to_string(), wsl: WslConfig::default() }
+        Self { endpoint: DEFAULT_ENDPOINT.to_string(), runtime: RuntimeConfig::default() }
     }
 }
 
@@ -130,15 +146,15 @@ impl ConfigStore {
         self.persist(&cfg);
     }
 
-    /// The current WSL managed-mode settings.
-    pub fn wsl(&self) -> WslConfig {
-        self.inner.lock().unwrap().wsl.clone()
+    /// The current runtime-mode settings.
+    pub fn runtime(&self) -> RuntimeConfig {
+        self.inner.lock().unwrap().runtime.clone()
     }
 
-    /// Replace and persist the WSL managed-mode settings.
-    pub fn set_wsl(&self, wsl: WslConfig) {
+    /// Replace and persist the runtime-mode settings.
+    pub fn set_runtime(&self, runtime: RuntimeConfig) {
         let mut cfg = self.inner.lock().unwrap();
-        cfg.wsl = wsl;
+        cfg.runtime = runtime;
         self.persist(&cfg);
     }
 
@@ -165,8 +181,8 @@ mod tests {
         let _ = std::fs::remove_file(&path);
         let cfg = AppConfig {
             endpoint: "http://127.0.0.1:9000".into(),
-            wsl: WslConfig {
-                managed: true,
+            runtime: RuntimeConfig {
+                mode: RuntimeKind::Wsl,
                 distro: Some("Ubuntu".into()),
                 serve_cmd_override: None,
                 port: 9000,
@@ -193,11 +209,27 @@ mod tests {
     }
 
     #[test]
-    fn config_missing_wsl_block_uses_default_wsl() {
-        let path = temp_path("nowsl");
+    fn config_missing_runtime_block_uses_default_native() {
+        let path = temp_path("noruntime");
         std::fs::write(&path, br#"{"endpoint":"http://127.0.0.1:7821"}"#).unwrap();
         let cfg = load(&path);
-        assert_eq!(cfg.wsl, WslConfig::default());
+        assert_eq!(cfg.runtime, RuntimeConfig::default());
+        assert_eq!(cfg.runtime.mode, RuntimeKind::Native);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn legacy_wsl_schema_resolves_to_native() {
+        // No migration (early stage): an old config with a `wsl` block and no
+        // `runtime` block is ignored, falling back to the Native default.
+        let path = temp_path("legacy");
+        std::fs::write(
+            &path,
+            br#"{"endpoint":"http://127.0.0.1:7821","wsl":{"managed":true,"distro":"Ubuntu","port":7821}}"#,
+        )
+        .unwrap();
+        let cfg = load(&path);
+        assert_eq!(cfg.runtime.mode, RuntimeKind::Native);
         let _ = std::fs::remove_file(&path);
     }
 
@@ -216,10 +248,10 @@ mod tests {
     }
 
     #[test]
-    fn default_endpoint_and_managed_off() {
+    fn default_endpoint_and_native_runtime() {
         let cfg = AppConfig::default();
         assert_eq!(cfg.endpoint, "http://127.0.0.1:7821");
-        assert!(!cfg.wsl.managed);
-        assert_eq!(cfg.wsl.port, 7821);
+        assert_eq!(cfg.runtime.mode, RuntimeKind::Native);
+        assert_eq!(cfg.runtime.port, 7821);
     }
 }

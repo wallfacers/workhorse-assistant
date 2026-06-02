@@ -92,10 +92,13 @@
     "autoExpandThinking": "自动展开思考过程",
     "autoExpandDescription": "流式推理时自动展开，完成后自动折叠",
     "language": "语言",
-    "wsl": {
-      "title": "WSL 托管 Sidecar",
-      "managedLabel": "在 WSL 中自动启动 Sidecar",
-      "managedDescription": "开启后，启动时自动在所选 WSL 发行版中拉起并托管 workhorse-agent，退出时回收",
+    "runtime": {
+      "title": "运行时模式",
+      "native": "原生",
+      "nativeDescription": "在本机直接托管 workhorse-agent（默认）",
+      "wsl": "WSL",
+      "wslDescription": "在所选 WSL 发行版中托管 workhorse-agent",
+      "wslUnavailable": "需 Windows 主机并安装 WSL",
       "distro": "WSL 发行版",
       "advancedCommand": "启动命令（高级）",
       "advancedHint": "留空使用约定默认：workhorse-agent serve --host 127.0.0.1 --port <端口>",

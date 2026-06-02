@@ -66,14 +66,15 @@ export { useAgentConnection } from './useAgentConnection';
 export type { AgentStatus, AgentConnection } from './useAgentConnection';
 export {
   wslDetect,
-  getManagedConfig,
-  setManagedConfig,
+  getRuntimeConfig,
+  setRuntimeConfig,
   supervisorStatus,
   onSupervisorStatus,
 } from './wsl';
 export type {
   WslDetect,
-  WslManagedConfig,
+  RuntimeKind,
+  RuntimeConfig,
   SupervisorState,
   SupervisorStatus,
 } from './wsl';

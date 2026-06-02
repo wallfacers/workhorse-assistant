@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next';
 import type {
   AgentConnection,
   WslDetect,
-  WslManagedConfig,
+  RuntimeConfig,
+  RuntimeKind,
   SupervisorStatus,
   SupervisorState,
 } from '../ipc';
@@ -13,8 +14,8 @@ import {
   getAgentEndpoint,
   setAgentEndpoint,
   wslDetect,
-  getManagedConfig,
-  setManagedConfig,
+  getRuntimeConfig,
+  setRuntimeConfig,
   supervisorStatus,
   onSupervisorStatus,
 } from '../ipc';
@@ -70,16 +71,16 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-[810px] h-[520px] bg-white dark:bg-surface-dark-elevated rounded-2xl border border-outline dark:border-neutral-800 shadow-[0_16px_48px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col">
+      <div className="w-[810px] h-[520px] bg-surface dark:bg-surface-dark-elevated rounded-2xl border border-outline dark:border-outline-dark shadow-[0_16px_48px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-outline/50 dark:border-neutral-800/60 flex-shrink-0">
-          <span className="text-[13.5px] font-semibold text-gray-900 dark:text-gray-100">{t('settings.title')}</span>
+        <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-outline/50 dark:border-outline-dark/60 flex-shrink-0">
+          <span className="text-[13.5px] font-semibold text-on-surface dark:text-on-canvas-dark">{t('settings.title')}</span>
           <button
             type="button"
             onClick={onClose}
             aria-label={t('settings.closeSettings')}
-            className="p-1 rounded-md text-gray-400 dark:text-gray-500 hover:bg-gray-200/70 dark:hover:bg-neutral-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            className="p-1 rounded-md text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -89,7 +90,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         <div className="flex flex-1 min-h-0">
 
           {/* Left nav */}
-          <div className="w-44 flex-shrink-0 border-r border-outline/40 dark:border-neutral-800/40 px-2 py-3 space-y-0.5">
+          <div className="w-44 flex-shrink-0 border-r border-outline/40 dark:border-outline-dark/40 px-2 py-3 space-y-0.5">
             {(['theme', 'shortcuts', 'agent', 'sessions'] as NavItem[]).map((item) => (
               <button
                 key={item}
@@ -97,8 +98,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 onClick={() => setActiveNav(item)}
                 className={`w-full text-left px-3 py-2 rounded-xl text-[13px] transition-all duration-150 ${
                   activeNav === item
-                    ? 'bg-gray-200/70 dark:bg-neutral-800/90 text-gray-900 dark:text-gray-100 font-medium'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200/40 dark:hover:bg-neutral-800/50'
+                    ? 'bg-canvas/70 dark:bg-surface-dark-muted/90 text-on-surface dark:text-on-canvas-dark font-medium'
+                    : 'text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/40 dark:hover:bg-surface-dark-muted/50'
                 }`}
               >
                 {navLabels[item]}
@@ -177,26 +178,26 @@ function AgentSection({
 
   return (
     <div>
-      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">{t('settings.connection')}</p>
+      <p className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider mb-4">{t('settings.connection')}</p>
 
       {/* Status row */}
       <div className="flex items-center gap-2.5 mb-4">
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[agent.status]}`} />
-        <span className="text-[12.5px] font-medium text-gray-800 dark:text-gray-200">
+        <span className="text-[12.5px] font-medium text-on-surface dark:text-on-canvas-dark">
           {statusLabel[agent.status]}
         </span>
       </div>
 
       {/* Error message */}
       {agent.error && (
-        <div className="mb-4 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-[12px] text-red-700 dark:text-red-300">
+        <div className="mb-4 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30 text-[12px] text-danger">
           {agent.error}
         </div>
       )}
 
       {/* Endpoint (editable, B4) */}
       <div className="mb-4">
-        <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">{t('settings.endpoint')}</label>
+        <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">{t('settings.endpoint')}</label>
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -211,21 +212,21 @@ function AgentSection({
               if (e.key === 'Enter') void saveEndpoint();
             }}
             placeholder="http://127.0.0.1:7821"
-            className="min-w-0 flex-1 rounded-lg border border-outline/40 bg-gray-50 px-3 py-2 font-mono text-[12.5px] text-gray-700 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-800/50 dark:bg-neutral-800/60 dark:text-gray-300 dark:focus:ring-neutral-700"
+            className="min-w-0 flex-1 rounded-lg border border-outline/40 bg-surface-muted px-3 py-2 font-mono text-[12.5px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
           />
           <button
             type="button"
             onClick={() => void saveEndpoint()}
             disabled={!endpointDirty}
-            className="flex-shrink-0 rounded-lg bg-gray-800 px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-200 dark:text-gray-800 dark:hover:bg-gray-300"
+            className="flex-shrink-0 rounded-lg bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {justSaved ? t('settings.endpointSaved') : t('settings.endpointSave')}
           </button>
         </div>
         {endpointErr && (
-          <p className="mt-1 text-[10.5px] text-red-600 dark:text-red-400">{endpointErr}</p>
+          <p className="mt-1 text-[10.5px] text-danger">{endpointErr}</p>
         )}
-        <p className="mt-1 text-[10.5px] text-gray-400 dark:text-gray-500">
+        <p className="mt-1 text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">
           {t('settings.endpointHint')}
         </p>
       </div>
@@ -236,7 +237,7 @@ function AgentSection({
           <button
             type="button"
             onClick={() => agent.disconnect()}
-            className="px-4 py-1.5 rounded-lg border border-outline dark:border-neutral-700 text-[12px] font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+            className="px-4 py-1.5 rounded-lg border border-outline dark:border-outline-dark text-[12px] font-medium text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
           >
             {t('settings.disconnect')}
           </button>
@@ -245,7 +246,7 @@ function AgentSection({
             type="button"
             onClick={() => agent.reconnect()}
             disabled={isConnecting}
-            className="px-4 py-1.5 rounded-lg bg-gray-800 dark:bg-gray-200 text-[12px] font-medium text-white dark:text-gray-800 hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-1.5 rounded-lg bg-primary text-[12px] font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isConnecting ? t('agent.status.connecting') : t('settings.reconnect')}
           </button>
@@ -254,8 +255,8 @@ function AgentSection({
 
       {/* Reasoning display preference — display-only, never toggles thinking on
           the sidecar (whether thinking runs is decided by the sidecar config). */}
-      <div className="mt-6 pt-4 border-t border-outline/40 dark:border-neutral-800/40">
-        <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-3">{t('settings.reasoningDisplay')}</p>
+      <div className="mt-6 pt-4 border-t border-outline/40 dark:border-outline-dark/40">
+        <p className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider mb-3">{t('settings.reasoningDisplay')}</p>
         <button
           type="button"
           role="switch"
@@ -264,17 +265,17 @@ function AgentSection({
           className="w-full flex items-center justify-between gap-3"
         >
           <span className="text-left">
-            <span className="block text-[12.5px] font-medium text-gray-800 dark:text-gray-200">{t('settings.autoExpandThinking')}</span>
-            <span className="block text-[10.5px] text-gray-400 dark:text-gray-500 mt-0.5">{t('settings.autoExpandDescription')}</span>
+            <span className="block text-[12.5px] font-medium text-on-surface dark:text-on-canvas-dark">{t('settings.autoExpandThinking')}</span>
+            <span className="block text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted mt-0.5">{t('settings.autoExpandDescription')}</span>
           </span>
-          <span className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${autoExpandReasoning ? 'bg-gray-800 dark:bg-gray-200' : 'bg-gray-300 dark:bg-neutral-700'}`}>
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-900 shadow transition-transform ${autoExpandReasoning ? 'translate-x-4' : 'translate-x-0.5'}`} />
+          <span className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${autoExpandReasoning ? 'bg-primary' : 'bg-canvas dark:bg-outline-dark'}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-surface dark:bg-surface-dark shadow transition-transform ${autoExpandReasoning ? 'translate-x-4' : 'translate-x-0.5'}`} />
           </span>
         </button>
       </div>
 
-      {/* WSL managed sidecar — only shown on a Windows host with WSL installed. */}
-      <WslManagedSection onReconnect={agent.reconnect} />
+      {/* Runtime mode — Native (default) or WSL (opt-in, Windows + WSL only). */}
+      <RuntimeModeSection onReconnect={agent.reconnect} />
     </div>
   );
 }
@@ -291,15 +292,18 @@ const SUPERVISOR_DOT: Record<SupervisorState, string> = {
 };
 
 /**
- * WSL managed-sidecar controls (add-wsl-managed-sidecar). Detects WSL on mount
- * and renders nothing unless the host is Windows with at least one distro. The
- * toggle persists config and (re)drives the Rust supervisor, which spawns/reaps
- * the sidecar inside the chosen distro; a live status badge tracks its state.
+ * Runtime-mode controls (add-native-runtime-mode). Selects which runtime hosts
+ * the sidecar: `Native` (default — bundled host binary, the only sensible mode
+ * off-Windows) or `WSL` (opt-in, shown only on a Windows host with a distro).
+ * Switching persists config and (re)drives the Rust supervisor (runtime mutex:
+ * the current runtime's sidecar is reaped before the next starts), then
+ * re-probes the connection. A live status badge tracks the supervisor state.
  */
-function WslManagedSection({ onReconnect }: { onReconnect: () => void }) {
+function RuntimeModeSection({ onReconnect }: { onReconnect: () => void }) {
   const { t } = useTranslation();
+  const { resetProjectForRuntimeSwitch } = useSession();
   const [detect, setDetect] = useState<WslDetect | null>(null);
-  const [config, setConfig] = useState<WslManagedConfig | null>(null);
+  const [config, setConfig] = useState<RuntimeConfig | null>(null);
   const [status, setStatus] = useState<SupervisorStatus>({ state: 'disabled' });
   const [override, setOverride] = useState('');
   const [savedOverride, setSavedOverride] = useState('');
@@ -308,7 +312,7 @@ function WslManagedSection({ onReconnect }: { onReconnect: () => void }) {
     void (async () => {
       const d = await wslDetect();
       if (d.ok) setDetect(d.value);
-      const c = await getManagedConfig();
+      const c = await getRuntimeConfig();
       if (c.ok) {
         setConfig(c.value);
         setOverride(c.value.serveCmdOverride ?? '');
@@ -324,25 +328,33 @@ function WslManagedSection({ onReconnect }: { onReconnect: () => void }) {
     return () => unlisten?.();
   }, []);
 
-  // Persist config, re-drive the supervisor, and re-probe the connection.
-  const apply = async (next: WslManagedConfig) => {
+  // Persist config, re-drive the supervisor, and re-probe the connection. A
+  // mode or distro change crosses filesystem namespaces, so drop the remembered
+  // project/sessions first — the bootstrap re-seeds from the new runtime's
+  // default workdir once the reconnect lands.
+  const apply = async (next: RuntimeConfig) => {
+    const namespaceChanged = !!config && (next.mode !== config.mode || next.distro !== config.distro);
     setConfig(next);
-    const res = await setManagedConfig(next);
-    if (res.ok) onReconnect();
+    const res = await setRuntimeConfig(next);
+    if (res.ok) {
+      if (namespaceChanged) resetProjectForRuntimeSwitch();
+      onReconnect();
+    }
   };
 
-  // Hidden unless this is a Windows host with WSL installed.
-  if (!detect?.available || !config) return null;
+  if (!config) return null;
 
-  const managed = config.managed;
-  const distros = detect.distros;
+  const mode = config.mode;
+  const distros = detect?.distros ?? [];
+  const wslAvailable = detect?.available ?? false;
   const selectedDistro = config.distro ?? distros[0] ?? '';
   const overrideDirty = override.trim() !== savedOverride.trim();
 
-  const toggleManaged = () => {
-    // Turning on with no distro yet picks the first detected one.
-    const distro = config.distro ?? distros[0];
-    void apply({ ...config, managed: !managed, distro });
+  const selectMode = (next: RuntimeKind) => {
+    if (next === mode) return;
+    // Switching to WSL with no distro yet picks the first detected one.
+    const distro = next === 'wsl' ? (config.distro ?? distros[0]) : config.distro;
+    void apply({ ...config, mode: next, distro });
   };
 
   const changeDistro = (distro: string) => {
@@ -355,86 +367,130 @@ function WslManagedSection({ onReconnect }: { onReconnect: () => void }) {
     setSavedOverride(next);
   };
 
+  const placeholder =
+    mode === 'wsl'
+      ? 'workhorse-agent serve --host 127.0.0.1 --port 7821'
+      : '/path/to/workhorse-agent serve --host 127.0.0.1 --port 7821';
+
   return (
-    <div className="mt-6 pt-4 border-t border-outline/40 dark:border-neutral-800/40">
-      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-3">
-        {t('settings.wsl.title')}
+    <div className="mt-6 pt-4 border-t border-outline/40 dark:border-outline-dark/40">
+      <p className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider mb-3">
+        {t('settings.runtime.title')}
       </p>
 
-      {/* Managed toggle */}
-      <button
-        type="button"
-        role="switch"
-        aria-checked={managed}
-        onClick={toggleManaged}
-        className="w-full flex items-center justify-between gap-3 mb-4"
-      >
-        <span className="text-left">
-          <span className="block text-[12.5px] font-medium text-gray-800 dark:text-gray-200">{t('settings.wsl.managedLabel')}</span>
-          <span className="block text-[10.5px] text-gray-400 dark:text-gray-500 mt-0.5">{t('settings.wsl.managedDescription')}</span>
+      {/* Mode selector: Native always; WSL only when detected. */}
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <RuntimeOption
+          label={t('settings.runtime.native')}
+          description={t('settings.runtime.nativeDescription')}
+          active={mode === 'native'}
+          disabled={false}
+          onClick={() => selectMode('native')}
+        />
+        <RuntimeOption
+          label={t('settings.runtime.wsl')}
+          description={
+            wslAvailable ? t('settings.runtime.wslDescription') : t('settings.runtime.wslUnavailable')
+          }
+          active={mode === 'wsl'}
+          disabled={!wslAvailable}
+          onClick={() => selectMode('wsl')}
+        />
+      </div>
+
+      {/* Live supervisor status badge (shown for both runtimes). */}
+      <div className="flex items-center gap-2.5 mb-4">
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${SUPERVISOR_DOT[status.state]}`} />
+        <span className="text-[12.5px] font-medium text-on-surface dark:text-on-canvas-dark">
+          {t(`settings.runtime.state.${status.state}`)}
         </span>
-        <span className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${managed ? 'bg-gray-800 dark:bg-gray-200' : 'bg-gray-300 dark:bg-neutral-700'}`}>
-          <span className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-900 shadow transition-transform ${managed ? 'translate-x-4' : 'translate-x-0.5'}`} />
-        </span>
-      </button>
+        {status.runtime && (
+          <span className="text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">
+            · {t(`settings.runtime.${status.runtime}`)}
+          </span>
+        )}
+        {status.reason && (
+          <span className="text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted truncate">{status.reason}</span>
+        )}
+      </div>
 
-      {managed && (
-        <>
-          {/* Status badge */}
-          <div className="flex items-center gap-2.5 mb-4">
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${SUPERVISOR_DOT[status.state]}`} />
-            <span className="text-[12.5px] font-medium text-gray-800 dark:text-gray-200">
-              {t(`settings.wsl.state.${status.state}`)}
-            </span>
-            {status.reason && (
-              <span className="text-[10.5px] text-gray-400 dark:text-gray-500 truncate">{status.reason}</span>
-            )}
-          </div>
-
-          {/* Distro dropdown */}
-          <div className="mb-4">
-            <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">{t('settings.wsl.distro')}</label>
-            <select
-              value={selectedDistro}
-              onChange={(e) => changeDistro(e.target.value)}
-              className="w-full rounded-lg border border-outline/40 bg-gray-50 px-3 py-2 text-[12.5px] text-gray-700 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-800/50 dark:bg-neutral-800/60 dark:text-gray-300 dark:focus:ring-neutral-700"
-            >
-              {distros.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Advanced serve-command override */}
-          <div className="mb-2">
-            <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">{t('settings.wsl.advancedCommand')}</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={override}
-                spellCheck={false}
-                onChange={(e) => setOverride(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.nativeEvent.isComposing) return;
-                  if (e.key === 'Enter') saveOverride();
-                }}
-                placeholder="workhorse-agent serve --host 127.0.0.1 --port 7821"
-                className="min-w-0 flex-1 rounded-lg border border-outline/40 bg-gray-50 px-3 py-2 font-mono text-[12px] text-gray-700 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-800/50 dark:bg-neutral-800/60 dark:text-gray-300 dark:focus:ring-neutral-700"
-              />
-              <button
-                type="button"
-                onClick={saveOverride}
-                disabled={!overrideDirty}
-                className="flex-shrink-0 rounded-lg bg-gray-800 px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-200 dark:text-gray-800 dark:hover:bg-gray-300"
-              >
-                {t('settings.endpointSave')}
-              </button>
-            </div>
-            <p className="mt-1 text-[10.5px] text-gray-400 dark:text-gray-500">{t('settings.wsl.advancedHint')}</p>
-          </div>
-        </>
+      {/* Distro dropdown — WSL only. */}
+      {mode === 'wsl' && wslAvailable && (
+        <div className="mb-4">
+          <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">{t('settings.runtime.distro')}</label>
+          <select
+            value={selectedDistro}
+            onChange={(e) => changeDistro(e.target.value)}
+            className="w-full rounded-lg border border-outline/40 bg-surface-muted px-3 py-2 text-[12.5px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
+          >
+            {distros.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
       )}
+
+      {/* Advanced serve-command override (both runtimes). */}
+      <div className="mb-2">
+        <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">{t('settings.runtime.advancedCommand')}</label>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={override}
+            spellCheck={false}
+            onChange={(e) => setOverride(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === 'Enter') saveOverride();
+            }}
+            placeholder={placeholder}
+            className="min-w-0 flex-1 rounded-lg border border-outline/40 bg-surface-muted px-3 py-2 font-mono text-[12px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
+          />
+          <button
+            type="button"
+            onClick={saveOverride}
+            disabled={!overrideDirty}
+            className="flex-shrink-0 rounded-lg bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {t('settings.endpointSave')}
+          </button>
+        </div>
+        <p className="mt-1 text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t('settings.runtime.advancedHint')}</p>
+      </div>
     </div>
+  );
+}
+
+/** A single runtime-mode choice card (Native / WSL). */
+function RuntimeOption({
+  label,
+  description,
+  active,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  active: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        active
+          ? 'border-primary bg-surface-muted dark:border-primary dark:bg-surface-dark-muted/60'
+          : 'border-outline/40 hover:border-outline dark:border-outline-dark/50 dark:hover:border-outline-dark'
+      }`}
+    >
+      <span className="text-[12.5px] font-medium text-on-surface dark:text-on-canvas-dark">{label}</span>
+      <span className="text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">{description}</span>
+    </button>
   );
 }
 
@@ -449,7 +505,7 @@ function ThemeSection({
 
   return (
     <div>
-      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">{t('settings.appearance')}</p>
+      <p className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider mb-4">{t('settings.appearance')}</p>
       <div className="grid grid-cols-2 gap-3">
         <ThemeOption
           label={t('settings.lightTheme')}
@@ -466,8 +522,8 @@ function ThemeSection({
       </div>
 
       {/* Language selector */}
-      <div className="mt-4 pt-4 border-t border-outline/40 dark:border-neutral-800/40">
-        <label className="block text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">
+      <div className="mt-4 pt-4 border-t border-outline/40 dark:border-outline-dark/40">
+        <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">
           {t('settings.language')}
         </label>
         <LanguageSelect />
@@ -502,11 +558,11 @@ function LanguageSelect() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-outline/40 bg-gray-50 px-3 py-2 text-[12.5px] text-gray-700 transition-colors hover:bg-gray-100 dark:border-neutral-800/50 dark:bg-neutral-800/60 dark:text-gray-300 dark:hover:bg-neutral-800"
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-outline/40 bg-surface-muted px-3 py-2 text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:hover:bg-surface-dark-muted"
       >
         <span>{current.label}</span>
         <ChevronDown
-          className={`h-3.5 w-3.5 flex-shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`h-3.5 w-3.5 flex-shrink-0 text-on-surface-muted transition-transform ${open ? 'rotate-180' : ''}`}
         />
       </button>
       {open && (
@@ -523,7 +579,7 @@ function LanguageSelect() {
             >
               <span>{l.label}</span>
               {l.code === current.code && (
-                <Check className="h-3.5 w-3.5 flex-shrink-0 text-gray-500 dark:text-gray-400" />
+                <Check className="h-3.5 w-3.5 flex-shrink-0 text-on-surface-muted dark:text-on-canvas-dark-muted" />
               )}
             </button>
           ))}
@@ -550,14 +606,14 @@ function ThemeOption({
       onClick={onClick}
       className={`flex flex-col items-center gap-2.5 py-5 rounded-xl border-2 transition-all duration-150 ${
         active
-          ? 'border-gray-800 dark:border-gray-200 bg-gray-50 dark:bg-neutral-800/80'
-          : 'border-outline dark:border-neutral-700 hover:border-gray-400 dark:hover:border-neutral-500 hover:bg-gray-50/60 dark:hover:bg-neutral-800/30'
+          ? 'border-primary dark:border-primary bg-surface-muted dark:bg-surface-dark-muted/80'
+          : 'border-outline dark:border-outline-dark hover:border-outline-strong dark:hover:border-outline-dark hover:bg-surface-muted/60 dark:hover:bg-surface-dark-muted/30'
       }`}
     >
-      <span className={active ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}>
+      <span className={active ? 'text-on-surface dark:text-on-canvas-dark' : 'text-on-surface-muted dark:text-on-canvas-dark-muted'}>
         {icon}
       </span>
-      <span className={`text-[12.5px] font-medium ${active ? 'text-gray-900 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400'}`}>
+      <span className={`text-[12.5px] font-medium ${active ? 'text-on-surface dark:text-on-canvas-dark' : 'text-on-surface-muted dark:text-on-canvas-dark-muted'}`}>
         {label}
       </span>
     </button>
@@ -569,15 +625,15 @@ function ShortcutsSection() {
 
   return (
     <div>
-      <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">{t('settings.keyboardShortcuts')}</p>
+      <p className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider mb-4">{t('settings.keyboardShortcuts')}</p>
       <div className="grid grid-cols-2 gap-x-8 gap-y-0">
         {SHORTCUTS.map(({ key, descKey }) => (
           <div
             key={key}
-            className="flex items-center justify-between py-2 border-b border-outline/30 dark:border-neutral-800/50"
+            className="flex items-center justify-between py-2 border-b border-outline/30 dark:border-outline-dark/50"
           >
-            <span className="text-[12.5px] text-gray-600 dark:text-gray-400">{t(descKey)}</span>
-            <kbd className="px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-neutral-800 border border-outline/60 dark:border-neutral-700 text-[11px] font-mono text-gray-700 dark:text-gray-300 flex-shrink-0">
+            <span className="text-[12.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t(descKey)}</span>
+            <kbd className="px-1.5 py-0.5 rounded-md bg-surface-muted dark:bg-surface-dark-muted border border-outline/60 dark:border-outline-dark text-[11px] font-mono text-on-surface dark:text-on-canvas-dark-muted flex-shrink-0">
               {key}
             </kbd>
           </div>
@@ -651,13 +707,13 @@ function SessionsSection() {
   if (sorted.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center">
-        <div className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-4">
+        <div className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider mb-4">
           {t('sessions.title')}
         </div>
-        <div className="text-[12.5px] text-gray-400 dark:text-gray-500 mb-1">
+        <div className="text-[12.5px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1">
           {t('sessions.empty.title')}
         </div>
-        <div className="text-[11px] text-gray-400/70 dark:text-gray-500/70">
+        <div className="text-[11px] text-on-surface-muted/70 dark:text-on-canvas-dark-muted/70">
           {t('sessions.empty.description')}
         </div>
       </div>
@@ -746,10 +802,10 @@ function SessionsSection() {
     <div>
       {/* Title row */}
       <div className="flex items-center justify-between mb-3">
-        <p className="text-[11.5px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider">
+        <p className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider">
           {t('sessions.title')}
         </p>
-        <span className="text-[10.5px] text-gray-400 dark:text-gray-500">
+        <span className="text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">
           {sorted.length} 个会话
         </span>
       </div>
@@ -758,8 +814,8 @@ function SessionsSection() {
       {(errorMessage || successMessage) && (
         <div className={`mb-3 px-3 py-1.5 rounded-lg border text-[12px] flex items-center justify-between ${
           errorMessage
-            ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300'
-            : 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900/50 text-green-700 dark:text-green-300'
+            ? 'bg-danger/10 border-danger/30 text-danger'
+            : 'bg-success/10 border-success/30 text-success'
         }`}>
           <span>{errorMessage || successMessage}</span>
           <button

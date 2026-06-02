@@ -5,11 +5,12 @@ use tauri::{AppHandle, Manager, RunEvent, State};
 mod agent;
 mod config;
 mod pty;
+mod runtime;
 mod wsl;
 
 use agent::{AgentBridge, AgentError, HealthInfo};
-use config::{ConfigStore, WslConfig};
-use wsl::{Supervisor, SupervisorStatus};
+use config::{ConfigStore, RuntimeConfig};
+use runtime::{Supervisor, SupervisorStatus};
 use pty::{PtyError, SessionRegistry};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -49,24 +50,25 @@ fn wsl_detect() -> wsl::WslDetect {
     wsl::detect()
 }
 
-// Current managed-sidecar settings (for the Settings UI).
+// Current runtime-mode settings (for the Settings UI).
 #[tauri::command(async)]
-fn get_managed_config(store: State<'_, ConfigStore>) -> WslConfig {
-    store.wsl()
+fn get_runtime_config(store: State<'_, ConfigStore>) -> RuntimeConfig {
+    store.runtime()
 }
 
-// Persist managed-sidecar settings and (re)drive the supervisor. Turning the
-// toggle off reaps a spawned sidecar; turning it on (re)starts one. Failures in
-// the drive are surfaced via the `supervisor://status` event, not this return.
+// Persist runtime-mode settings and (re)drive the supervisor. Switching modes
+// reaps the current runtime's sidecar (runtime mutex) before starting the next.
+// Failures in the drive are surfaced via the `supervisor://status` event, not
+// this return.
 #[tauri::command(async)]
-fn set_managed_config(
+fn set_runtime_config(
     app: AppHandle,
     store: State<'_, ConfigStore>,
     supervisor: State<'_, Supervisor>,
     bridge: State<'_, AgentBridge>,
-    config: WslConfig,
+    config: RuntimeConfig,
 ) {
-    store.set_wsl(config.clone());
+    store.set_runtime(config.clone());
     supervisor.drive(&app, config, bridge.current_endpoint());
 }
 
@@ -275,11 +277,11 @@ pub fn run() {
                 &store.endpoint(),
             );
             let _ = app.state::<AgentBridge>().set_endpoint(resolved.clone());
-            let wsl_cfg = store.wsl();
+            let runtime_cfg = store.runtime();
             app.manage(store);
-            // Drive the WSL supervisor from persisted config (no-op / Disabled
-            // when managed off or off-Windows).
-            app.state::<Supervisor>().drive(app.handle(), wsl_cfg, resolved);
+            // Drive the supervisor from persisted config: Native (default) spawns
+            // the bundled host binary; Wsl spawns inside the chosen distro.
+            app.state::<Supervisor>().drive(app.handle(), runtime_cfg, resolved);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -287,8 +289,8 @@ pub fn run() {
             greet,
             host_is_windows,
             wsl_detect,
-            get_managed_config,
-            set_managed_config,
+            get_runtime_config,
+            set_runtime_config,
             supervisor_status,
             pty_spawn,
             pty_write,

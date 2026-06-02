@@ -1,14 +1,11 @@
-//! WSL integration (add-wsl-managed-sidecar).
+//! WSL integration (add-wsl-managed-sidecar / add-native-runtime-mode).
 //!
-//! Group B: host/distro **detection** — does the assistant run on Windows, and
-//! which WSL distros are installed? The managed-sidecar toggle is gated on this.
-//! Group C (the supervisor) builds on the same module.
+//! Host/distro **detection** — does the assistant run on Windows, and which WSL
+//! distros are installed? The runtime-mode selector gates the WSL option on this.
+//! The sidecar lifecycle lives in the [`crate::runtime`] module (the WSL back-end
+//! there builds on this detection).
 
 use serde::Serialize;
-
-pub mod supervisor;
-
-pub use supervisor::{Supervisor, SupervisorStatus};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,7 +40,9 @@ pub fn detect() -> WslDetect {
 
 /// Decode `wsl.exe` output, which is UTF-16LE (with NUL high bytes for ASCII and
 /// occasionally a BOM) rather than UTF-8. Falls back to lossy UTF-8 for any
-/// non-UTF-16 stream.
+/// non-UTF-16 stream. Only reached on a Windows host (via [`detect`]); the tests
+/// exercise it everywhere.
+#[cfg_attr(not(windows), allow(dead_code))]
 fn decode_wsl_output(bytes: &[u8]) -> String {
     let has_bom = bytes.len() >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE;
     let nul_count = bytes.iter().filter(|&&b| b == 0).count();
@@ -64,7 +63,9 @@ fn decode_wsl_output(bytes: &[u8]) -> String {
 }
 
 /// Parse the distro registration names from `wsl -l -q` output. Handles UTF-16LE,
-/// stray NULs, and CR/LF line endings; drops blank lines.
+/// stray NULs, and CR/LF line endings; drops blank lines. Only reached on a
+/// Windows host (via [`detect`]); the tests exercise it everywhere.
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn parse_distro_list(bytes: &[u8]) -> Vec<String> {
     decode_wsl_output(bytes)
         .split(['\n', '\r'])

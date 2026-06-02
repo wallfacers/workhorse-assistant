@@ -42,3 +42,6 @@ src-tauri/gen/schemas/
 
 # Generated design tokens (when `npm run design:export:css` is wired in)
 src/design-tokens.generated.css
+
+# Vendored sidecar binaries (produced by scripts/vendor-agent.sh)
+src-tauri/bin/

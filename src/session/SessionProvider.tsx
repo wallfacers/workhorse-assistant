@@ -95,6 +95,9 @@ interface SessionContextValue {
   recentProjects: string[];
   currentProject: string;
   openProject: (path: string) => Promise<void>;
+  /** Drop project + session state ahead of a runtime switch (Native↔WSL / distro
+   *  change), so the bootstrap re-seeds from the new runtime's default workdir. */
+  resetProjectForRuntimeSwitch: () => void;
   /** WSL distro reported by the sidecar's `/health` (null when not WSL). Lets
    *  the terminal launch a WSL shell rooted at the project (add-wsl-remote C3). */
   agentDistro: string | null;
@@ -373,6 +376,27 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     [currentProject, refreshSessions],
   );
 
+  /** Drop all project + session state for a runtime switch. A Native↔WSL switch
+   *  (or a distro change) changes the filesystem namespace, so the remembered
+   *  project path is no longer valid. Clearing it lets the bootstrap re-seed from
+   *  the new runtime's `/health` default_workdir once the reconnect lands,
+   *  instead of stranding the user on a cross-namespace path. */
+  const resetProjectForRuntimeSwitch = useCallback(() => {
+    setCurrentProject('');
+    try {
+      localStorage.removeItem(LS_PROJECT);
+    } catch {
+      // localStorage unavailable — in-memory reset still applies.
+    }
+    setActiveSessionId(null);
+    setActiveSession(null);
+    setLiveSessions([]);
+    setRuntimes({});
+    setListedSessions([]);
+    sessionsLoadedForRef.current = null;
+    bootstrapForRef.current = null;
+  }, []);
+
   /** True when the user is likely looking at the wrong project: the current
    *  project has zero sessions, the sidecar reports a different default workdir,
    *  and the session list has finished loading (so we aren't mid-flight). */
@@ -596,6 +620,7 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     recentProjects,
     currentProject,
     openProject,
+    resetProjectForRuntimeSwitch,
     agentDistro: agent.distro,
     projectMismatch,
     agentDefaultWorkdir: agent.defaultWorkdir ?? null,

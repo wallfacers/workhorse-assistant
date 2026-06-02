@@ -13,15 +13,19 @@ export interface WslDetect {
   distros: string[];
 }
 
-/** Persisted managed-sidecar settings (mirrors the Rust `WslConfig`). */
-export interface WslManagedConfig {
-  /** The managed-sidecar toggle. */
-  managed: boolean;
-  /** Distro the sidecar runs in (registration name). */
+/** Which runtime hosts the sidecar (mirrors the Rust `RuntimeKind`). */
+export type RuntimeKind = 'native' | 'wsl';
+
+/** Persisted runtime-mode settings (mirrors the Rust `RuntimeConfig`). */
+export interface RuntimeConfig {
+  /** Runtime mode. `native` (default) runs the bundled host binary; `wsl` runs
+   *  it inside a distro (Windows-only, opt-in). */
+  mode: RuntimeKind;
+  /** Distro the sidecar runs in (registration name); required when `mode==='wsl'`. */
   distro?: string;
-  /** Advanced override for the in-distro command after `exec `. */
+  /** Advanced override for the serve command. */
   serveCmdOverride?: string;
-  /** Loopback port the sidecar binds inside the distro. */
+  /** Loopback port the sidecar binds. */
   port: number;
 }
 
@@ -39,6 +43,8 @@ export interface SupervisorStatus {
   state: SupervisorState;
   /** Human-readable reason, present on `failed` (and optionally elsewhere). */
   reason?: string;
+  /** Which runtime is being driven (`native` | `wsl`); absent when `disabled`. */
+  runtime?: RuntimeKind;
 }
 
 const notInTauri = () =>
@@ -54,21 +60,22 @@ export async function wslDetect(): Promise<Result<WslDetect>> {
   }
 }
 
-/** Read the persisted managed-sidecar settings. */
-export async function getManagedConfig(): Promise<Result<WslManagedConfig>> {
+/** Read the persisted runtime-mode settings. */
+export async function getRuntimeConfig(): Promise<Result<RuntimeConfig>> {
   if (!isTauri()) return notInTauri();
   try {
-    return ok(await invoke<WslManagedConfig>('get_managed_config'));
+    return ok(await invoke<RuntimeConfig>('get_runtime_config'));
   } catch (e) {
     return { ok: false, error: toIpcError(e) };
   }
 }
 
-/** Persist managed-sidecar settings and (re)drive the supervisor. */
-export async function setManagedConfig(config: WslManagedConfig): Promise<Result<void>> {
+/** Persist runtime-mode settings and (re)drive the supervisor (runtime mutex:
+ *  switching reaps the current runtime's sidecar before starting the next). */
+export async function setRuntimeConfig(config: RuntimeConfig): Promise<Result<void>> {
   if (!isTauri()) return notInTauri();
   try {
-    await invoke('set_managed_config', { config });
+    await invoke('set_runtime_config', { config });
     return ok(undefined);
   } catch (e) {
     return { ok: false, error: toIpcError(e) };

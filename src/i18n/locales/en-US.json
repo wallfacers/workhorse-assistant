@@ -92,10 +92,13 @@
     "autoExpandThinking": "Auto-expand thinking process",
     "autoExpandDescription": "Auto-expand during streaming, auto-collapse when done",
     "language": "Language",
-    "wsl": {
-      "title": "WSL-managed Sidecar",
-      "managedLabel": "Auto-start the sidecar in WSL",
-      "managedDescription": "When on, the app launches and supervises workhorse-agent in the chosen WSL distro at startup, and reaps it on exit",
+    "runtime": {
+      "title": "Runtime Mode",
+      "native": "Native",
+      "nativeDescription": "Run workhorse-agent directly on this host (default)",
+      "wsl": "WSL",
+      "wslDescription": "Run workhorse-agent inside the chosen WSL distro",
+      "wslUnavailable": "Requires a Windows host with WSL installed",
       "distro": "WSL distro",
       "advancedCommand": "Serve command (advanced)",
       "advancedHint": "Leave blank for the convention default: workhorse-agent serve --host 127.0.0.1 --port <port>",

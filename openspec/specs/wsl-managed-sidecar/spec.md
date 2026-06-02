@@ -7,9 +7,7 @@ distro — converging the connection via the existing auto-connect loop, restart
 on crash with bounded backoff, and tearing down on exit, while never killing a
 sidecar it did not start. The overriding constraint is the no-leak invariant: at
 most one app-owned `workhorse-agent` process exists in WSL at any time.
-
 ## Requirements
-
 ### Requirement: WSL detection gates the managed-mode toggle
 
 The assistant SHALL expose a managed-sidecar toggle in Settings only when its own
@@ -40,26 +38,28 @@ sidecar is already local, so there is nothing to manage).
 
 ### Requirement: Managed-mode configuration persists to disk
 
-The assistant SHALL persist managed-mode settings to a config file in the app
-config directory: the managed toggle, the chosen distro, an optional serve-command
-override, and the port. This is the app's authoritative on-disk config; the
-sidecar endpoint SHALL also be persisted there so it survives restarts. A missing,
-unreadable, or malformed config file SHALL NOT block startup — the app falls back
-to safe defaults (managed off, endpoint `http://127.0.0.1:7821`). The endpoint
-resolution order at startup SHALL be: `ENDPOINT_ENV` override, then the persisted
-config value, then the built-in default.
+The assistant SHALL persist a `RuntimeMode` (`Native` default, or `Wsl{distro}`)
+to a config file in the app config directory, replacing the previous
+`managed: bool` toggle. The config SHALL also record the chosen distro (when
+`Wsl`), an optional serve-command override, the port, and the sidecar endpoint
+so they survive restarts. A missing, unreadable, or malformed config file SHALL
+NOT block startup — the app falls back to safe defaults (`RuntimeMode::Native`,
+endpoint `http://127.0.0.1:7821`). The endpoint resolution order at startup SHALL
+be: `ENDPOINT_ENV` override, then the persisted config value, then the built-in
+default. There is no migration from the legacy `managed` field (early stage,
+no backward compatibility) — its absence resolves to `Native`.
 
-#### Scenario: Toggle survives a restart
+#### Scenario: Runtime mode survives a restart
 
-- **WHEN** the user enables managed mode and selects distro `Ubuntu` in Settings
-- **THEN** the config file records `{ wsl: { managed: true, distro: "Ubuntu", ... } }`
-- **AND** after restarting the app, managed mode is still on with `Ubuntu` selected
+- **WHEN** the user selects `WSL` mode with distro `Ubuntu` in Settings
+- **THEN** the config file records `{ runtime: { mode: { wsl: { distro: "Ubuntu" } }, ... } }`
+- **AND** after restarting the app, `WSL` mode is still selected with `Ubuntu`
 
-#### Scenario: Corrupt config file does not break startup
+#### Scenario: Legacy or missing config resolves to Native
 
-- **WHEN** the config file exists but is not valid JSON
-- **THEN** the app starts with defaults (managed off, default endpoint)
-- **AND** the corruption is logged, not surfaced as a blocking error
+- **WHEN** the config file is missing the runtime mode field (or is malformed)
+- **THEN** the app starts in `RuntimeMode::Native` with the default endpoint
+- **AND** the fallback is logged, not surfaced as a blocking error
 
 #### Scenario: Environment override wins over persisted endpoint
 
@@ -68,34 +68,28 @@ config value, then the built-in default.
 
 ### Requirement: Managed mode spawns the sidecar in the chosen distro
 
-When managed mode is on and the host is Windows, at startup the assistant SHALL
-launch the `workhorse-agent` sidecar inside the configured distro via `wsl.exe -d
-<distro> -- <command>`. By default the command runs the binary on PATH through a
-login shell and SHALL `exec` the binary so the shell does not remain as a parent
-process (`bash -lic 'exec workhorse-agent serve --host 127.0.0.1 --port <port>'`);
-the `exec` is required so the spawned sidecar collapses to a single
-relay-attached process that cannot be orphaned. When a serve-command override is
-configured, it replaces the in-distro command verbatim, still wrapped as
-`wsl.exe -d <distro> -- bash -lic 'exec <override>'`. The assistant SHALL NOT poll
-for health convergence itself — once launched, the existing auto-connect
-probe/backoff loop is responsible for marking the connection connected.
+The assistant SHALL, when `RuntimeMode` is `Wsl{distro}` and the host is Windows,
+launch the `workhorse-agent` sidecar at startup inside the configured distro
+via `wsl.exe -d <distro> -- bash -lic 'exec workhorse-agent serve --host
+127.0.0.1 --port <port>'` (the `exec` collapses the shell so the sidecar cannot be
+orphaned). A serve-command override replaces the in-distro command verbatim, still
+wrapped as `wsl.exe -d <distro> -- bash -lic 'exec <override>'`. The WSL spawn
+path is now one of two runtime back-ends driven by the unified runtime selector;
+it is no longer the only managed path. The assistant SHALL NOT poll for health
+convergence itself — the existing auto-connect probe/backoff loop marks the
+connection connected.
 
-#### Scenario: Convention launch on a clean start
+#### Scenario: WSL-mode launch on a clean start
 
-- **WHEN** managed mode is on, distro `Ubuntu` is selected, no override is set, and no sidecar is listening on the port
+- **WHEN** `RuntimeMode` is `Wsl{Ubuntu}`, no override is set, and no sidecar is listening on the port
 - **THEN** the assistant spawns `wsl.exe -d Ubuntu -- bash -lic 'exec workhorse-agent serve --host 127.0.0.1 --port 7821'`
 - **AND** the auto-connect loop converges the connection to `connected` once `/health` responds
 
-#### Scenario: Advanced override replaces the command
+#### Scenario: Native mode does not touch WSL
 
-- **WHEN** managed mode is on and `serveCmdOverride` is `/home/u/bin/workhorse-agent serve --port 7821`
-- **THEN** the assistant spawns `wsl.exe -d <distro> -- bash -lic 'exec /home/u/bin/workhorse-agent serve --port 7821'`
-
-#### Scenario: Binary not found surfaces a clear failure
-
-- **WHEN** the spawned shell exits non-zero because `workhorse-agent` is not on PATH
-- **THEN** after the restart cap is reached the supervisor enters `Failed` with a reason naming the binary and pointing to the advanced override / install docs
-- **AND** the app remains usable for a manually-run sidecar (managed mode can be turned off)
+- **WHEN** `RuntimeMode` is `Native`
+- **THEN** the assistant SHALL NOT invoke `wsl.exe` to spawn a sidecar
+- **AND** the WSL supervisor back-end SHALL remain `Disabled`
 
 ### Requirement: A pre-existing healthy sidecar is adopted, not duplicated
 
@@ -211,3 +205,4 @@ the auto-connect health dot (which continues to reflect reachability).
 - **THEN** Settings shows `starting`, then `healthy` once the connection converges
 - **WHEN** the sidecar later crashes and is being restarted
 - **THEN** Settings shows `restarting`, and `failed` with a reason if the cap is reached
+
