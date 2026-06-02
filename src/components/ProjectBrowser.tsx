@@ -60,7 +60,7 @@ export default function ProjectBrowser({
 
   const parent = path ? parentOf(path) : null;
   const rowClass =
-    'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] transition-colors hover:bg-surface-muted dark:hover:bg-surface-dark-muted';
+    'flex w-full items-center gap-1.5 px-3 py-1 rounded-lg text-left text-[12.5px] text-gray-700 dark:text-gray-400 transition-colors hover:bg-gray-200/40 dark:hover:bg-neutral-800/50';
 
   return (
     <div className="w-[320px]">
@@ -74,9 +74,9 @@ export default function ProjectBrowser({
           <button
             type="button"
             onClick={() => void load(parent)}
-            className={`${rowClass} text-gray-600 dark:text-gray-300`}
+            className={rowClass}
           >
-            <CornerLeftUp className="h-3.5 w-3.5 flex-shrink-0 opacity-70" />
+            <CornerLeftUp className="h-3.5 w-3.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
             <span className="truncate">{t('project.parentDir')}</span>
           </button>
         )}
@@ -97,13 +97,13 @@ export default function ProjectBrowser({
             type="button"
             onClick={() => void load(e.path)}
             title={e.path}
-            className={`${rowClass} justify-between text-gray-600 dark:text-gray-300`}
+            className={`${rowClass} justify-between`}
           >
-            <span className="flex min-w-0 items-center gap-2">
-              <Folder className="h-3.5 w-3.5 flex-shrink-0 opacity-70" />
+            <span className="flex min-w-0 items-center gap-1.5">
+              <Folder className="w-4 h-4 flex-shrink-0 text-amber-500 dark:text-amber-400" />
               <span className="truncate">{e.name}</span>
             </span>
-            <ChevronRight className="h-3 w-3 flex-shrink-0 opacity-40" />
+            <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
           </button>
         ))}
       </div>
@@ -112,7 +112,7 @@ export default function ProjectBrowser({
           type="button"
           disabled={!path}
           onClick={() => path && onPick(path)}
-          className="flex w-full items-center justify-center gap-2 rounded-sm bg-tertiary px-3 py-1.5 text-[12.5px] font-medium text-on-tertiary transition-colors hover:bg-primary-container hover:text-on-primary-container disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-sm bg-primary px-3 py-1.5 text-[12.5px] font-medium text-on-primary transition-colors hover:bg-secondary hover:text-on-secondary disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Folder className="h-3.5 w-3.5" />
           <span>{t('project.openThisFolder')}</span>
