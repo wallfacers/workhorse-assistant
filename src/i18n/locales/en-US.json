@@ -56,6 +56,7 @@
     "default": "Default project",
     "switch": "Switch project",
     "open": "Open path",
+    "openProject": "Open project",
     "pathPlaceholder": "Enter a project path and press Enter",
     "current": "Current project",
     "browse": "Browse folders",

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Copy as CopyIcon, FolderOpen, FolderSearch, Minus, Square, X } from 'lucide-react';
+import { ChevronDown, Copy as CopyIcon, FolderOpen, Minus, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   isTauri,
   minimizeWindow,
   toggleMaximizeWindow,
   closeWindow,
+  pickFolder,
 } from '../ipc';
 import { useSession } from '../session/SessionProvider';
 import ProjectBrowser from './ProjectBrowser';
@@ -64,26 +65,33 @@ export default function TitleBar({ maximized }: TitleBarProps) {
 }
 
 /**
- * Project switcher: lists known project paths and lets the user open a path.
- * A project is the sidecar's `workdir` (an opaque, sidecar-namespace string — D4
- * / D6), so paths are shown and entered verbatim; there is no host folder
- * dialog (a native picker is namespace-mismatched for a remote/WSL sidecar and
- * deferred to `add-wsl-remote`).
+ * Project switcher: lists known project paths and lets the user open a project.
+ *
+ * In **Native runtime** mode the "Open project" button fires the OS-native
+ * folder-picker dialog (`tauri-plugin-dialog`). In **WSL runtime** mode it
+ * falls back to the in-app `ProjectBrowser` because the native picker cannot
+ * navigate the sidecar's POSIX namespace.
  */
 function ProjectSwitcher() {
   const { t } = useTranslation();
-  const { projects, recentProjects, currentProject, openProject, pendingPickerRequest, resolvePicker } = useSession();
-  const [open, setOpen] = useState(false);
-  const [entering, setEntering] = useState(false);
+  const {
+    projects,
+    recentProjects,
+    currentProject,
+    openProject,
+    pendingPickerRequest,
+    resolvePicker,
+    agentDistro,
+  } = useSession();
+  const isWslMode = !!agentDistro;
+
+  const [menuOpen, setMenuOpen] = useState(false);
   const [browsing, setBrowsing] = useState(false);
-  const [pathText, setPathText] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
   const closeMenu = () => {
-    setOpen(false);
-    setEntering(false);
+    setMenuOpen(false);
     setBrowsing(false);
-    setPathText('');
     // If the agent had a pending picker request and the user dismissed the
     // popover by clicking outside, settle it with null (cancel).
     if (pendingPickerRequest) {
@@ -105,7 +113,7 @@ function ProjectSwitcher() {
   }
 
   useEffect(() => {
-    if (!open) return;
+    if (!menuOpen) return;
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         closeMenu();
@@ -113,15 +121,14 @@ function ProjectSwitcher() {
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [open]);
+  }, [menuOpen]);
 
   // Agent confirm flow (D5): when a pending picker request arrives, open the
   // popover in browsing mode pre-navigated to the candidate path.
   useEffect(() => {
     if (!pendingPickerRequest) return;
-    setOpen(true);
+    setMenuOpen(true);
     setBrowsing(true);
-    setEntering(false);
   }, [pendingPickerRequest]);
 
   // Track the live request so the unmount cleanup (deps `[]`) can read it
@@ -142,29 +149,36 @@ function ProjectSwitcher() {
     ? currentProject.split(/[/\\]/).filter(Boolean).pop() || currentProject
     : t('project.default');
 
-  const submitPath = () => {
-    const next = pathText.trim();
-    if (next) {
-      void openProject(next);
+  /** Single "Open project" action — native picker (Native) or in-app browser (WSL). */
+  const handleOpenProject = async () => {
+    if (isWslMode) {
+      setBrowsing(true);
+      return;
+    }
+    // Native mode: use OS folder dialog.
+    const res = await pickFolder();
+    if (res.ok && res.value) {
+      await openProject(res.value);
       closeMenu();
     }
+    // User cancelled (null) or error — do nothing.
   };
 
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setMenuOpen((v) => !v)}
         title={currentProject || t('project.default')}
         className={`flex h-6 max-w-[240px] items-center gap-1 rounded-md px-2 text-[12px] font-medium transition-colors hover:bg-canvas/70 hover:text-on-surface dark:hover:bg-surface-dark-muted dark:hover:text-on-canvas-dark ${
-          open ? 'bg-canvas/70 text-on-surface dark:bg-surface-dark-muted dark:text-on-canvas-dark' : ''
+          menuOpen ? 'bg-canvas/70 text-on-surface dark:bg-surface-dark-muted dark:text-on-canvas-dark' : ''
         }`}
       >
         <FolderOpen className="h-3.5 w-3.5 flex-shrink-0" />
         <span className="truncate">{label}</span>
         <ChevronDown className="h-3 w-3 flex-shrink-0 opacity-60" />
       </button>
-      {open && (
+      {menuOpen && (
         <div className="absolute left-0 top-7 z-50 min-w-[240px] overflow-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
           {browsing ? (
             <ProjectBrowser
@@ -175,10 +189,8 @@ function ProjectSwitcher() {
                 } else {
                   void openProject(p);
                 }
-                setOpen(false);
-                setEntering(false);
+                setMenuOpen(false);
                 setBrowsing(false);
-                setPathText('');
               }}
             />
           ) : (
@@ -202,41 +214,14 @@ function ProjectSwitcher() {
                 </button>
               ))}
               {knownPaths.length > 0 && <div className="my-1 border-t border-outline/50 dark:border-outline-dark/60" />}
-              {entering ? (
-                <div className="px-2 py-1">
-                  <input
-                    autoFocus
-                    value={pathText}
-                    onChange={(e) => setPathText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.nativeEvent.isComposing) return;
-                      if (e.key === 'Enter') submitPath();
-                      if (e.key === 'Escape') setEntering(false);
-                    }}
-                    placeholder={t('project.pathPlaceholder')}
-                    className="w-full rounded border border-outline bg-surface px-2 py-1 text-[12px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark dark:bg-surface-dark dark:text-on-canvas-dark dark:focus:ring-outline-dark"
-                  />
-                </div>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setBrowsing(true)}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
-                  >
-                    <FolderSearch className="h-3.5 w-3.5" />
-                    <span>{t('project.browse')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEntering(true)}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
-                  >
-                    <FolderOpen className="h-3.5 w-3.5" />
-                    <span>{t('project.open')}</span>
-                  </button>
-                </>
-              )}
+              <button
+                type="button"
+                onClick={() => void handleOpenProject()}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                <span>{t('project.openProject')}</span>
+              </button>
             </>
           )}
         </div>

@@ -64,6 +64,7 @@ export type {
 } from './agent';
 export { useAgentConnection } from './useAgentConnection';
 export type { AgentStatus, AgentConnection } from './useAgentConnection';
+export { pickFolder } from './dialog';
 export {
   wslDetect,
   getRuntimeConfig,

@@ -56,6 +56,7 @@
     "default": "默认项目",
     "switch": "切换项目",
     "open": "打开路径",
+    "openProject": "打开项目",
     "pathPlaceholder": "输入项目路径并回车",
     "current": "当前项目",
     "browse": "浏览文件夹",
