@@ -31,7 +31,7 @@ export default function Tooltip({
     <span className="relative inline-block min-w-0" onMouseEnter={show} onMouseLeave={hide}>
       {children}
       {visible && (
-        <span className="pointer-events-none absolute left-1/2 top-full z-[9999] mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-[11px] leading-relaxed text-white shadow-lg dark:bg-gray-100 dark:text-gray-900">
+        <span className="pointer-events-none absolute left-1/2 top-full z-[9999] mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-surface-dark-elevated px-2 py-1 text-[11px] leading-relaxed text-white shadow-lg dark:bg-surface dark:text-on-surface">
           {content}
         </span>
       )}

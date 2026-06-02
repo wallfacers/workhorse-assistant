@@ -48,10 +48,10 @@ const SHORTCUTS: { key: string; descKey: string }[] = [
 ];
 
 const STATUS_DOT: Record<AgentConnection['status'], string> = {
-  idle: 'bg-gray-400',
-  connecting: 'bg-amber-400 animate-pulse',
-  connected: 'bg-green-500',
-  error: 'bg-red-500',
+  idle: 'bg-on-surface-muted',
+  connecting: 'bg-warning animate-pulse',
+  connected: 'bg-success',
+  error: 'bg-danger',
 };
 
 export default function SettingsModal({ onClose }: SettingsModalProps) {
@@ -282,13 +282,13 @@ function AgentSection({
 
 /** Status-badge colors per supervisor state. */
 const SUPERVISOR_DOT: Record<SupervisorState, string> = {
-  disabled: 'bg-gray-400',
-  probing: 'bg-amber-400 animate-pulse',
-  starting: 'bg-amber-400 animate-pulse',
-  restarting: 'bg-amber-400 animate-pulse',
-  adopted: 'bg-green-500',
-  healthy: 'bg-green-500',
-  failed: 'bg-red-500',
+  disabled: 'bg-on-surface-muted',
+  probing: 'bg-warning animate-pulse',
+  starting: 'bg-warning animate-pulse',
+  restarting: 'bg-warning animate-pulse',
+  adopted: 'bg-success',
+  healthy: 'bg-success',
+  failed: 'bg-danger',
 };
 
 /**
@@ -831,19 +831,19 @@ function SessionsSection() {
       {/* Batch toolbar */}
       {selected.size > 0 && (
         <div className="mb-2 flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark-muted)]">
-          <span className="text-[11px] text-gray-600 dark:text-gray-400">
+          <span className="text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted">
             已选 {selected.size}/{sorted.length}
           </span>
           {confirmingBatch ? (
             <div className="flex items-center gap-2">
-              <span className="text-[10.5px] text-red-600 dark:text-red-400">
+              <span className="text-[10.5px] text-danger">
                 {t('sessions.confirmBatchDelete', { count: selected.size })}
               </span>
               <button
                 type="button"
                 onClick={confirmBatchDelete}
                 disabled={deletingId !== null}
-                className="px-2 py-0.5 rounded-md bg-red-600 text-[10.5px] font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="px-2 py-0.5 rounded-md bg-danger text-[10.5px] font-semibold text-white hover:bg-danger/90 transition-colors disabled:opacity-50"
               >
                 {t('common.confirm')}
               </button>
@@ -851,7 +851,7 @@ function SessionsSection() {
                 type="button"
                 onClick={() => setConfirmingBatch(false)}
                 disabled={deletingId !== null}
-                className="px-2 py-0.5 rounded-md border border-outline dark:border-neutral-700 text-[10.5px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                className="px-2 py-0.5 rounded-md border border-outline dark:border-outline-dark text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
               >
                 {t('common.cancel')}
               </button>
@@ -861,7 +861,7 @@ function SessionsSection() {
               type="button"
               onClick={() => setConfirmingBatch(true)}
               disabled={deletingId !== null}
-              className="px-2 py-0.5 rounded-md text-[10.5px] font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
+              className="px-2 py-0.5 rounded-md text-[10.5px] font-medium text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
             >
               {t('sessions.deleteSelected', { count: selected.size })}
             </button>
@@ -879,31 +879,31 @@ function SessionsSection() {
                   <button
                     type="button"
                     onClick={toggleAll}
-                    className="p-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                    className="p-0.5 rounded text-on-surface-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
                     aria-label={t('sessions.selectAll')}
                   >
                     {allSelected ? (
-                      <CheckSquare className="w-3.5 h-3.5 text-gray-700 dark:text-gray-200" />
+                      <CheckSquare className="w-3.5 h-3.5 text-on-surface dark:text-on-canvas-dark" />
                     ) : someSelected ? (
-                      <CheckSquare className="w-3.5 h-3.5 text-gray-400" />
+                      <CheckSquare className="w-3.5 h-3.5 text-on-surface-muted" />
                     ) : (
                       <Square className="w-3.5 h-3.5" />
                     )}
                   </button>
                 </th>
-                <th className="text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-gray-700 dark:text-gray-200">
+                <th className="text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
                   {t('sessions.columns.title')}
                 </th>
-                <th className="w-16 text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-gray-700 dark:text-gray-200">
+                <th className="w-16 text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
                   {t('sessions.columns.status')}
                 </th>
-                <th className="w-14 text-right px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-gray-700 dark:text-gray-200">
+                <th className="w-14 text-right px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
                   {t('sessions.columns.messages')}
                 </th>
-                <th className="w-24 text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-gray-700 dark:text-gray-200">
+                <th className="w-24 text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
                   {t('sessions.columns.updated')}
                 </th>
-                <th className="w-16 px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-outline dark:border-outline-dark font-semibold text-gray-700 dark:text-gray-200">
+                <th className="w-16 px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
                   {t('sessions.columns.actions')}
                 </th>
               </tr>
@@ -927,10 +927,10 @@ function SessionsSection() {
                       <button
                         type="button"
                         onClick={() => toggleOne(s.id)}
-                        className="p-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                        className="p-0.5 rounded text-on-surface-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
                       >
                         {isSelected ? (
-                          <CheckSquare className="w-3.5 h-3.5 text-gray-700 dark:text-gray-200" />
+                          <CheckSquare className="w-3.5 h-3.5 text-on-surface dark:text-on-canvas-dark" />
                         ) : (
                           <Square className="w-3.5 h-3.5" />
                         )}
@@ -950,14 +950,14 @@ function SessionsSection() {
                             if (e.key === 'Escape') cancelRename();
                           }}
                           onBlur={() => void submitRename()}
-                          className="w-full rounded-md border border-outline bg-white px-2 py-0.5 text-[11.5px] text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-700 dark:bg-surface-dark dark:text-gray-100 dark:focus:ring-neutral-700"
+                          className="w-full rounded-md border border-outline bg-surface px-2 py-0.5 text-[11.5px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark dark:bg-surface-dark dark:text-on-canvas-dark dark:focus:ring-outline-dark"
                         />
                       ) : (
                         <span
                           className={`truncate max-w-[200px] block ${
                             s.title
-                              ? 'text-gray-800 dark:text-gray-200'
-                              : 'text-gray-400 dark:text-gray-500 italic'
+                              ? 'text-on-surface dark:text-on-canvas-dark'
+                              : 'text-on-surface-muted dark:text-on-canvas-dark-muted italic'
                           }`}
                         >
                           {s.title || t('sessions.untitled')}
@@ -970,22 +970,22 @@ function SessionsSection() {
                       <span className="inline-flex items-center gap-1.5">
                         <span
                           className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                            st === 'running' ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                            st === 'running' ? 'bg-success animate-pulse' : 'bg-on-surface-muted'
                           }`}
                         />
-                        <span className="text-[10.5px] text-gray-500 dark:text-gray-400">
+                        <span className="text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">
                           {t(`sessions.status.${st}`)}
                         </span>
                       </span>
                     </td>
 
                     {/* Message count */}
-                    <td className="px-2.5 py-2 text-right text-[10.5px] text-gray-500 dark:text-gray-400 tabular-nums border-r border-outline/50 dark:border-outline-dark/50">
+                    <td className="px-2.5 py-2 text-right text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted tabular-nums border-r border-outline/50 dark:border-outline-dark/50">
                       {s.messageCount ?? 0}
                     </td>
 
                     {/* Updated time */}
-                    <td className="px-2.5 py-2 text-[10.5px] text-gray-500 dark:text-gray-400 whitespace-nowrap border-r border-outline/50 dark:border-outline-dark/50">
+                    <td className="px-2.5 py-2 text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted whitespace-nowrap border-r border-outline/50 dark:border-outline-dark/50">
                       {s.updatedAt ? relativeTime(s.updatedAt, i18n.language) : '—'}
                     </td>
 
@@ -997,7 +997,7 @@ function SessionsSection() {
                           aria-label={t('sessions.rename')}
                           disabled={deletingId !== null}
                           onClick={() => openRename(s.id, s.title)}
-                          className="p-1 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                          className="p-1 rounded text-on-surface-muted hover:text-on-surface dark:hover:text-on-canvas-dark hover:bg-canvas/70 dark:hover:bg-surface-dark-muted transition-colors disabled:opacity-40"
                         >
                           <Pencil className="w-3 h-3" />
                         </button>
@@ -1008,8 +1008,8 @@ function SessionsSection() {
                           onClick={() => void doDelete(s.id)}
                           className={`p-1 rounded transition-colors disabled:opacity-40 ${
                             deletingId === s.id
-                              ? 'text-red-400 dark:text-red-500 cursor-wait'
-                              : 'text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40'
+                              ? 'text-danger cursor-wait'
+                              : 'text-on-surface-muted hover:text-danger hover:bg-danger/10'
                           }`}
                         >
                           <Trash2 className="w-3 h-3" />

@@ -101,7 +101,7 @@ export default function TerminalWorkspace() {
 
       <div className="relative flex-1 min-h-0">
         {state.groups.length === 0 ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gray-500 dark:text-gray-400">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-on-surface-muted dark:text-on-canvas-dark-muted">
             <p className="text-[13px]">{t('terminal.noTerminal')}</p>
             <ProfileMenu label={t('terminal.newTerminal')} onSelect={addGroup} />
           </div>

@@ -60,12 +60,12 @@ export default function ProjectBrowser({
 
   const parent = path ? parentOf(path) : null;
   const rowClass =
-    'flex w-full items-center gap-1.5 px-3 py-1 rounded-lg text-left text-[12.5px] text-gray-700 dark:text-gray-400 transition-colors hover:bg-gray-200/40 dark:hover:bg-neutral-800/50';
+    'flex w-full items-center gap-1.5 px-3 py-1 rounded-lg text-left text-[12.5px] text-on-surface dark:text-on-canvas-dark-muted transition-colors hover:bg-canvas/40 dark:hover:bg-surface-dark-muted/50';
 
   return (
     <div className="w-[320px]">
-      <div className="flex items-center gap-1 border-b border-outline/60 px-3 py-1.5 dark:border-neutral-800/60">
-        <span className="truncate text-[11.5px] text-gray-500 dark:text-gray-400" title={path ?? ''}>
+      <div className="flex items-center gap-1 border-b border-outline/60 px-3 py-1.5 dark:border-outline-dark/60">
+        <span className="truncate text-[11.5px] text-on-surface-muted dark:text-on-canvas-dark-muted" title={path ?? ''}>
           {path ?? t('project.loading')}
         </span>
       </div>
@@ -76,20 +76,20 @@ export default function ProjectBrowser({
             onClick={() => void load(parent)}
             className={rowClass}
           >
-            <CornerLeftUp className="h-3.5 w-3.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+            <CornerLeftUp className="h-3.5 w-3.5 flex-shrink-0 text-on-surface-muted dark:text-on-canvas-dark-muted" />
             <span className="truncate">{t('project.parentDir')}</span>
           </button>
         )}
         {loading && (
-          <div className="px-3 py-1.5 text-[12px] text-gray-400">{t('project.loading')}</div>
+          <div className="px-3 py-1.5 text-[12px] text-on-surface-muted">{t('project.loading')}</div>
         )}
         {error && (
-          <div className="px-3 py-1.5 text-[12px] text-red-500 dark:text-red-400" title={error}>
+          <div className="px-3 py-1.5 text-[12px] text-danger dark:text-danger" title={error}>
             {error}
           </div>
         )}
         {!loading && !error && entries.length === 0 && (
-          <div className="px-3 py-1.5 text-[12px] text-gray-400">{t('project.noSubfolders')}</div>
+          <div className="px-3 py-1.5 text-[12px] text-on-surface-muted">{t('project.noSubfolders')}</div>
         )}
         {entries.map((e) => (
           <button
@@ -100,14 +100,14 @@ export default function ProjectBrowser({
             className={`${rowClass} justify-between`}
           >
             <span className="flex min-w-0 items-center gap-1.5">
-              <Folder className="w-4 h-4 flex-shrink-0 text-amber-500 dark:text-amber-400" />
+              <Folder className="w-4 h-4 flex-shrink-0 text-warning dark:text-warning" />
               <span className="truncate">{e.name}</span>
             </span>
-            <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+            <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 text-on-surface-muted dark:text-on-canvas-dark-muted" />
           </button>
         ))}
       </div>
-      <div className="border-t border-outline/60 px-2 py-1.5 dark:border-neutral-800/60">
+      <div className="border-t border-outline/60 px-2 py-1.5 dark:border-outline-dark/60">
         <button
           type="button"
           disabled={!path}

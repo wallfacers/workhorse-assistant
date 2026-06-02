@@ -2,34 +2,34 @@
 version: alpha
 name: Workhorse
 description: >-
-  Quiet, focused, working surface. Deep maritime teals and blues against a
-  warm-neutral canvas. Built for long sessions of thinking with an agent.
+  Quiet, focused, working surface. Warm terracotta against a cream paper
+  canvas (the Claude-docs look). Built for long sessions of thinking with an agent.
 colors:
-  primary: "#024a44"
+  primary: "#B8422E"
   on-primary: "#FFFFFF"
-  primary-container: "#0b6477"
-  on-primary-container: "#E6F1F2"
-  secondary: "#0b6477"
+  primary-container: "#A8521A"
+  on-primary-container: "#FFF1E6"
+  secondary: "#A85420"
   on-secondary: "#FFFFFF"
-  tertiary: "#144272"
+  tertiary: "#9A3B12"
   on-tertiary: "#FFFFFF"
-  neutral: "#ECEFF2"
-  on-neutral: "#101012"
-  surface: "#FFFFFF"
-  on-surface: "#101012"
-  on-surface-muted: "#6B7280"
-  surface-muted: "#F4F6F8"
-  surface-dark: "#101012"
-  on-surface-dark: "#ECEFF2"
-  on-surface-dark-muted: "#9CA3AF"
-  surface-dark-muted: "#1A202C"
-  outline: "#C4CCD3"
-  outline-dark: "#2A2F36"
-  accent-warm: "#B8422E"
+  neutral: "#F0EFEA"
+  on-neutral: "#1A1918"
+  surface: "#FDFDF7"
+  on-surface: "#1A1918"
+  on-surface-muted: "#6E6A60"
+  surface-muted: "#F7F6F1"
+  surface-dark: "#1A1918"
+  on-surface-dark: "#ECEAE3"
+  on-surface-dark-muted: "#9C968A"
+  surface-dark-muted: "#201F1C"
+  outline: "#E6E3DA"
+  outline-dark: "#2E2C28"
+  accent-warm: "#0B6477"
   on-accent-warm: "#FFFFFF"
   success: "#1F7A5A"
   warning: "#B4731B"
-  danger: "#A6342B"
+  danger: "#B3261E"
 typography:
   display:
     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
@@ -155,21 +155,22 @@ components:
 ## Overview
 
 **Workhorse** is the visual identity for a focused, long-session AI assistant.
-The aesthetic borrows from maritime cartography — deep teals and inks on a
-warm, paper-like ground — rather than the cold neon of most chat UIs. The goal
-is a surface you can stare at for an hour without flinching.
+The aesthetic borrows from warm paper and terracotta — a cream off-white ground
+with burnt-clay accents, echoing the Claude documentation look — rather than
+the cold neon of most chat UIs. The goal is a surface you can stare at for an
+hour without flinching.
 
 Two emotional anchors:
 
 - **Quiet capability.** The chrome stays out of the way. Strong contrast and
   generous whitespace do the work; no decorative gradients in the working area.
-- **Maritime depth.** Deep teal (`primary` / `secondary` / `tertiary`) is the
-  brand voice — it lives *in* the working surface (buttons, the user's own
-  message bubbles, active accents), never as a page backdrop. The window is
-  frameless and paints a single quiet `surface-muted` ground; there is no
-  gradient frame.
+- **Warm terracotta.** Burnt-clay terracotta (`primary` / `secondary` /
+  `tertiary`) is the brand voice — it lives *in* the working surface (buttons,
+  the user's own message bubbles, active accents), never as a page backdrop.
+  The window is frameless and paints a single quiet `surface-muted` cream
+  ground; there is no gradient frame.
 
-Dark mode flips the canvas to near-black ink (`surface-dark`) but keeps the
+Dark mode warms the canvas to a brown-black ink (`surface-dark`) but keeps the
 exact same token roles. Components do **not** redefine colors for dark mode;
 they consume role tokens.
 
@@ -178,21 +179,25 @@ they consume role tokens.
 The palette is a small set of role-named tokens. Components never hard-code
 hexes — they consume `{colors.*}` references.
 
-- **`primary` (#024a44):** Deep teal. Anchor color for the user's own voice
-  (message bubbles, primary affirmations).
-- **`secondary` (#0b6477):** Mid teal-blue. Hover/active state for primary,
-  and the middle stop of the windowed-mode gradient.
-- **`tertiary` (#144272):** Deep navy. The call-to-action color — every button
-  that *does* a thing wears this.
-- **`neutral` (#ECEFF2):** Warm off-white canvas. The interior working surface.
-- **`surface` (#FFFFFF):** Cards and panels that sit on the canvas.
-- **`surface-muted` (#F4F6F8):** The main chat area background; quieter than
-  `surface` so messages float on top with clear figure/ground.
-- **`surface-dark` / `surface-dark-muted`:** Dark-mode equivalents of
-  `neutral` / `surface-muted`.
-- **`accent-warm` (#B8422E):** Reserved for moments that **must** be noticed
-  (the only warm note in the entire palette). Use sparingly — a single accent
-  on screen at a time.
+- **`primary` (#B8422E):** Deep terracotta. Anchor color for the user's own
+  voice (message bubbles, primary affirmations). Deepened from the brighter
+  Claude orange so white text on it clears WCAG AA.
+- **`secondary` (#A85420):** Amber-brown. Hover/active state for primary, and
+  the link color in body copy.
+- **`tertiary` (#9A3B12):** Burnt orange. The call-to-action color — every
+  button that *does* a thing wears this.
+- **`neutral` (#F0EFEA):** Warm off-white cream canvas (the Claude-docs ground).
+  The outermost working surface; the warmth is subtle, not a saturated yellow.
+- **`surface` (#FDFDF7):** Near-white warm cream. Cards and panels that sit on
+  the canvas (the brightest step of the ladder).
+- **`surface-muted` (#F7F6F1):** The main chat area background; a mid cream,
+  quieter than `surface` so messages float on top with clear figure/ground.
+- **`surface-dark` / `surface-dark-muted`:** Warm near-black (#1A1918, the
+  Claude-docs dark surface) dark-mode equivalents of `neutral` / `surface-muted`.
+- **`accent-warm` (#0B6477):** The one **cold** note in an otherwise warm
+  palette — maritime teal, the retired brand color kept as the single
+  attention accent (critical alerts). Distinct in hue from `success` green.
+  Use sparingly — a single accent on screen at a time.
 
 Semantic colors (`success` / `warning` / `danger`) are role-fixed and survive
 dark mode without restating them.
@@ -276,6 +281,39 @@ Adding a new component requires:
 2. A matching Tailwind class composition in `src/components/`.
 3. Both `npm run design:lint` and `npm run lint` passing.
 
+## Tailwind Utility Mapping (no raw grays)
+
+Components MUST consume **token utilities** (generated by Tailwind v4 from the
+`@theme` block), never raw Tailwind palette colors (`gray-*`, `slate-*`,
+`zinc-*`, `neutral-*`, bare `white`). Raw palette colors are cold and do not
+follow the warm paper/terracotta theme. Use this table; opacity variants
+(`/40`, `/10`) are allowed.
+
+| Intent | Raw (forbidden) | Token utility (use this) |
+|--------|-----------------|--------------------------|
+| Lightest card/panel bg | `bg-white` | `bg-surface` |
+| Subtle panel / input / hover wash | `bg-gray-50` `bg-gray-100` | `bg-surface-muted` |
+| Recessed ground (deepest) | `bg-gray-200` | `bg-canvas` |
+| Body / heading text | `text-gray-700/800/900` | `text-on-surface` |
+| Muted / secondary / placeholder / icon | `text-gray-400/500/600` | `text-on-surface-muted` |
+| Hairline border / divider | `border-gray-200` `border-gray-300` | `border-outline` |
+| Stronger border / focus ring | `ring-gray-300` `border-gray-300` | `border-outline-strong` / `ring-outline-strong` |
+| Selected / active brand state | `border-gray-800` | `border-primary` (terracotta) |
+| Text on a colored/dark fill | — | `text-white` is OK only here |
+| **Dark** surface (recessed) | `dark:bg-neutral-900` | `dark:bg-surface-dark` |
+| **Dark** surface (raised/input) | `dark:bg-neutral-800` | `dark:bg-surface-dark-muted` |
+| **Dark** surface (modal/elevated) | `dark:bg-neutral-800` | `dark:bg-surface-dark-elevated` |
+| **Dark** body text | `dark:text-gray-100/200` | `dark:text-on-canvas-dark` |
+| **Dark** muted text | `dark:text-gray-300/400/500` | `dark:text-on-canvas-dark-muted` |
+| **Dark** border | `dark:border-neutral-700/800` | `dark:border-outline-dark` |
+| Error/danger (text, tint bg, border) | `text-red-700` `bg-red-50` `border-red-200` | `text-danger` `bg-danger/10` `border-danger/30` |
+| Success (text, tint bg, border) | `text-green-700` `bg-green-50` | `text-success` `bg-success/10` `border-success/30` |
+| Warning | `text-amber-*` `text-yellow-*` | `text-warning` `bg-warning/10` |
+
+> Note: for light mode, `on-surface` and `on-canvas` are the same ink, and
+> `surface`/`canvas` differ only by one step; pick the role that matches the
+> element's job (text vs ground) so dark-mode swaps stay correct.
+
 ## Do's and Don'ts
 
 **Do**
@@ -283,12 +321,14 @@ Adding a new component requires:
 - Quote tokens (`{colors.primary}`) — never hexes — in `components:`.
 - Use `accent-warm` for at most one element per screen.
 - Test every new color pair in `npm run design:lint`.
-- Reserve deep teal for the working surface (actions, the user's voice) —
+- Reserve terracotta for the working surface (actions, the user's voice) —
   never as a page backdrop.
 
 **Don't**
 
 - Don't introduce per-component shadows. Use outlines.
+- Don't use raw Tailwind palette colors (`gray-*`/`slate-*`/`zinc-*`/`neutral-*`/
+  bare `white`) for chrome — consume token utilities per the mapping table above.
 - Don't add a second display font.
 - Don't redefine colors for dark mode in components — consume role tokens.
 - Don't break the concentric-radius rule.

@@ -149,18 +149,18 @@ export default function SessionHeader() {
               if (e.key === 'Escape') cancelRename();
             }}
             onBlur={submitRename}
-            className="w-full rounded-md border border-outline bg-white px-2 py-1 text-[12.5px] font-semibold text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-700 dark:bg-surface-dark dark:text-gray-100 dark:focus:ring-neutral-700"
+            className="w-full rounded-md border border-outline bg-surface px-2 py-1 text-[12.5px] font-semibold text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark dark:bg-surface-dark dark:text-on-canvas-dark dark:focus:ring-outline-dark"
           />
         ) : (
           <button
             type="button"
             onClick={() => setSwitcherOpen((v) => !v)}
-            className="flex max-w-full items-center gap-1 rounded-md px-1.5 py-1 text-[12.5px] font-semibold text-gray-800 transition-colors hover:bg-gray-200/70 dark:text-gray-100 dark:hover:bg-neutral-800"
+            className="flex max-w-full items-center gap-1 rounded-md px-1.5 py-1 text-[12.5px] font-semibold text-on-surface transition-colors hover:bg-canvas/70 dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
           >
             <Tooltip content={title}>
               <span className="block truncate min-w-0">{title}</span>
             </Tooltip>
-            <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
+            <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-on-surface-muted" />
           </button>
         )}
 
@@ -178,12 +178,12 @@ export default function SessionHeader() {
               <Plus className="h-3.5 w-3.5" />
               <span>{t('agent.newSession')}</span>
             </button>
-            <div className="my-1 border-t border-outline/50 dark:border-neutral-800/60" />
+            <div className="my-1 border-t border-outline/50 dark:border-outline-dark/60" />
 
             {/* Time-grouped session list */}
             {sessionGroups.map((group) => (
               <div key={group.key}>
-                <div className="px-3 pt-2 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                <div className="px-3 pt-2 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-on-surface-muted dark:text-on-canvas-dark-muted">
                   {group.label}
                 </div>
                 {group.sessions.map((s) => (
@@ -201,10 +201,10 @@ export default function SessionHeader() {
                     </Tooltip>
                     {s.running && (
                       <Tooltip content={t('agent.sessionRunning')}>
-                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-green-500" />
+                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-success" />
                       </Tooltip>
                     )}
-                    {s.id === activeSessionId && <Check className="h-3.5 w-3.5 flex-shrink-0 text-gray-500" />}
+                    {s.id === activeSessionId && <Check className="h-3.5 w-3.5 flex-shrink-0 text-on-surface-muted" />}
                   </button>
                 ))}
               </div>
@@ -223,7 +223,7 @@ export default function SessionHeader() {
             setMenuOpen((v) => !v);
             setConfirmingDelete(false);
           }}
-          className="rounded-md p-1.5 text-gray-500 transition-colors hover:bg-gray-200/70 hover:text-gray-700 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-neutral-800 dark:hover:text-gray-200"
+          className="rounded-md p-1.5 text-on-surface-muted transition-colors hover:bg-canvas/70 hover:text-on-surface disabled:opacity-40 dark:text-on-canvas-dark-muted dark:hover:bg-surface-dark-muted dark:hover:text-on-canvas-dark"
         >
           <MoreHorizontal className="h-4 w-4" />
         </button>
@@ -245,7 +245,7 @@ export default function SessionHeader() {
                   setConfirmingDelete(false);
                   if (activeSessionId) void deleteSession(activeSessionId);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] font-semibold text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] font-semibold text-danger transition-colors hover:bg-danger/10 dark:text-danger dark:hover:bg-danger/10"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 <span>{t('agent.confirmDelete')}</span>
@@ -254,7 +254,7 @@ export default function SessionHeader() {
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(true)}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-danger transition-colors hover:bg-danger/10 dark:text-danger dark:hover:bg-danger/10"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 <span>{t('agent.deleteSession')}</span>

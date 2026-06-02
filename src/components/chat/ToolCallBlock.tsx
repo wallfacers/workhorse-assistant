@@ -18,9 +18,9 @@ export interface ToolCallData {
 }
 
 const STATUS_DOT: Record<ToolCallData['status'], string> = {
-  running: 'bg-amber-400 animate-pulse',
-  done: 'bg-green-500',
-  error: 'bg-red-500',
+  running: 'bg-warning animate-pulse',
+  done: 'bg-success',
+  error: 'bg-danger',
 };
 
 
@@ -38,20 +38,20 @@ export default function ToolCallBlock({ tool }: { tool: ToolCallData }) {
     <details
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="my-1.5 rounded-md border border-outline/40 dark:border-neutral-700/50 bg-surface-muted/60 dark:bg-neutral-800/40"
+      className="my-1.5 rounded-md border border-outline/40 dark:border-outline-dark/50 bg-surface-muted/60 dark:bg-surface-dark-muted/40"
     >
-      <summary className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none text-[11.5px] hover:bg-gray-100/60 dark:hover:bg-neutral-800/60 rounded-md transition-colors">
+      <summary className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none text-[11.5px] hover:bg-surface-muted/60 dark:hover:bg-surface-dark-muted/60 rounded-md transition-colors">
         {open ? (
-          <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
+          <ChevronDown className="w-3 h-3 text-on-surface-muted flex-shrink-0" />
         ) : (
-          <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />
+          <ChevronRight className="w-3 h-3 text-on-surface-muted flex-shrink-0" />
         )}
         <span className="inline-flex items-center gap-1 font-mono font-medium text-[11px] text-secondary dark:text-[#5bb5cc]">
           <Wrench className="w-3 h-3" />
           {tool.name}
         </span>
         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[tool.status]}`} />
-        <span className="text-gray-400 dark:text-gray-500 text-[10.5px]">
+        <span className="text-on-surface-muted dark:text-on-canvas-dark-muted text-[10.5px]">
           {statusLabel[tool.status]}
         </span>
       </summary>
@@ -59,16 +59,16 @@ export default function ToolCallBlock({ tool }: { tool: ToolCallData }) {
         <div className="px-2.5 pb-2 space-y-1.5">
           {tool.input !== undefined && (
             <div>
-              <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-0.5">{t('toolCall.input')}</p>
-              <pre className="text-[10.5px] font-mono bg-white dark:bg-neutral-900 rounded p-2 overflow-x-auto custom-scrollbar text-gray-700 dark:text-gray-300 border border-outline/30 dark:border-neutral-700/40">
+              <p className="text-[10px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-0.5">{t('toolCall.input')}</p>
+              <pre className="text-[10.5px] font-mono bg-surface dark:bg-surface-dark rounded p-2 overflow-x-auto custom-scrollbar text-on-surface dark:text-on-canvas-dark-muted border border-outline/30 dark:border-outline-dark/40">
                 {typeof tool.input === 'string' ? tool.input : JSON.stringify(tool.input, null, 2)}
               </pre>
             </div>
           )}
           {tool.output !== undefined && (
             <div>
-              <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-0.5">{t('toolCall.output')}</p>
-              <pre className="text-[10.5px] font-mono bg-white dark:bg-neutral-900 rounded p-2 overflow-x-auto custom-scrollbar text-gray-700 dark:text-gray-300 border border-outline/30 dark:border-neutral-700/40">
+              <p className="text-[10px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-0.5">{t('toolCall.output')}</p>
+              <pre className="text-[10.5px] font-mono bg-surface dark:bg-surface-dark rounded p-2 overflow-x-auto custom-scrollbar text-on-surface dark:text-on-canvas-dark-muted border border-outline/30 dark:border-outline-dark/40">
                 {typeof tool.output === 'string' ? tool.output : JSON.stringify(tool.output, null, 2)}
               </pre>
             </div>

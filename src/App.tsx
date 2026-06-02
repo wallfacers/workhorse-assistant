@@ -81,7 +81,7 @@ export default function App() {
     <AppContext value={appContextValue}>
     <SessionProvider agent={agent}>
     <div
-      className={`${isDarkMode ? 'dark' : ''} ${floating ? 'rounded-xl border border-outline dark:border-neutral-800' : ''} relative h-screen w-screen flex flex-col overflow-hidden bg-surface-muted dark:bg-surface-dark text-on-canvas dark:text-on-canvas-dark font-sans`}
+      className={`${isDarkMode ? 'dark' : ''} ${floating ? 'rounded-xl border border-outline dark:border-outline-dark' : ''} relative h-screen w-screen flex flex-col overflow-hidden bg-surface-muted dark:bg-surface-dark text-on-canvas dark:text-on-canvas-dark font-sans`}
     >
       <TitleBar maximized={maximized} />
 
@@ -119,7 +119,7 @@ export default function App() {
               onClick={() => setRightPanelOpen(true)}
               aria-label={t('workspace.expandPanel')}
               title={t('workspace.expandPanel')}
-              className="p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-neutral-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+              className="p-1.5 rounded-md text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
             >
               <PanelRightOpen className="w-4 h-4" />
             </button>

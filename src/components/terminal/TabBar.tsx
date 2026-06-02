@@ -34,7 +34,7 @@ export default function TabBar({
     <div className="flex flex-shrink-0 items-center gap-1.5 px-2 py-2">
       {/* Outer frame: rounded-xl + overflow-hidden clips the scrollbar ends so
            they don't protrude past the rounded corners. */}
-      <div className="min-w-0 rounded-xl bg-outline/50 overflow-hidden dark:bg-neutral-800/70">
+      <div className="min-w-0 rounded-xl bg-outline/50 overflow-hidden dark:bg-surface-dark-muted/70">
         <div className="flex items-center gap-1 overflow-x-auto p-1 custom-scrollbar">
           {groups.map((g, i) => {
             const active = g.id === activeGroupId;
@@ -44,8 +44,8 @@ export default function TabBar({
                 onClick={() => onActivate(g.id)}
                 className={`group/tab flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg py-1.5 pl-4 pr-2.5 text-xs font-semibold transition-all duration-150 ${
                   active
-                    ? 'bg-white text-gray-950 shadow-sm dark:bg-neutral-700 dark:text-gray-100'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                    ? 'bg-surface text-on-surface shadow-sm dark:bg-surface-dark-muted dark:text-on-canvas-dark'
+                    : 'text-on-surface-muted hover:text-on-surface dark:text-on-canvas-dark-muted dark:hover:text-on-canvas-dark'
                 }`}
               >
                 <span className="max-w-[200px] truncate">{groupTitles[i]}</span>

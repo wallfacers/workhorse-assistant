@@ -30,20 +30,20 @@ export default function TitleBar({ maximized }: TitleBarProps) {
 
   return (
     <div className="bg-surface-muted dark:bg-surface-dark select-none flex-shrink-0">
-      <div className="h-8 flex items-center gap-1 pl-2 pr-2 text-gray-500 dark:text-gray-400">
+      <div className="h-8 flex items-center gap-1 pl-2 pr-2 text-on-surface-muted dark:text-on-canvas-dark-muted">
         <ProjectSwitcher />
         <div data-tauri-drag-region className="h-full flex-1" />
         <WindowButton
           label="Minimize"
           onClick={() => void minimizeWindow()}
-          hoverClass="hover:bg-gray-200/70 dark:hover:bg-neutral-800"
+          hoverClass="hover:bg-canvas/70 dark:hover:bg-surface-dark-muted"
         >
           <Minus className="w-3.5 h-3.5" />
         </WindowButton>
         <WindowButton
           label={maximized ? 'Restore' : 'Maximize'}
           onClick={handleToggleMax}
-          hoverClass="hover:bg-gray-200/70 dark:hover:bg-neutral-800"
+          hoverClass="hover:bg-canvas/70 dark:hover:bg-surface-dark-muted"
         >
           {maximized ? (
             <CopyIcon className="w-3.5 h-3.5 -scale-x-100" />
@@ -54,7 +54,7 @@ export default function TitleBar({ maximized }: TitleBarProps) {
         <WindowButton
           label="Close"
           onClick={() => void closeWindow()}
-          hoverClass="hover:bg-red-500 hover:text-white"
+          hoverClass="hover:bg-danger hover:text-on-primary"
         >
           <X className="w-3.5 h-3.5" />
         </WindowButton>
@@ -156,8 +156,8 @@ function ProjectSwitcher() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         title={currentProject || t('project.default')}
-        className={`flex h-6 max-w-[240px] items-center gap-1 rounded-md px-2 text-[12px] font-medium transition-colors hover:bg-gray-200/70 hover:text-gray-700 dark:hover:bg-neutral-800 dark:hover:text-gray-200 ${
-          open ? 'bg-gray-200/70 text-gray-700 dark:bg-neutral-800 dark:text-gray-200' : ''
+        className={`flex h-6 max-w-[240px] items-center gap-1 rounded-md px-2 text-[12px] font-medium transition-colors hover:bg-canvas/70 hover:text-on-surface dark:hover:bg-surface-dark-muted dark:hover:text-on-canvas-dark ${
+          open ? 'bg-canvas/70 text-on-surface dark:bg-surface-dark-muted dark:text-on-canvas-dark' : ''
         }`}
       >
         <FolderOpen className="h-3.5 w-3.5 flex-shrink-0" />
@@ -195,13 +195,13 @@ function ProjectSwitcher() {
                   className={`block w-full truncate px-3 py-1.5 text-left text-[12.5px] transition-colors hover:bg-surface-muted dark:hover:bg-surface-dark-muted ${
                     p === currentProject
                       ? 'font-semibold text-on-surface dark:text-on-canvas-dark'
-                      : 'text-gray-600 dark:text-gray-300'
+                      : 'text-on-surface-muted dark:text-on-canvas-dark-muted'
                   }`}
                 >
                   {p}
                 </button>
               ))}
-              {knownPaths.length > 0 && <div className="my-1 border-t border-outline/50 dark:border-neutral-800/60" />}
+              {knownPaths.length > 0 && <div className="my-1 border-t border-outline/50 dark:border-outline-dark/60" />}
               {entering ? (
                 <div className="px-2 py-1">
                   <input
@@ -214,7 +214,7 @@ function ProjectSwitcher() {
                       if (e.key === 'Escape') setEntering(false);
                     }}
                     placeholder={t('project.pathPlaceholder')}
-                    className="w-full rounded border border-outline bg-white px-2 py-1 text-[12px] text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 dark:border-neutral-700 dark:bg-surface-dark dark:text-gray-100 dark:focus:ring-neutral-700"
+                    className="w-full rounded border border-outline bg-surface px-2 py-1 text-[12px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark dark:bg-surface-dark dark:text-on-canvas-dark dark:focus:ring-outline-dark"
                   />
                 </div>
               ) : (

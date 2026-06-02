@@ -43,19 +43,19 @@ export default class ErrorBoundary extends Component<Props, State> {
     return (
       <div className="flex items-center justify-center h-full w-full p-4 bg-surface-muted dark:bg-surface-dark">
         <div className="text-center max-w-sm">
-          <div className="w-10 h-10 mx-auto rounded-full bg-red-50 dark:bg-red-950/40 flex items-center justify-center mb-3">
-            <span className="text-red-500 text-lg">!</span>
+          <div className="w-10 h-10 mx-auto rounded-full bg-danger/10 dark:bg-danger/10 flex items-center justify-center mb-3">
+            <span className="text-danger text-lg">!</span>
           </div>
-          <p className="text-[13px] font-semibold text-gray-900 dark:text-gray-100 mb-1">
+          <p className="text-[13px] font-semibold text-on-surface dark:text-on-canvas-dark mb-1">
             {i18n.t('error.boundaryTitle')}
           </p>
-          <p className="text-[11.5px] text-gray-500 dark:text-gray-400 mb-4 break-all">
+          <p className="text-[11.5px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-4 break-all">
             {this.state.error?.message ?? i18n.t('error.unknown')}
           </p>
           <button
             type="button"
             onClick={this.handleRetry}
-            className="px-3.5 py-1.5 rounded-lg bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-800 text-[12px] font-medium hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors"
+            className="px-3.5 py-1.5 rounded-lg bg-primary text-on-primary text-[12px] font-medium hover:bg-secondary hover:text-on-secondary transition-colors"
           >
             {i18n.t('common.retry')}
           </button>

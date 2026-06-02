@@ -25,9 +25,9 @@ const RESIZE_DEBOUNCE_MS = 80;
 // tokens (matching the project `custom-scrollbar` palette); its 6px width and
 // radius are set in index.css.
 const SCROLLBAR_LIGHT = {
-  scrollbarSliderBackground: '#d1d5db',
-  scrollbarSliderHoverBackground: '#9ca3af',
-  scrollbarSliderActiveBackground: '#9ca3af',
+  scrollbarSliderBackground: '#d6d2c6',
+  scrollbarSliderHoverBackground: '#c2bdaf',
+  scrollbarSliderActiveBackground: '#c2bdaf',
 };
 const SCROLLBAR_DARK = {
   scrollbarSliderBackground: '#525252',
@@ -35,23 +35,26 @@ const SCROLLBAR_DARK = {
   scrollbarSliderActiveBackground: '#737373',
 };
 
+// xterm has no CSS-variable hook, so the theme tokens below mirror the design
+// tokens (docs/DESIGN.md → src/index.css @theme) by hand. Keep them in sync.
 const DARK_THEME = {
-  background: '#161618',
-  foreground: '#eceff2',
-  cursor: '#0b6477',
-  selectionBackground: '#0b647755',
+  background: '#1a1918',        // = --color-surface-dark (warm near-black, Claude-docs)
+  foreground: '#eceae3',        // = --color-on-canvas-dark
+  cursor: '#cb785c',            // Claude coral (bright terracotta on dark)
+  selectionBackground: '#cb785c55',
   ...SCROLLBAR_DARK,
 };
 
 const LIGHT_THEME = {
-  background: '#f4f6f8',
-  foreground: '#101012',
-  cursor: '#0b6477',
-  cursorAccent: '#f4f6f8',
-  selectionBackground: '#0b647733',
+  background: '#f7f6f1',        // = --color-surface-muted (cream)
+  foreground: '#1a1918',        // = --color-on-surface (warm ink)
+  cursor: '#b8422e',            // = --color-primary (terracotta)
+  cursorAccent: '#f7f6f1',      // = background
+  selectionBackground: '#b8422e33',
   // ANSI palette tuned for a light background: xterm's default yellows and
-  // whites are near-invisible on light, so they're darkened to readable,
-  // maritime-leaning tones (e.g. `ls`/`dir` directory yellow → dark amber).
+  // whites are near-invisible on light, so they're darkened to readable tones
+  // (e.g. `ls`/`dir` directory yellow → dark amber). These stay ANSI-semantic
+  // and are deliberately NOT themed to the terracotta brand.
   black: '#1b1f24',
   red: '#b81e1e',
   green: '#1f7a5a',

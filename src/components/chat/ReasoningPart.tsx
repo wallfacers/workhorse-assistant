@@ -71,7 +71,7 @@ export default function ReasoningPart({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-fit items-center gap-1 text-[11.5px] font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        className="flex w-fit items-center gap-1 text-[11.5px] font-medium text-on-surface-muted dark:text-on-canvas-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
       >
         <ChevronRight
           className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
@@ -80,9 +80,9 @@ export default function ReasoningPart({
       </button>
 
       {open && (
-        <div className="pl-[19px] text-[12px] leading-relaxed text-gray-500 dark:text-gray-400">
+        <div className="pl-[19px] text-[12px] leading-relaxed text-on-surface-muted dark:text-on-canvas-dark-muted">
           {redacted ? (
-            <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-500 italic">
+            <div className="flex items-center gap-1.5 text-on-surface-muted dark:text-on-canvas-dark-muted italic">
               <Lock className="w-3 h-3 flex-shrink-0" />
               <span>{t('reasoning.redactedMessage')}</span>
             </div>

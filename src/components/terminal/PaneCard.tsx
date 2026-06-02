@@ -70,10 +70,10 @@ export default function PaneCard({
     <div
       data-pane-id={node.id}
       onMouseDown={onActivate}
-      className={`group relative flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border transition-all duration-200 ${
+      className={`group relative flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border transition-all duration-300 ${
         showAccent
-          ? 'border-primary-container ring-1 ring-primary-container/20'
-          : 'border-outline dark:border-outline-dark hover:border-primary-container/50 hover:ring-1 hover:ring-primary-container/10'
+          ? 'border-primary-container ring-1 ring-primary-container/25 hover:ring-2 hover:ring-primary-container/12'
+          : 'border-outline dark:border-outline-dark hover:border-primary-container/50 hover:ring-2 hover:ring-primary-container/8'
       }`}
     >
       {/* Reserve a slim top strip (in the terminal's own background color) so the

@@ -21,41 +21,41 @@
  * ---------------------------------------------------------------- */
 @theme {
   /* Colors — role tokens */
-  --color-primary: #024a44;
+  --color-primary: #b8422e;
   --color-on-primary: #ffffff;
-  --color-primary-container: #0b6477;
-  --color-on-primary-container: #e6f1f2;
+  --color-primary-container: #a8521a;
+  --color-on-primary-container: #fff1e6;
 
-  --color-secondary: #0b6477;
+  --color-secondary: #a85420;
   --color-on-secondary: #ffffff;
 
-  --color-tertiary: #144272;
+  --color-tertiary: #9a3b12;
   --color-on-tertiary: #ffffff;
 
-  --color-canvas: #eceff2;
-  --color-on-canvas: #101012;
-  --color-surface: #ffffff;
-  --color-on-surface: #101012;
-  --color-on-surface-muted: #6b7280;
-  --color-surface-muted: #f4f6f8;
+  --color-canvas: #f0efea;
+  --color-on-canvas: #1a1918;
+  --color-surface: #fdfdf7;
+  --color-on-surface: #1a1918;
+  --color-on-surface-muted: #6e6a60;
+  --color-surface-muted: #f7f6f1;
 
-  --color-canvas-dark: #101012;
-  --color-on-canvas-dark: #eceff2;
-  --color-on-canvas-dark-muted: #9ca3af;
-  --color-surface-dark: #161618;
-  --color-surface-dark-muted: #1a202c;
-  --color-surface-dark-elevated: #1e1e22;
+  --color-canvas-dark: #111110;
+  --color-on-canvas-dark: #eceae3;
+  --color-on-canvas-dark-muted: #9c968a;
+  --color-surface-dark: #1a1918;
+  --color-surface-dark-muted: #201f1c;
+  --color-surface-dark-elevated: #272420;
 
-  --color-outline: #e5e7eb;
-  --color-outline-strong: #c4ccd3;
-  --color-outline-dark: #2a2f36;
+  --color-outline: #e6e3da;
+  --color-outline-strong: #d6d2c6;
+  --color-outline-dark: #2e2c28;
 
-  --color-accent-warm: #b8422e;
+  --color-accent-warm: #0b6477;
   --color-on-accent-warm: #ffffff;
 
   --color-success: #1f7a5a;
   --color-warning: #b4731b;
-  --color-danger: #a6342b;
+  --color-danger: #b3261e;
 
   /* Radii */
   --radius-sm: 8px;
@@ -87,10 +87,10 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 dark:bg-neutral-600 rounded-full;
+    @apply bg-stone-300 dark:bg-stone-600 rounded-full;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-400 dark:bg-neutral-500;
+    @apply bg-stone-400 dark:bg-stone-500;
   }
   .custom-scrollbar::-webkit-scrollbar-button {
     display: none;
@@ -331,7 +331,7 @@
     color: var(--color-secondary); text-decoration: underline;
     text-decoration-color: color-mix(in srgb, var(--color-secondary) 40%, transparent);
   }
-  .dark [data-component="markdown"] a { color: #4dd0e1; text-decoration-color: rgb(77 208 225 / 0.4); }
+  .dark [data-component="markdown"] a { color: #e0a060; text-decoration-color: rgb(224 160 96 / 0.4); }
   [data-component="markdown"] a:hover { text-decoration-color: currentColor; }
   [data-component="markdown"] h1 { font-size: 14px; font-weight: 600; margin: 0.75rem 0 0.375rem; }
   [data-component="markdown"] h2 { font-size: 13px; font-weight: 600; margin: 0.625rem 0 0.25rem; }
@@ -349,10 +349,10 @@
   }
   .dark [data-component="markdown"] :not(pre) > code { background: rgb(38 38 38 / 1); }
   [data-component="markdown"] blockquote {
-    border-left: 2px solid rgb(2 74 68 / 0.4); padding-left: 0.75rem;
+    border-left: 2px solid rgb(184 66 46 / 0.4); padding-left: 0.75rem;
     margin: 0.5rem 0; font-style: italic; color: var(--color-on-surface-muted);
   }
-  .dark [data-component="markdown"] blockquote { border-left-color: rgb(77 208 225 / 0.4); }
+  .dark [data-component="markdown"] blockquote { border-left-color: rgb(224 160 96 / 0.4); }
   [data-component="markdown"] hr { margin: 0.75rem 0; border: 0; border-top: 1px solid var(--color-outline); }
   .dark [data-component="markdown"] hr { border-top-color: var(--color-outline-dark); }
   /* Table outer frame — rounded corners (rounded.sm) per DESIGN.md concentric-radius

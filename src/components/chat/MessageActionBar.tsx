@@ -61,36 +61,36 @@ export default function MessageActionBar({
   );
 
   return (
-    <div className="flex items-center gap-2 mt-1.5 ml-1 text-gray-400 dark:text-gray-500">
+    <div className="flex items-center gap-2 mt-1.5 ml-1 text-on-surface-muted dark:text-on-canvas-dark-muted">
       <button
-        className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        className="p-0.5 hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
         title={t('agent.feedback.copy')}
         onClick={handleCopy}
       >
         {confirmed === 'copy' ? (
-          <Check className="w-3 h-3 text-green-500" />
+          <Check className="w-3 h-3 text-success" />
         ) : (
           <Copy className="w-3 h-3" />
         )}
       </button>
       <button
-        className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        className="p-0.5 hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
         title={t('agent.feedback.good')}
         onClick={() => handleFeedback('like')}
       >
         {confirmed === 'like' ? (
-          <Check className="w-3 h-3 text-green-500" />
+          <Check className="w-3 h-3 text-success" />
         ) : (
           <ThumbsUp className="w-3 h-3" />
         )}
       </button>
       <button
-        className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        className="p-0.5 hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
         title={t('agent.feedback.bad')}
         onClick={() => handleFeedback('dislike')}
       >
         {confirmed === 'dislike' ? (
-          <Check className="w-3 h-3 text-green-500" />
+          <Check className="w-3 h-3 text-success" />
         ) : (
           <ThumbsDown className="w-3 h-3" />
         )}

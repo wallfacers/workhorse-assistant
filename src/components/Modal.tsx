@@ -79,7 +79,7 @@ export default function Modal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`relative w-full ${SIZE_MAP[size]} bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-2xl border border-outline/60 dark:border-neutral-800 overflow-hidden ${className}`}
+        className={`relative w-full ${SIZE_MAP[size]} bg-surface dark:bg-surface-dark-elevated rounded-2xl shadow-2xl border border-outline/60 dark:border-outline-dark overflow-hidden ${className}`}
       >
         {!hideCloseButton && (
           <button
@@ -87,7 +87,7 @@ export default function Modal({
             onClick={onClose}
             aria-label={t('common.close')}
             title={t('common.close')}
-            className="absolute top-3 right-3 z-10 p-1.5 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+            className="absolute top-3 right-3 z-10 p-1.5 rounded-md text-on-surface-muted dark:text-on-canvas-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
