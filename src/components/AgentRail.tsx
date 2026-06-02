@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDown, ArrowUp, Copy, LayoutList, Plus, Settings, ShieldAlert, ShieldCheck, Sparkles, Square, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, LayoutList, Plus, Settings, ShieldAlert, ShieldCheck, Sparkles, Square } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MockTask } from './agent-rail.mock';
 import TaskListModal from './TaskListModal';
@@ -12,6 +12,7 @@ import { useApp } from '../context';
 import { useSession } from '../session/SessionProvider';
 import { isPendingOnly } from '../session/types';
 import MarkdownContent from './chat/MarkdownContent';
+import MessageActionBar from './chat/MessageActionBar';
 import ToolCallBlock from './chat/ToolCallBlock';
 import ReasoningPart from './chat/ReasoningPart';
 import i18n from '../i18n';
@@ -321,11 +322,10 @@ export default function AgentRail() {
                         })}
                       </div>
                       {!streamingIds.has(msg.id) && (
-                        <div className="flex items-center gap-2 mt-1.5 ml-1 text-gray-400 dark:text-gray-500">
-                          <button className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.copy')}><Copy className="w-3 h-3" /></button>
-                          <button className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.good')}><ThumbsUp className="w-3 h-3" /></button>
-                          <button className="p-0.5 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.bad')}><ThumbsDown className="w-3 h-3" /></button>
-                        </div>
+                        <MessageActionBar
+                          content={msg.parts.filter((p) => p.type === 'text').map((p) => (p as { content: string }).content).join('')}
+                          messageId={msg.id}
+                        />
                       )}
                     </div>
                   </div>

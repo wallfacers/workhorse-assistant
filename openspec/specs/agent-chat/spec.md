@@ -39,7 +39,9 @@ The Rust SSE reader SHALL relay the sidecar's `assistant_text_delta` and
 `agent://text/{sessionId}` (payload `{sessionId, delta}`) and
 `agent://textdone/{sessionId}` (payload `{sessionId, messageId, stopReason}`).
 The renderer SHALL accumulate consecutive deltas into a single assistant message
-and reveal the text progressively, rendering it as Markdown.
+and reveal the text progressively, rendering it as Markdown. After streaming
+completes, the renderer SHALL render a `MessageActionBar` component below the
+assistant message content, providing copy, like, and dislike functionality.
 
 #### Scenario: Streaming an assistant reply
 
@@ -52,7 +54,14 @@ and reveal the text progressively, rendering it as Markdown.
 
 - **WHEN** the sidecar emits `assistant_text_done`
 - **THEN** the renderer stops the streaming animation for that message, showing
-  the full text, and reveals the per-message action row (copy / feedback)
+  the full text, and reveals the per-message `MessageActionBar` (copy, like,
+  dislike)
+
+#### Scenario: Streaming message shows no action bar
+
+- **WHEN** an assistant message is actively streaming
+- **THEN** no `MessageActionBar` SHALL be visible for that message
+- **AND** the action bar SHALL only appear once streaming completes
 
 ### Requirement: Tool-call visualization
 

@@ -2,14 +2,12 @@
 // Retained for R4 (add-agent-task-flow) evaluation; delete then if unused.
 import {
   FileText,
-  Copy,
-  ThumbsUp,
-  ThumbsDown,
   Plus,
   ArrowUp,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import MonoPath from './MonoPath';
+import MessageActionBar from './chat/MessageActionBar';
 
 export default function MainChat() {
   const { t } = useTranslation();
@@ -90,11 +88,10 @@ export default function MainChat() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center space-x-3 text-gray-400 dark:text-gray-500 mt-3.5 ml-3">
-                <button className="p-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.copy')}><Copy className="w-3.5 h-3.5" /></button>
-                <button className="p-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.good')}><ThumbsUp className="w-3.5 h-3.5" /></button>
-                <button className="p-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title={t('agent.feedback.bad')}><ThumbsDown className="w-3.5 h-3.5" /></button>
-              </div>
+              <MessageActionBar
+                content="报告已生成并保存为 Markdown 文件，包含完整的学术分析框架和具体数据引用，可直接用于学术研究或技术参考。"
+                messageId="mock-assistant-msg-1"
+              />
             </div>
           </div>
 
