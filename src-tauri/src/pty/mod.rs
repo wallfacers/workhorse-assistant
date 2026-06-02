@@ -92,11 +92,45 @@ fn resolve_profile(
         "terminal" => {
             // Default profile: the user's login shell, for raw terminal use and
             // verification (ls/vim/htop). Always available, no auth needed.
+            //
+            // Windows: prefer PowerShell 7 (`pwsh.exe`) over Windows PowerShell
+            // 5.1 (`powershell.exe`). Only PS7 colourises `Get-ChildItem`
+            // (`ls`/`dir`) output — via `$PSStyle` — which the xterm ANSI
+            // palette then renders; 5.1 emits no colour codes at all. The
+            // startup `-Command` (run after the user profile loads, then drops
+            // to an interactive prompt via `-NoExit`):
+            //   * forces `OutputRendering='Ansi'` so colours survive the ConPTY
+            //     hop even if PS misdetects the stream as redirected;
+            //   * re-points `FileInfo.Directory/SymbolicLink/Executable` at
+            //     *named* ANSI colours (bright blue/cyan/green) instead of PS7's
+            //     default 24-bit blue-on-white background — named colours map to
+            //     our warm palette, the RGB default does not (and is unreadable).
+            // Fall back to 5.1 (no colour) only when PS7 is not installed.
             #[cfg(windows)]
-            let command = "powershell.exe".to_string();
+            let (command, args) = if which::which("pwsh.exe").is_ok() {
+                const PS_INIT: &str = "if($PSStyle){\
+                    $PSStyle.OutputRendering='Ansi';\
+                    $PSStyle.FileInfo.Directory=$PSStyle.Bold+$PSStyle.Foreground.BrightBlue;\
+                    $PSStyle.FileInfo.SymbolicLink=$PSStyle.Foreground.BrightCyan;\
+                    $PSStyle.FileInfo.Executable=$PSStyle.Foreground.BrightGreen}";
+                (
+                    "pwsh.exe".to_string(),
+                    vec![
+                        "-NoLogo".to_string(),
+                        "-NoExit".to_string(),
+                        "-Command".to_string(),
+                        PS_INIT.to_string(),
+                    ],
+                )
+            } else {
+                ("powershell.exe".to_string(), Vec::new())
+            };
             #[cfg(not(windows))]
-            let command = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
-            Some(LaunchProfile { command, args: Vec::new(), cwd: host_cwd(), env: Vec::new() })
+            let (command, args) = (
+                std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string()),
+                Vec::new(),
+            );
+            Some(LaunchProfile { command, args, cwd: host_cwd(), env: Vec::new() })
         }
         "claude-opus" => Some(LaunchProfile {
             command: "claude".into(),
