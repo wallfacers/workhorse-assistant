@@ -37,11 +37,40 @@ const SCROLLBAR_DARK = {
 
 // xterm has no CSS-variable hook, so the theme tokens below mirror the design
 // tokens (docs/DESIGN.md → src/index.css @theme) by hand. Keep them in sync.
+//
+// Each theme is a complete terminal "color scheme" (Windows-Terminal / Termius
+// style): surface tokens (bg/fg/cursor/selection) PLUS the full 16-colour ANSI
+// palette. The two palettes are a matched pair — same ANSI hues, retuned for
+// their ground: muted-but-readable on light, lifted-and-warmed on dark. They
+// stay ANSI-semantic (red is red, green is green) and are deliberately NOT
+// recoloured to the terracotta brand, so tool output (`ls`, `git`, compilers)
+// keeps its conventional meaning. Only the cursor wears the brand colour.
 const DARK_THEME = {
   background: '#1a1918',        // = --color-surface-dark (warm near-black, Claude-docs)
   foreground: '#eceae3',        // = --color-on-canvas-dark
   cursor: '#cb785c',            // Claude coral (bright terracotta on dark)
   selectionBackground: '#cb785c55',
+  // ANSI palette for the warm near-black ground. xterm's stock palette is cold
+  // VGA neon (#cd0000 / #00cd00 …) and clashes with the cream/terracotta brand,
+  // so each hue is warmed a touch and lifted to read on #1a1918. Greens lean to
+  // success (#1f7a5a), cyans to accent-warm (#0b6477); reds stay clear of the
+  // coral cursor so a `git` error never looks like the caret.
+  black: '#423f3a',
+  red: '#cf4f3f',
+  green: '#5aa17f',
+  yellow: '#c99a55',
+  blue: '#6293bd',
+  magenta: '#b27ec2',
+  cyan: '#4d9aa8',
+  white: '#c9c4b8',
+  brightBlack: '#6e6a60',       // ~= --color-on-surface-dark-muted (dim/comments)
+  brightRed: '#e3705e',
+  brightGreen: '#74b896',
+  brightYellow: '#dbab68',
+  brightBlue: '#7aaad0',
+  brightMagenta: '#c897d6',
+  brightCyan: '#5fb3c2',
+  brightWhite: '#eceae3',       // = foreground
   ...SCROLLBAR_DARK,
 };
 
@@ -51,17 +80,16 @@ const LIGHT_THEME = {
   cursor: '#b8422e',            // = --color-primary (terracotta)
   cursorAccent: '#f7f6f1',      // = background
   selectionBackground: '#b8422e33',
-  // ANSI palette tuned for a light background: xterm's default yellows and
-  // whites are near-invisible on light, so they're darkened to readable tones
-  // (e.g. `ls`/`dir` directory yellow → dark amber). These stay ANSI-semantic
-  // and are deliberately NOT themed to the terracotta brand.
+  // ANSI palette tuned for the cream ground: xterm's default yellows and whites
+  // are near-invisible on light, so they're darkened to readable tones (e.g.
+  // `ls`/`dir` directory yellow → dark amber). Mirror of DARK_THEME's hues.
   black: '#1b1f24',
   red: '#b81e1e',
-  green: '#1f7a5a',
+  green: '#1f7a5a',            // = --color-success
   yellow: '#8a5a00',
   blue: '#144272',
   magenta: '#7b3fb8',
-  cyan: '#0b6477',
+  cyan: '#0b6477',             // = --color-accent-warm
   white: '#5b6470',
   brightBlack: '#6e7781',
   brightRed: '#cf3030',
