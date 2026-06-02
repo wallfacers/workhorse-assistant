@@ -418,15 +418,11 @@ function RuntimeModeSection({ onReconnect }: { onReconnect: () => void }) {
       {mode === 'wsl' && wslAvailable && (
         <div className="mb-4">
           <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">{t('settings.runtime.distro')}</label>
-          <select
-            value={selectedDistro}
-            onChange={(e) => changeDistro(e.target.value)}
-            className="w-full rounded-lg border border-outline/40 bg-surface-muted px-3 py-2 text-[12.5px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
-          >
-            {distros.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
+          <DistroSelect
+            distros={distros}
+            selected={selectedDistro}
+            onChange={changeDistro}
+          />
         </div>
       )}
 
@@ -579,6 +575,68 @@ function LanguageSelect() {
             >
               <span>{l.label}</span>
               {l.code === current.code && (
+                <Check className="h-3.5 w-3.5 flex-shrink-0 text-on-surface-muted dark:text-on-canvas-dark-muted" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * WSL distro picker. Same visual pattern as `LanguageSelect` — a trigger button
+ * with a rotating chevron and a floating popover with a check mark on the
+ * active item.
+ */
+function DistroSelect({
+  distros,
+  selected,
+  onChange,
+}: {
+  distros: string[];
+  selected: string;
+  onChange: (distro: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-outline/40 bg-surface-muted px-3 py-2 text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:hover:bg-surface-dark-muted"
+      >
+        <span>{selected}</span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 flex-shrink-0 text-on-surface-muted transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
+          {distros.map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => {
+                onChange(d);
+                setOpen(false);
+              }}
+              className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[13px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
+            >
+              <span>{d}</span>
+              {d === selected && (
                 <Check className="h-3.5 w-3.5 flex-shrink-0 text-on-surface-muted dark:text-on-canvas-dark-muted" />
               )}
             </button>
