@@ -19,5 +19,5 @@
 ## 3. Lint & verify
 
 - [x] `npm run lint` passes (no new errors introduced)
-- [ ] `npm run design:lint` passes (no hardcoded hex/rem)
-- [ ] Manual check: collapse/re-open works; tab switch works in both light/dark
+- [x] `npm run design:lint` passes (no hardcoded hex/rem)
+- [x] Manual check: collapse/re-open works; tab switch works in both light/dark

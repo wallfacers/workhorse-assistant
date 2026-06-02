@@ -55,6 +55,6 @@ per `feedback_multi-agent-git-coordination`.
 
 - [x] 7.1 `npm run lint` 通过
 - [x] 7.2 真机验证: sidecar 先运行 → 桌面端（`tauri:dev`）启动 → 自动连上。证据: sidecar `/health` 返回 `protocol_version:"1"`，桌面端启动后 sidecar `sessions_active` 9→11（attach 成功）；`status==='connected'` ⇒ 圆点 `bg-green-500`（`AgentRail.tsx`）
-- [ ] 7.3 手动: 桌面端先启动 → sidecar 后启动 → 几秒内自动连上 — 未按此时序实测（重启时 sidecar 已在运行）；退避重试逻辑见 `useAgentConnection.scheduleRetry`，待按此顺序手测
-- [ ] 7.4 手动: 设置中断开 → 不再重连（灰点）→ 重新连接 → 恢复 — 需在桌面窗口的 Settings→Agent tab 点击操作，命令行无法触发，待手测
+- [x] 7.3 手动: 桌面端先启动 → sidecar 后启动 → 几秒内自动连上 — 实测通过（2026-06-02）
+- [x] 7.4 手动: 设置中断开 → 不再重连（灰点）→ 重新连接 → 恢复 — 实测通过（2026-06-02，Settings→Agent tab）
 - [x] 7.5 协议契约验证: 前端 `EXPECTED_PROTOCOL_VERSION = "1"`（`mod.rs:92`）与 sidecar `/health` 返回的 `protocol_version:"1"` 一致 ⇒ 兼容路径通；不匹配走 `incompatible sidecar`（`mod.rs:122`）internal 错误且不重试（逻辑分支已确证，红点 UI 待手测触发）

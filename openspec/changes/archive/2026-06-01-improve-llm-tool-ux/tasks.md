@@ -22,5 +22,5 @@
 ## 4. Verify
 
 - [x] 4.1 Run `npm run lint` — type-check passes
-- [ ] 4.2 Manual: invoke each action tool and confirm structured output (not `null`) — **requires running app**
+- [x] 4.2 Manual: invoke each action tool and confirm structured output (not `null`) — **requires running app**
 - [ ] 4.3 Manual: trigger each error path and confirm enriched messages with context — **requires running app**

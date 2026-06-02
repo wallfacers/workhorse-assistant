@@ -33,6 +33,6 @@
 ## 4. Lint & verify
 
 - [x] `npm run lint` passes (no new errors introduced)
-- [ ] `npm run design:lint` passes (no hardcoded hex/rem)
-- [ ] Manual: toolbar button opens/closes modal; Escape closes; bubble scroll
+- [x] `npm run design:lint` passes (no hardcoded hex/rem)
+- [x] Manual: toolbar button opens/closes modal; Escape closes; bubble scroll
       works; dark-mode toggle works; right panel and terminal center unchanged
