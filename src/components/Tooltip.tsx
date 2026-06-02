@@ -2,8 +2,9 @@ import { useState, useRef, type ReactNode } from 'react';
 
 /**
  * Simple custom tooltip — replaces the native `title` attribute with a styled
- * hover popover. Uses a small delay before showing to avoid flickering, and
- * positions above the trigger element.
+ * hover popover. Uses a small delay before showing to avoid flickering.
+ * Renders below the trigger so it is not clipped by ancestor overflow.
+ * The `min-w-0` on the wrapper lets inner `truncate` work inside flex layouts.
  */
 export default function Tooltip({
   content,
@@ -27,10 +28,10 @@ export default function Tooltip({
   };
 
   return (
-    <span className="relative inline-flex" onMouseEnter={show} onMouseLeave={hide}>
+    <span className="relative inline-flex min-w-0" onMouseEnter={show} onMouseLeave={hide}>
       {children}
       {visible && (
-        <span className="pointer-events-none absolute bottom-full left-1/2 z-[100] mb-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-[11px] leading-relaxed text-white shadow-lg dark:bg-gray-100 dark:text-gray-900">
+        <span className="pointer-events-none absolute left-1/2 top-full z-[9999] mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-[11px] leading-relaxed text-white shadow-lg dark:bg-gray-100 dark:text-gray-900">
           {content}
         </span>
       )}
