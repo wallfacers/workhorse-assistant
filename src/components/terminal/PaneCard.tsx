@@ -48,9 +48,10 @@ function ControlButton({
 /**
  * A clean pane card. Every pane gets a 1px outline so it reads as a distinct
  * cell — a lone pane and inactive split panes use the neutral `outline`, while
- * the active pane in a split is tinted `primary-container`. Split/close controls
- * live in a small theme-aware cluster that only appears on hover (design D3,
- * DESIGN.md "outline to separate surfaces").
+ * the active pane in a split is tinted `primary-container` with a subtle ring
+ * glow. Hover adds a faint teal ring for visual feedback (design D3, DESIGN.md
+ * "outline to separate surfaces" — the ring is a border-emphasis glow, not an
+ * elevation shadow).
  */
 export default function PaneCard({
   node,
@@ -69,10 +70,10 @@ export default function PaneCard({
     <div
       data-pane-id={node.id}
       onMouseDown={onActivate}
-      className={`group relative flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden rounded-md border transition-colors ${
+      className={`group relative flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border transition-all duration-200 ${
         showAccent
-          ? 'border-primary-container'
-          : 'border-outline dark:border-outline-dark'
+          ? 'border-primary-container ring-1 ring-primary-container/20'
+          : 'border-outline dark:border-outline-dark hover:border-primary-container/50 hover:ring-1 hover:ring-primary-container/10'
       }`}
     >
       {/* Reserve a slim top strip (in the terminal's own background color) so the

@@ -148,7 +148,7 @@
     width: 6px;
   }
   /* The visible teal line (hover/drag) is a pseudo-element inset from both ends
-   * by the pane corner radius (--radius-md), so it spans only the cards' straight
+   * by the pane corner radius (--radius-lg), so it spans only the cards' straight
    * edges and never overshoots their rounded corners. The handle itself stays
    * full-length so the whole edge remains grabbable. */
   [data-separator].separator-handle::before {
@@ -159,12 +159,12 @@
     transition: background-color 0.15s;
   }
   [data-separator].separator-handle[aria-orientation='vertical']::before {
-    inset: var(--radius-md) 0;
+    inset: var(--radius-lg) 0;
     width: 1px;
     margin-inline: auto;
   }
   [data-separator].separator-handle[aria-orientation='horizontal']::before {
-    inset: 0 var(--radius-md);
+    inset: 0 var(--radius-lg);
     height: 1px;
     margin-block: auto;
   }
