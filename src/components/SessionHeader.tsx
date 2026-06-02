@@ -199,12 +199,16 @@ export default function SessionHeader() {
                     <Tooltip content={s.title || t('agent.untitledSession')}>
                       <span className="block truncate min-w-0">{s.title || t('agent.untitledSession')}</span>
                     </Tooltip>
-                    {s.running && (
-                      <Tooltip content={t('agent.sessionRunning')}>
-                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-success" />
-                      </Tooltip>
+                    {(s.running || s.id === activeSessionId) && (
+                      <span className="ml-auto flex flex-shrink-0 items-center gap-2">
+                        {s.running && (
+                          <Tooltip content={t('agent.sessionRunning')}>
+                            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-success" />
+                          </Tooltip>
+                        )}
+                        {s.id === activeSessionId && <Check className="h-3.5 w-3.5 flex-shrink-0 text-on-surface-muted" />}
+                      </span>
                     )}
-                    {s.id === activeSessionId && <Check className="h-3.5 w-3.5 flex-shrink-0 text-on-surface-muted" />}
                   </button>
                 ))}
               </div>
