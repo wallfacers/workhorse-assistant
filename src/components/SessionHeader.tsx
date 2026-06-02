@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useSession, type SessionListItem } from '../session/SessionProvider';
+import Tooltip from './Tooltip';
 
 /** Close a popover when the user clicks outside `ref` (mirrors `ProfileMenu`). */
 function useClickOutside(open: boolean, onClose: () => void) {
@@ -78,7 +79,7 @@ function groupSessionsByTime(
  * exposes rename / delete. Both dropdowns close on outside-click, like the
  * terminal `ProfileMenu`.
  */
-export default function SessionHeader() {
+export default function SessionHeader({ containerWidth }: { containerWidth: number | null }) {
   const { t } = useTranslation();
   const {
     sessions,
@@ -156,13 +157,21 @@ export default function SessionHeader() {
             onClick={() => setSwitcherOpen((v) => !v)}
             className="flex max-w-full items-center gap-1 rounded-md px-1.5 py-1 text-[12.5px] font-semibold text-gray-800 transition-colors hover:bg-gray-200/70 dark:text-gray-100 dark:hover:bg-neutral-800"
           >
-            <span className="truncate">{title}</span>
+            <Tooltip content={title}>
+              <span className="truncate">{title}</span>
+            </Tooltip>
             <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
           </button>
         )}
 
         {switcherOpen && (
-          <div className="absolute left-0 z-50 mt-1 max-h-[400px] min-w-[240px] overflow-y-auto rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
+          <div
+            className="absolute left-0 z-50 mt-1 max-h-[400px] overflow-y-auto rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated"
+            style={{
+              minWidth: 240,
+              maxWidth: containerWidth ? Math.max(240, containerWidth - 48) : undefined,
+            }}
+          >
             {/* New session — always at the top */}
             <button
               type="button"
@@ -193,9 +202,13 @@ export default function SessionHeader() {
                     }}
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
                   >
-                    <span className="flex-1 truncate">{s.title || t('agent.untitledSession')}</span>
+                    <Tooltip content={s.title || t('agent.untitledSession')}>
+                      <span className="flex-1 truncate">{s.title || t('agent.untitledSession')}</span>
+                    </Tooltip>
                     {s.running && (
-                      <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-green-500" title={t('agent.sessionRunning')} />
+                      <Tooltip content={t('agent.sessionRunning')}>
+                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-green-500" />
+                      </Tooltip>
                     )}
                     {s.id === activeSessionId && <Check className="h-3.5 w-3.5 flex-shrink-0 text-gray-500" />}
                   </button>
