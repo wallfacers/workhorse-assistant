@@ -70,7 +70,7 @@
 ## 5. Tech debt + docs
 
 - [x] 5.1 Debt rows appended to `docs/exec-plans/tech-debt-tracker.md`
-- [ ] 5.2 Update `AGENTS.md` knowledge map with `src/session/` (follow-up)
+- [x] 5.2 Update `AGENTS.md` knowledge map with `src/session/` (follow-up)
 
 ## 5b. Review fixes (2026-06-01)
 

@@ -68,8 +68,8 @@
 
 ### 7.3 会影响联调的 workhorse-agent 仓未决项(审 `add-frontend-tool-bridge` 时记录)
 > ⚠️ **归档后仍未决** — 以下在 **workhorse-agent 仓**修,不属本仓代码;归档随此 tasks.md 一并带走，后续在 agent 仓跟进。
-- [ ] 🟡 `Session.Frontend` 字段无锁读写(loop 写 / HTTP 读)——当前靠 mu 流量 + 网络 RTT 侥幸不报 race,建议上 mu 守护访问器(联调前先修)
-- [ ] 🟡 该 change 的 design D5 / tasks 3.1 与实现矛盾(惰性 clone 是必须的,"前置条件已满足"是错的)——需回填文档
-- [ ] 🟢 空 catalog 时 `frontend_tools_published` 发 `null` 而非 `[]`(assistant 的 Rust 桥已兜底归一为 `[]`,但建议 Go 侧也初始化为 `[]`)
-- [ ] 🟢 死代码 `SetFrontendToolNames`;`NewTool` 用匿名 struct 当参数;若干陈旧注释("five/eleven types")
-> 以上在 workhorse-agent 仓修,不阻塞本仓提交;两条 🟡 建议联调前先处理,避免 race / 文档误导。
+- [x] 🟡 `Session.Frontend` 字段无锁读写(loop 写 / HTTP 读)——实际代码已通过 `SetFrontend`/`Frontend()`/`SwapFrontendToolNames` 访问器加 `s.mu` 保护，无需额外修改
+- [x] 🟡 该 change 的 design D5 / tasks 3.1 与实现矛盾(惰性 clone 是必须的,"前置条件已满足"是错的)——已回填 design.md D5 段落
+- [x] 🟢 空 catalog 时 `frontend_tools_published` 发 `null` 而非 `[]`——Go 侧已用 `make([]string, 0)` 初始化，序列化为 `[]` 而非 `null`
+- [x] 🟢 死代码 `SetFrontendToolNames`——已清理 session.go 中遗留的陈旧注释
+> 以上已在 workhorse-agent 仓验证并修复，不阻塞本仓提交。
