@@ -105,7 +105,11 @@ export default function TerminalGroup({
   // Re-measure after every commit: catches structural and position-only shifts
   // (e.g. a sibling moving without changing size) that a ResizeObserver misses.
   // Guarded by `rectsEqual`, so it converges in one extra pass with no loop.
+  // Skip measurement when hidden via display:none (tab switch) — offsetParent is
+  // null when the element or any ancestor has display:none, and measuring zero
+  // rects destabilises the terminal positioning layer.
   useLayoutEffect(() => {
+    if (!containerRef.current?.offsetParent) return;
     measure();
   });
 
@@ -116,7 +120,10 @@ export default function TerminalGroup({
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const ro = new ResizeObserver(() => measure());
+    const ro = new ResizeObserver(() => {
+      if (!containerRef.current?.offsetParent) return;
+      measure();
+    });
     ro.observe(container);
     for (const el of placeholderRefs.current.values()) ro.observe(el);
     return () => ro.disconnect();

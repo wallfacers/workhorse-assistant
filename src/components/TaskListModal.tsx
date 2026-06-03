@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useEscape } from '../shortcuts';
 import { MOCK_TASKS } from './agent-rail.mock';
 import type { MockTask } from './agent-rail.mock';
 
@@ -20,12 +21,9 @@ export default function TaskListModal({ onClose, onSelect }: TaskListModalProps)
 
   useEffect(() => {
     inputRef.current?.focus();
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  }, []);
+
+  useEscape(onClose);
 
   return (
     <div

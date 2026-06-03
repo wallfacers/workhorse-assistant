@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useEscape } from '../shortcuts';
 
 /**
  * Options for a single confirmation. `body` accepts a ReactNode so callers can
@@ -72,13 +73,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Escape cancels; Enter confirms. Lock background scroll while open.
+  // Escape cancels via centralized stack; Enter confirms. Lock background scroll while open.
+  useEscape(() => settle(false), !!pending);
+
   useEffect(() => {
     if (!pending) return;
     const handler = (e: KeyboardEvent) => {
       if (e.isComposing) return;
-      if (e.key === 'Escape') settle(false);
-      else if (e.key === 'Enter') settle(true);
+      if (e.key === 'Enter') settle(true);
     };
     window.addEventListener('keydown', handler);
     const prevOverflow = document.body.style.overflow;

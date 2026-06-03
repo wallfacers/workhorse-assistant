@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Check, ChevronDown, Moon, Pencil, Plus, Square, CheckSquare, Sun, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Moon, Pencil, Plus, RotateCcw, Square, CheckSquare, Sun, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import {
+  useShortcutContext,
+  useEscape,
+  keyDisplay,
+  SHORTCUT_ACTION_I18N,
+  DEFAULT_SHORTCUTS,
+  type ShortcutAction,
+  type KeyBinding,
+} from '../shortcuts';
 import type {
   AgentConnection,
   WslDetect,
@@ -36,7 +45,7 @@ import { useToast } from './ToastProvider';
 import { useSession } from '../session/SessionProvider';
 import type { AgentSessionMeta } from '../ipc/agent';
 
-type NavItem = 'theme' | 'shortcuts' | 'agent' | 'permissions' | 'sessions';
+export type NavItem = 'theme' | 'shortcuts' | 'agent' | 'permissions' | 'sessions';
 
 /** Display labels stay in each language's own script (i18n convention). */
 const LANGUAGES: { code: string; label: string }[] = [
@@ -46,19 +55,26 @@ const LANGUAGES: { code: string; label: string }[] = [
 
 interface SettingsModalProps {
   onClose: () => void;
+  /** Initial nav tab to show. Defaults to 'theme'. */
+  initialNav?: NavItem;
 }
 
-const SHORTCUTS: { key: string; descKey: string }[] = [
-  { key: '⌘ N',     descKey: 'shortcuts.newTask' },
-  { key: '⌘ K',     descKey: 'shortcuts.globalSearch' },
-  { key: '⌘ ,',     descKey: 'shortcuts.openSettings' },
-  { key: '⌘ W',     descKey: 'shortcuts.closePanel' },
-  { key: '⌘ \\',    descKey: 'shortcuts.toggleSidebar' },
-  { key: '⌘ T',     descKey: 'shortcuts.newTerminal' },
-  { key: '⌘ D',     descKey: 'shortcuts.splitTerminal' },
-  { key: '⌘ Enter', descKey: 'shortcuts.sendMessage' },
-  { key: '⌘ /',     descKey: 'shortcuts.showShortcuts' },
-  { key: 'Esc',     descKey: 'shortcuts.cancelClose' },
+/**
+ * Ordered list of actions displayed in the shortcuts editor.
+ * `cancelClose` is excluded — it is a fixed Escape key handled by the escape
+ * stack, not a configurable chord.
+ */
+const SHORTCUT_ACTIONS: ShortcutAction[] = [
+  'newTask',
+  'globalSearch',
+  'openSettings',
+  'closePanel',
+  'toggleSidebar',
+  'newTerminal',
+  'splitTerminal',
+  'sendMessage',
+  'showShortcuts',
+  'cancelClose',
 ];
 
 /** Single status-dot color per unified-status tone (unify-runtime-source-panel). */
@@ -69,10 +85,13 @@ const TONE_DOT: Record<StatusTone, string> = {
   error: 'bg-danger',
 };
 
-export default function SettingsModal({ onClose }: SettingsModalProps) {
+export default function SettingsModal({ onClose, initialNav }: SettingsModalProps) {
   const { t } = useTranslation();
   const { isDarkMode, setIsDarkMode, agent, autoExpandReasoning, setAutoExpandReasoning } = useApp();
-  const [activeNav, setActiveNav] = useState<NavItem>('theme');
+  const [activeNav, setActiveNav] = useState<NavItem>(initialNav ?? 'theme');
+
+  // Register Escape to close via centralized stack.
+  useEscape(onClose);
 
   const navLabels: Record<NavItem, string> = {
     theme: t('settings.nav.theme'),
@@ -751,22 +770,158 @@ function ThemeOption({
 
 function ShortcutsSection() {
   const { t } = useTranslation();
+  const { shortcuts, setShortcuts, isMacPlatform: mac } = useShortcutContext();
+  const confirm = useConfirm();
+  const [recording, setRecording] = useState<ShortcutAction | null>(null);
+
+  // Close recording mode on Escape.
+  useEscape(() => setRecording(null), recording !== null);
+
+  // One-shot capture listener during recording.
+  useEffect(() => {
+    if (!recording) return;
+
+    function onCapture(e: KeyboardEvent) {
+      // Don't capture during IME composition.
+      if (e.isComposing) return;
+
+      // Cancel recording on Escape.
+      if (e.code === 'Escape' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        setRecording(null);
+        return;
+      }
+
+      // Ignore modifier-only presses.
+      if (
+        e.code === 'MetaLeft' || e.code === 'MetaRight' ||
+        e.code === 'ControlLeft' || e.code === 'ControlRight' ||
+        e.code === 'AltLeft' || e.code === 'AltRight' ||
+        e.code === 'ShiftLeft' || e.code === 'ShiftRight'
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const binding: KeyBinding = {
+        mod: mac ? e.metaKey : e.ctrlKey,
+        alt: e.altKey,
+        shift: e.shiftKey,
+        code: e.code,
+      };
+
+      // Validate: must have at least one modifier unless it's Escape.
+      if (!binding.mod && !binding.alt && !binding.shift && binding.code !== 'Escape') {
+        // invalid — stay in recording mode
+        return;
+      }
+
+      // recording is non-null inside the capture callback (guard at top of effect).
+      const action = recording as ShortcutAction;
+      const next = { bindings: { ...shortcuts.bindings, [action]: binding } };
+      setShortcuts(next);
+      setRecording(null);
+    }
+
+    window.addEventListener('keydown', onCapture, { capture: true });
+    return () => window.removeEventListener('keydown', onCapture, { capture: true });
+  }, [recording, mac, shortcuts, setShortcuts]);
+
+  // Find conflicts: actions sharing the same binding string.
+  const conflicts = useRef<Map<string, ShortcutAction[]>>(new Map());
+  conflicts.current.clear();
+  for (const action of SHORTCUT_ACTIONS) {
+    const b = shortcuts.bindings[action];
+    const sig = `${b.mod}:${b.alt}:${b.shift}:${b.code}`;
+    const list = conflicts.current.get(sig);
+    if (list) list.push(action);
+    else conflicts.current.set(sig, [action]);
+  }
+
+  const conflictFor = (action: ShortcutAction): string | null => {
+    const b = shortcuts.bindings[action];
+    const sig = `${b.mod}:${b.alt}:${b.shift}:${b.code}`;
+    const list = conflicts.current.get(sig);
+    if (list && list.length > 1) {
+      const other = list.find((a) => a !== action);
+      if (other) return t(SHORTCUT_ACTION_I18N[other]);
+    }
+    return null;
+  };
+
+  const handleReset = async () => {
+    const ok = await confirm({
+      title: t('settings.shortcuts.resetConfirmTitle'),
+      body: t('settings.shortcuts.resetConfirmBody'),
+      danger: false,
+      confirmText: t('settings.shortcuts.resetToDefaults'),
+    });
+    if (ok) setShortcuts(DEFAULT_SHORTCUTS);
+  };
 
   return (
     <div>
-      <p className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider mb-4">{t('settings.keyboardShortcuts')}</p>
-      <div className="grid grid-cols-2 gap-x-8 gap-y-0">
-        {SHORTCUTS.map(({ key, descKey }) => (
-          <div
-            key={key}
-            className="flex items-center justify-between py-2 border-b border-outline/30 dark:border-outline-dark/50"
-          >
-            <span className="text-[12.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t(descKey)}</span>
-            <kbd className="px-1.5 py-0.5 rounded-md bg-surface-muted dark:bg-surface-dark-muted border border-outline/60 dark:border-outline-dark text-[11px] font-mono text-on-surface dark:text-on-canvas-dark-muted flex-shrink-0">
-              {key}
-            </kbd>
-          </div>
-        ))}
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider">
+          {t('settings.keyboardShortcuts')}
+        </p>
+        <button
+          type="button"
+          onClick={() => void handleReset()}
+          className="flex items-center gap-1.5 rounded-md border border-outline dark:border-outline-dark px-2.5 py-1 text-[11px] font-medium text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
+        >
+          <RotateCcw className="h-3 w-3" />
+          {t('settings.shortcuts.resetToDefaults')}
+        </button>
+      </div>
+
+      <div className="space-y-0">
+        {SHORTCUT_ACTIONS.map((action) => {
+          const binding = shortcuts.bindings[action];
+          const isRecording = recording === action;
+          const conflictAction = conflictFor(action);
+          const display = keyDisplay(binding);
+
+          return (
+            <div
+              key={action}
+              className="flex items-center justify-between py-2 border-b border-outline/30 dark:border-outline-dark/50"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[12.5px] text-on-surface-muted dark:text-on-canvas-dark-muted truncate">
+                  {t(SHORTCUT_ACTION_I18N[action])}
+                </span>
+                {conflictAction && (
+                  <span
+                    className="flex items-center gap-0.5 text-[10px] text-warning flex-shrink-0"
+                    title={t('settings.shortcuts.conflictWarning', { action: conflictAction })}
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                disabled={isRecording}
+                onClick={() => setRecording(action)}
+                title={t('settings.shortcuts.editHint')}
+                className={`flex-shrink-0 px-2 py-0.5 rounded-md border font-mono text-[11px] transition-all ${
+                  isRecording
+                    ? 'border-primary bg-primary/10 text-primary animate-pulse'
+                    : conflictAction
+                      ? 'border-warning/50 bg-warning/5 text-warning dark:text-warning'
+                      : 'border-outline/60 dark:border-outline-dark bg-surface-muted dark:bg-surface-dark-muted text-on-surface dark:text-on-canvas-dark-muted hover:border-outline-strong dark:hover:border-outline-dark cursor-pointer'
+                }`}
+              >
+                {isRecording ? t('settings.shortcuts.recordPrompt') : display}
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
+import { useEscape } from '../shortcuts';
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
@@ -50,14 +51,7 @@ export default function Modal({
   size = 'lg',
 }: ModalProps) {
   const { t } = useTranslation();
-  useEffect(() => {
-    if (!open || !closeOnEsc) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [open, closeOnEsc, onClose]);
+  useEscape(onClose, open && closeOnEsc);
 
   useEffect(() => {
     if (!open) return;

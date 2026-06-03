@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { MockTask } from './agent-rail.mock';
 import TaskListModal from './TaskListModal';
 import SettingsModal from './SettingsModal';
+import type { NavItem } from './SettingsModal';
 import SessionHeader from './SessionHeader';
 import type { AgentConnection } from '../ipc';
 import type { PermissionDecision } from '../ipc';
@@ -11,6 +12,7 @@ import { useAutoScroll } from '../hooks/use-auto-scroll';
 import { useApp } from '../context';
 import { useSession } from '../session/SessionProvider';
 import { isPendingOnly } from '../session/types';
+import { useShortcut } from '../shortcuts';
 import MarkdownContent from './chat/MarkdownContent';
 import MessageActionBar from './chat/MessageActionBar';
 import ToolCallBlock from './chat/ToolCallBlock';
@@ -146,6 +148,7 @@ export default function AgentRail() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsInitialNav, setSettingsInitialNav] = useState<NavItem | undefined>(undefined);
   const [inputText, setInputText] = useState('');
 
   // A reactive counter that bumps on send so the auto-scroll re-follows.
@@ -155,6 +158,30 @@ export default function AgentRail() {
     [userSendVersion],
   );
 
+  const openSettings = (nav?: NavItem) => {
+    setSettingsInitialNav(nav);
+    setSettingsOpen(true);
+  };
+
+  // Global keyboard shortcuts (centralized system).
+  useShortcut('newTask', () => setModalOpen(true));
+  useShortcut('openSettings', () => openSettings());
+  useShortcut(
+    'sendMessage',
+    () => {
+      if (inputText.trim() && agent.status === 'connected') {
+        sendMessage(inputText.trim());
+        setInputText('');
+        setUserSendVersion((v) => v + 1);
+      }
+    },
+    [inputText, agent.status, sendMessage],
+  );
+  useShortcut('showShortcuts', () => openSettings('shortcuts'));
+  useShortcut('globalSearch', () => {
+    // Focus the chat input as the nearest "search" affordance.
+    document.querySelector<HTMLTextAreaElement>('[data-testid="chat-input"]')?.focus();
+  });
 
   // Task selection is a no-op until the task list is wired to real state.
   const handleSelectTask = (_task: MockTask) => { /* no-op */ };
@@ -407,12 +434,12 @@ export default function AgentRail() {
         </div>
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => setModalOpen(true)} className="p-1.5 rounded-sm hover:bg-canvas/80 dark:hover:bg-surface-dark-muted text-on-surface-muted dark:text-on-canvas-dark-muted transition-colors" title={t('tasks.title')} aria-label={t('agent.openTaskList')}><LayoutList className="w-4 h-4" /></button>
-          <button type="button" onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-sm hover:bg-canvas/80 dark:hover:bg-surface-dark-muted text-on-surface-muted dark:text-on-canvas-dark-muted transition-colors" title={t('settings.title')} aria-label={t('agent.openSettings')}><Settings className="w-4 h-4" /></button>
+          <button type="button" onClick={() => openSettings()} className="p-1.5 rounded-sm hover:bg-canvas/80 dark:hover:bg-surface-dark-muted text-on-surface-muted dark:text-on-canvas-dark-muted transition-colors" title={t('settings.title')} aria-label={t('agent.openSettings')}><Settings className="w-4 h-4" /></button>
         </div>
       </div>
 
       {modalOpen && <TaskListModal onClose={() => setModalOpen(false)} onSelect={handleSelectTask} />}
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} initialNav={settingsInitialNav} />}
     </div>
   );
 }
