@@ -26,6 +26,15 @@ export interface SessionEventSink {
    *  store uses this to re-open the *same* session (re-spawn the Rust reader)
    *  rather than mint a new one. Optional — omit to ignore stream drops. */
   onConnectionFailed?: () => void;
+  /** Called when the sidecar compacts context for this session. The store
+   *  uses this to show a transient indicator in the chat header. */
+  onCompaction?: () => void;
+  /** Called when the provider returns a retryable error (rate limit, overload).
+   *  The store uses this to show a transient retry indicator. */
+  onProviderRetry?: () => void;
+  /** Called when output resumes after a retry (first text/reasoning event).
+   *  The store uses this to clear the retry indicator. */
+  onOutputResumed?: () => void;
 }
 
 const newAssistantId = () => `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -47,12 +56,14 @@ export async function subscribeSession(
 
   // --- text delta ---
   await on(`agent://text/${sessionId}`, (e: { payload: { delta: string } }) => {
+    const wasEmpty = scratch.delta === '';
     if (!scratch.assistantId) {
       scratch.assistantId = newAssistantId();
       scratch.delta = '';
       setStreaming((prev) => new Set(prev).add(scratch.assistantId));
     }
     scratch.delta += e.payload.delta;
+    if (wasEmpty && scratch.delta !== '') sink.onOutputResumed?.();
     const id = scratch.assistantId;
     const content = scratch.delta;
     setMessages((prev) => {
@@ -97,7 +108,7 @@ export async function subscribeSession(
   });
 
   // --- tool call done ---
-  await on(`agent://tooldone/${sessionId}`, (e: { payload: { toolCallId: string; output?: unknown; error?: string } }) => {
+  await on(`agent://tooldone/${sessionId}`, (e: { payload: { toolCallId: string; output?: unknown; error?: string; ok?: boolean; tookMs?: number } }) => {
     const tcId = e.payload.toolCallId;
     setMessages((prev) => prev.map((msg) => {
       if (msg.role !== 'assistant') return msg;
@@ -113,6 +124,7 @@ export async function subscribeSession(
 
   // --- reasoning start ---
   await on(`agent://reasoning_start/${sessionId}`, (e: { payload: { reasoningType: string } }) => {
+    sink.onOutputResumed?.();
     if (!scratch.assistantId) {
       scratch.assistantId = newAssistantId();
       scratch.delta = '';
@@ -206,21 +218,50 @@ export async function subscribeSession(
   }
 
   // --- subagent event (subagent lifecycle, forwarded raw) ---
-  // TODO: surface in UI when subagent panel is built. For now, consumed as a
-  // no-op listener so the Tauri event is acknowledged and not silently dropped.
-  await on(`agent://subagent_event/${sessionId}`, () => {});
+  await on(`agent://subagent_event/${sessionId}`, (e: { payload: { name?: string; status?: string; [key: string]: unknown } }) => {
+    const name = e.payload.name ?? 'subagent';
+    const status = (['started', 'completed', 'error'].includes(e.payload.status ?? '') ? e.payload.status : 'started') as 'started' | 'completed' | 'error';
+    setMessages((prev) => {
+      // If a subagent entry with this name already exists, update its status;
+      // otherwise append a new system-message-style entry.
+      const existingIdx = prev.findIndex((m) => m.role === 'assistant' && m.parts.some((p) => p.type === 'subagent' && p.name === name));
+      if (existingIdx >= 0) {
+        return prev.map((m, i) => i === existingIdx
+          ? { ...m, parts: m.parts.map((p) => p.type === 'subagent' && p.name === name ? { ...p, status } : p) }
+          : m);
+      }
+      const entry: ChatMessage = { id: `sub-${Date.now()}`, role: 'assistant', parts: [{ type: 'subagent', name, status }] };
+      return [...prev, entry];
+    });
+  });
 
   // --- compaction (context compression completed) ---
-  // TODO: show compaction indicator in the chat header. For now acknowledged.
-  await on(`agent://compaction/${sessionId}`, () => {});
+  await on(`agent://compaction/${sessionId}`, () => {
+    sink.onCompaction?.();
+  });
 
   // --- provider retry (rate-limit / overload backoff) ---
-  // TODO: show retry status in the chat. For now acknowledged.
-  await on(`agent://provider_retry/${sessionId}`, () => {});
+  await on(`agent://provider_retry/${sessionId}`, () => {
+    sink.onProviderRetry?.();
+  });
 
   // --- interrupted (user-cancelled turn) ---
-  // TODO: mark the interrupted turn in the message list. For now acknowledged.
-  await on(`agent://interrupted/${sessionId}`, () => {});
+  await on(`agent://interrupted/${sessionId}`, () => {
+    const id = scratch.assistantId;
+    scratch.assistantId = '';
+    scratch.delta = '';
+    setStreaming((prev) => { const n = new Set(prev); if (id) n.delete(id); return n; });
+    setMessages((prev) => prev.map((m) => {
+      if (m.role === 'assistant' && (m.id === id || (id === '' && prev.indexOf(m) === prev.length - 1))) {
+        return {
+          ...m,
+          interrupted: true,
+          parts: m.parts.map((p) => p.type === 'reasoning' && p.status === 'streaming' ? { ...p, status: 'done' as const, endedAt: Date.now() } : p),
+        };
+      }
+      return m;
+    }).filter((m) => !isPendingOnly(m)));
+  });
 
   return unlistens;
 }

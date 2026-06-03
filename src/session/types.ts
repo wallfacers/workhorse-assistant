@@ -24,12 +24,15 @@ export type MessagePart =
       reason: string;
       status: 'pending' | 'allowed' | 'denied';
     }
-  | { type: 'pending' };
+  | { type: 'pending' }
+  | { type: 'subagent'; name: string; status: 'started' | 'completed' | 'error' };
 
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   parts: MessagePart[];
+  /** Set by the `interrupted` SSE event — the turn was cancelled by the user. */
+  interrupted?: boolean;
 }
 
 /** Per-session live conversation buffer held in the store (one per attached

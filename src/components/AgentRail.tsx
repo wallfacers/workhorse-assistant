@@ -318,8 +318,30 @@ export default function AgentRail() {
                               <PermissionCard key={`perm-${part.requestId}`} part={part} onDecide={decidePermission} />
                             );
                           }
+                          if (part.type === 'subagent') {
+                            const label =
+                              part.status === 'completed' ? `${part.name} 执行完成`
+                              : part.status === 'error' ? `${part.name} 执行出错`
+                              : `${part.name} 开始执行`;
+                            return (
+                              <div
+                                key={`subagent-${i}`}
+                                className="flex items-center gap-1.5 py-0.5 text-[11.5px] text-on-surface-muted dark:text-on-canvas-dark-muted"
+                              >
+                                <span className="inline-block w-1 h-1 rounded-full flex-shrink-0"
+                                  style={{ background: part.status === 'error' ? 'var(--color-danger)' : part.status === 'completed' ? 'var(--color-success)' : 'var(--color-warning)' }}
+                                />
+                                <span>{label}</span>
+                              </div>
+                            );
+                          }
                           return null;
                         })}
+                        {msg.interrupted && (
+                          <span className="inline-block ml-1 text-[11.5px] text-on-surface-muted dark:text-on-canvas-dark-muted italic">
+                            {t('agent.interruptedMarker')}
+                          </span>
+                        )}
                       </div>
                       {!streamingIds.has(msg.id) && (
                         <MessageActionBar

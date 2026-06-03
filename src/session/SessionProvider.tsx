@@ -103,6 +103,11 @@ interface SessionContextValue {
   pendingPickerRequest: { path: string } | null;
   /** Resolve the pending picker request (called by ProjectSwitcher on pick/cancel). */
   resolvePicker: (picked: string | null) => void;
+  // Transient SSE indicators (compaction / provider retry)
+  /** Session id that most recently compacted (transient, cleared after 3s). */
+  compactionSessionId: string | null;
+  /** Session id currently undergoing a provider retry (cleared on output resume). */
+  retrySessionId: string | null;
   // Sessions
   sessions: SessionListItem[];
   /** Raw AgentSessionMeta[] for the active project (the in-app switcher list). */
@@ -155,6 +160,9 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   const [listedSessions, setListedSessions] = useState<AgentSessionMeta[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [runtimes, setRuntimes] = useState<Record<string, ChatRuntime>>({});
+  // Transient SSE indicators
+  const [compactionSessionId, setCompactionSessionId] = useState<string | null>(null);
+  const [retrySessionId, setRetrySessionId] = useState<string | null>(null);
 
   // --- Pending picker request (agent confirm flow, add-open-project-tool C1) ---
   // Holds a { path, resolve } when the agent has requested the picker.
@@ -289,6 +297,20 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
           // attached a fresh session on every failure (the "stuck connecting"
           // loop).
           onConnectionFailed: () => { void reopenAgentSession(id); },
+          // Transient SSE indicators: compaction → 3s auto-dismiss; retry →
+          // cleared on output resume or 30s timeout. The chat header only
+          // displays these when the session id matches the active session.
+          onCompaction: () => {
+            setCompactionSessionId(id);
+            setTimeout(() => setCompactionSessionId((cur) => (cur === id ? null : cur)), 3000);
+          },
+          onProviderRetry: () => {
+            setRetrySessionId(id);
+            setTimeout(() => setRetrySessionId((cur) => (cur === id ? null : cur)), 30000);
+          },
+          onOutputResumed: () => {
+            setRetrySessionId((cur) => (cur === id ? null : cur));
+          },
         }).then((uns) => {
           const cur = subsRef.current.get(id);
           // Accept only if the slot is still ours; otherwise it was torn down or
@@ -618,6 +640,8 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     fetchAllSessions,
     activeSessionId,
     activeTitle,
+    compactionSessionId,
+    retrySessionId,
     switchSession,
     newSession,
     renameSession,

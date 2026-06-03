@@ -13,7 +13,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "design:lint": "design.md lint docs/DESIGN.md",
-    "design:export:css": "design.md export --format css-tailwind docs/DESIGN.md > src/design-tokens.generated.css"
+    "design:export:css": "design.md export --format tailwind docs/DESIGN.md > src/design-tokens.generated.css"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

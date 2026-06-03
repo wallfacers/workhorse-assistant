@@ -44,6 +44,9 @@
       "heartbeatFailed": "Heartbeat failed",
       "reconnecting": "Disconnected, reconnecting"
     },
+    "compactionIndicator": "Context compacted",
+    "retryIndicator": "Retrying model…",
+    "interruptedMarker": "(interrupted)",
     "feedback": {
       "copy": "Copy",
       "good": "Good",

@@ -85,6 +85,8 @@ export default function SessionHeader() {
     sessions,
     activeSessionId,
     activeTitle,
+    compactionSessionId,
+    retrySessionId,
     switchSession,
     newSession,
     renameSession,
@@ -134,8 +136,26 @@ export default function SessionHeader() {
     setRenaming(false);
   };
 
+  const showCompaction = compactionSessionId === activeSessionId;
+  const showRetry = retrySessionId === activeSessionId;
+
   return (
-    <div className="flex flex-shrink-0 items-center justify-between gap-2 px-3 py-2">
+    <>
+      {(showCompaction || showRetry) && (
+        <div className="flex flex-shrink-0 items-center gap-2 px-3 py-1">
+          {showCompaction && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-[11px] text-on-surface-muted dark:bg-surface-dark-muted dark:text-on-canvas-dark-muted">
+              {t('agent.compactionIndicator')}
+            </span>
+          )}
+          {showRetry && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-[11px] text-warning">
+              {t('agent.retryIndicator')}
+            </span>
+          )}
+        </div>
+      )}
+      <div className="flex flex-shrink-0 items-center justify-between gap-2 px-3 py-2">
       {/* Title + session switcher */}
       <div ref={switcherRef} className="relative min-w-0 flex-1">
         {renaming ? (
@@ -268,5 +288,6 @@ export default function SessionHeader() {
         )}
       </div>
     </div>
+    </>
   );
 }

@@ -23,8 +23,11 @@ colors:
   on-surface-dark: "#ECEAE3"
   on-surface-dark-muted: "#9C968A"
   surface-dark-muted: "#201F1C"
+  surface-dark-elevated: "#272420"
   outline: "#E6E3DA"
+  outline-strong: "#D6D2C6"
   outline-dark: "#2E2C28"
+  canvas-dark: "#111110"
   accent-warm: "#0B6477"
   on-accent-warm: "#FFFFFF"
   success: "#1F7A5A"
@@ -151,6 +154,16 @@ components:
     textColor: "{colors.on-accent-warm}"
     rounded: "{rounded.full}"
     padding: 4px
+  focus-ring:
+    backgroundColor: "{colors.outline-strong}"
+  modal-dark:
+    backgroundColor: "{colors.surface-dark-elevated}"
+    textColor: "{colors.on-surface-dark}"
+    rounded: "{rounded.lg}"
+  app-shell-dark-base:
+    backgroundColor: "{colors.canvas-dark}"
+    textColor: "{colors.on-surface-dark}"
+    rounded: "{rounded.xl}"
 ---
 
 ## Overview
