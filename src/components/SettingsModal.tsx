@@ -824,6 +824,27 @@ function SessionsSection() {
     return () => clearTimeout(id);
   }, [successMessage, errorMessage]);
 
+  // Hooks must be called unconditionally (React rules-of-hooks). doDelete is a
+  // useCallback that used to sit after the early return; moved here so the hook
+  // count is stable across renders regardless of the data being empty or not.
+  const doDelete = useCallback(async (id: string) => {
+    if (deletingId) return; // already deleting something
+    setDeletingId(id);
+    const ok = await deleteSession(id);
+    setDeletingId(null);
+    if (ok) {
+      setSuccessMessage(t('sessions.deletedMessage', { count: 1 }));
+      void refreshRows();
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    } else {
+      setErrorMessage(t('common.retry'));
+    }
+  }, [deleteSession, t, deletingId, refreshRows]);
+
   // Sort by updatedAt descending (most recently modified first).
   const sorted = allRows && allRows.length > 0
     ? [...allRows].sort((a, b) => {
@@ -889,23 +910,7 @@ function SessionsSection() {
     setRenamingId(null);
   };
 
-  const doDelete = useCallback(async (id: string) => {
-    if (deletingId) return; // already deleting something
-    setDeletingId(id);
-    const ok = await deleteSession(id);
-    setDeletingId(null);
-    if (ok) {
-      setSuccessMessage(t('sessions.deletedMessage', { count: 1 }));
-      void refreshRows();
-      setSelected((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    } else {
-      setErrorMessage(t('common.retry'));
-    }
-  }, [deleteSession, t, deletingId]);
+  // doDelete moved above the early return (see hook-stability comment).
 
   const confirmBatchDelete = async () => {
     if (deletingId) return;
