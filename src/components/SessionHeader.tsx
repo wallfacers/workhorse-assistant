@@ -3,6 +3,7 @@ import { Check, ChevronDown, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide
 import { useTranslation } from 'react-i18next';
 import { useSession, type SessionListItem } from '../session/SessionProvider';
 import { useConfirm } from './ConfirmProvider';
+import { useToast } from './ToastProvider';
 import Tooltip from './Tooltip';
 
 /** Close a popover when the user clicks outside `ref` (mirrors `ProfileMenu`). */
@@ -95,6 +96,7 @@ export default function SessionHeader() {
   } = useSession();
 
   const confirm = useConfirm();
+  const toast = useToast();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -119,7 +121,14 @@ export default function SessionHeader() {
       danger: true,
       confirmText: t('agent.confirmDelete'),
     });
-    if (ok) void deleteSession(activeSessionId);
+    if (ok) {
+      const deleted = await deleteSession(activeSessionId);
+      if (deleted) {
+        toast({ message: '会话已删除', level: 'success' });
+      } else {
+        toast({ message: '删除会话失败', level: 'error' });
+      }
+    }
   };
 
   const title = activeTitle || t('agent.untitledSession');
@@ -133,11 +142,14 @@ export default function SessionHeader() {
     setRenaming(true);
   };
 
-  const submitRename = () => {
+  const submitRename = async () => {
     if (renameEndedRef.current) return;
     renameEndedRef.current = true;
     const next = renameText.trim();
-    if (next && activeSessionId) void renameSession(activeSessionId, next);
+    if (next && activeSessionId) {
+      const ok = await renameSession(activeSessionId, next);
+      if (ok) toast({ message: '已重命名', level: 'success' });
+    }
     setRenaming(false);
   };
 

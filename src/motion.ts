@@ -37,3 +37,11 @@ export const SPLIT = {
   enter: { opacity: 0, scale: 0.97 },
   exit: { opacity: 0, scale: 0.97 },
 } as const;
+
+/** Toast notification — slide in/out from right. */
+export const TOAST = {
+  duration: 0.22,
+  ease: EASE,
+  enter: { opacity: 0, x: 40 },
+  exit: { opacity: 0, x: 40 },
+} as const;

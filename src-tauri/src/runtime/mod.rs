@@ -87,14 +87,17 @@ pub fn probe_healthy(endpoint: &str) -> bool {
     }
 }
 
-/// Fetch `/health.distro` — the distro the sidecar reports running in. `None`
-/// when unreachable or the field is absent (native sidecars omit it). Used to
-/// reconcile the running namespace against the configured one.
-fn health_distro(endpoint: &str) -> Option<String> {
+/// Read `/health` for the distro the sidecar reports running in, distinguishing
+/// "unreachable" from "reachable but no distro" so the caller never mistakes a
+/// transient probe failure for a namespace mismatch:
+///   - `None`          → `/health` could not be read (transient).
+///   - `Some(None)`    → reachable, no `distro` field (a native sidecar).
+///   - `Some(Some(d))` → reachable, running in distro `d`.
+fn health_distro_read(endpoint: &str) -> Option<Option<String>> {
     let url = format!("{}/health", endpoint.trim_end_matches('/'));
     let resp = ureq::get(&url).timeout(Duration::from_secs(3)).call().ok()?;
     let v: serde_json::Value = resp.into_json().ok()?;
-    v.get("distro").and_then(|d| d.as_str()).map(|s| s.to_string())
+    Some(v.get("distro").and_then(|d| d.as_str()).map(|s| s.to_string()))
 }
 
 /// Human-readable drift reason for `supervisor://status` (`native` stands in for
@@ -294,7 +297,23 @@ fn run_monitor(
                 // wins — reap the mismatched (but protocol-confirmed workhorse)
                 // sidecar and respawn ours. Bounded by MAX_RECONCILE_REAPS so an
                 // external sidecar that keeps reclaiming the port cannot loop.
-                let actual = health_distro(backend.endpoint());
+                // Re-read the adopted sidecar's distro. `probe_healthy` just
+                // confirmed it is reachable, so a failed GET here is transient
+                // noise — retry briefly, and if `/health` stays unreachable, adopt
+                // rather than reap a confirmed-healthy sidecar on a flaky probe (a
+                // transient `None` previously forced a needless reap+respawn).
+                let actual = match (0..3).find_map(|i| {
+                    if i > 0 {
+                        std::thread::sleep(Duration::from_millis(200));
+                    }
+                    health_distro_read(backend.endpoint())
+                }) {
+                    Some(distro) => distro,
+                    None => {
+                        emit_status(&app, &inner, &backend, SupervisorStatus::new(SupervisorState::Adopted));
+                        return;
+                    }
+                };
                 if distro_aligned(backend.expected_distro(), actual.as_deref()) {
                     emit_status(&app, &inner, &backend, SupervisorStatus::new(SupervisorState::Adopted));
                     return; // reachability is auto-connect's job; nothing to supervise.
@@ -407,6 +426,18 @@ enum StartOutcome {
     FailedStart(String),
 }
 
+/// Read up to `max_bytes` from the child's stderr. Returns an empty string
+/// when stderr is unavailable.
+fn read_stderr_tail(child: &mut std::process::Child, max_bytes: usize) -> String {
+    use std::io::Read;
+    let Some(stderr) = child.stderr.take() else {
+        return String::new();
+    };
+    let mut buf = Vec::with_capacity(max_bytes);
+    let _ = stderr.take(max_bytes as u64).read_to_end(&mut buf);
+    String::from_utf8_lossy(&buf).trim().to_string()
+}
+
 /// Poll for the sidecar to become healthy within [`START_GRACE`], capturing the
 /// OS pid to reap. A child that exits during the window is a failed start.
 fn await_start(
@@ -421,8 +452,21 @@ fn await_start(
         if superseded(inner, stop, generation) {
             return StartOutcome::Stopped;
         }
-        if let Ok(Some(_)) = child.try_wait() {
-            return StartOutcome::FailedStart("sidecar exited during startup".into());
+        if let Ok(Some(status)) = child.try_wait() {
+            let stderr_snippet = read_stderr_tail(child, 512);
+            let exit_info = if status.success() {
+                "exited with code 0".to_string()
+            } else if let Some(code) = status.code() {
+                format!("exited with code {code}")
+            } else {
+                "killed by signal".to_string()
+            };
+            let msg = if stderr_snippet.is_empty() {
+                format!("sidecar {exit_info} during startup")
+            } else {
+                format!("sidecar {exit_info} during startup: {stderr_snippet}")
+            };
+            return StartOutcome::FailedStart(msg);
         }
         if probe_healthy(backend.endpoint()) {
             // Capture the reap pid: already known for native (set at spawn), else

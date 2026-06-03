@@ -145,12 +145,14 @@ impl AgentBridge {
         let info: HealthInfo = resp
             .into_json()
             .map_err(|e| AgentError::internal(format!("bad /health response: {e}")))?;
-        if !info.ok {
-            let reason = info.reason.as_deref().unwrap_or("unknown");
-            return Err(AgentError::internal(format!(
-                "sidecar /health returned ok:false ({reason})"
-            )));
-        }
+        // A degraded-but-reachable sidecar (`ok:false`, e.g. `no_provider_key`)
+        // is still connectable — it speaks our protocol, and the supervisor
+        // adopts it on exactly this basis (see `runtime::probe_healthy`, which
+        // gates on `protocol_version`, not `ok`). Treating `ok:false` as a hard,
+        // non-retryable error here would dead-lock the chat input while the
+        // 运行来源 panel reports the very same sidecar as healthy/adopted. The
+        // degraded `reason` rides along in `HealthInfo` for the renderer to
+        // surface separately. Gate connectivity on protocol compatibility only.
         if info.protocol_version != EXPECTED_PROTOCOL_VERSION {
             return Err(AgentError::internal(format!(
                 "incompatible sidecar: protocol_version {} (expected {})",

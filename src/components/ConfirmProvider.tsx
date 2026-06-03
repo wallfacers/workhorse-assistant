@@ -49,8 +49,15 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const confirm = useCallback<ConfirmFn>(
     (opts) =>
       new Promise<boolean>((resolve) => {
-        settledRef.current = false;
-        setPending({ ...opts, resolve });
+        setPending((prev) => {
+          // A second confirm() while one is still open supersedes it: cancel the
+          // previous promise (resolve false) so its awaiter never hangs forever.
+          // Promise resolution is idempotent, so a StrictMode double-invoke of
+          // this updater is harmless.
+          prev?.resolve(false);
+          settledRef.current = false;
+          return { ...opts, resolve };
+        });
       }),
     [],
   );

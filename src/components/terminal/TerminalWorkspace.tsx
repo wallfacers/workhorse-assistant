@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'motion/react';
 import type { ProfileId } from '../../ipc';
-import { FADE } from '../../motion';
 import {
   initWorkspace,
   workspaceReducer,
@@ -15,10 +13,11 @@ import { useAgentProjectTools } from './useAgentProjectTools';
 
 /**
  * The center-pane workspace (design D1/D3). Holds the whole reducer tree and
- * composes the S0 `Terminal` leaves. Inactive groups stay **mounted** and are
- * hidden with Tailwind's `hidden` class (`display:none`) so their agents keep
- * running; only mount/unmount (create/close) ever ends a PTY — never a tab
- * switch. Adds no Rust and no IPC.
+ * composes the S0 `Terminal` leaves. Inactive groups stay **mounted** — they
+ * are taken out of the paint tree with `display:none` so their agents keep
+ * running while idle xterm canvases stop compositing; only mount/unmount
+ * (create/close) ever ends a PTY — never a tab switch.
+ * Adds no Rust and no IPC.
  */
 export default function TerminalWorkspace() {
   const { t } = useTranslation();
@@ -108,17 +107,15 @@ export default function TerminalWorkspace() {
             <ProfileMenu label={t('terminal.newTerminal')} onSelect={addGroup} />
           </div>
         ) : (
-          state.groups.map((g) => (
-            <motion.div
+          state.groups.map((g) => {
+            const isActive = g.id === state.activeGroupId;
+            return (
+            <div
               key={g.id}
-              initial={false}
-              animate={{
-                opacity: g.id === state.activeGroupId ? 1 : 0,
-              }}
-              transition={{ duration: FADE.duration, ease: FADE.ease }}
               className="absolute inset-0"
               style={{
-                pointerEvents: g.id === state.activeGroupId ? 'auto' : 'none',
+                display: isActive ? undefined : 'none',
+                pointerEvents: isActive ? 'auto' : 'none',
               }}
             >
               <TerminalGroup
@@ -134,8 +131,9 @@ export default function TerminalWorkspace() {
                 }
                 onPaneTitle={handlePaneTitle}
               />
-            </motion.div>
-          ))
+            </div>
+            );
+          })
         )}
       </div>
     </div>

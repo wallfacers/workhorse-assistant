@@ -116,7 +116,7 @@ export async function subscribeSession(
         ...msg,
         parts: msg.parts.map((p) =>
           p.type === 'tool_call' && p.id === tcId
-            ? { ...p, status: e.payload.error ? ('error' as const) : ('done' as const), output: e.payload.output ?? e.payload.error }
+            ? { ...p, status: (e.payload.error || e.payload.ok === false) ? ('error' as const) : ('done' as const), output: e.payload.output ?? e.payload.error }
             : p),
       };
     }));
@@ -220,17 +220,32 @@ export async function subscribeSession(
   // --- subagent event (subagent lifecycle, forwarded raw) ---
   await on(`agent://subagent_event/${sessionId}`, (e: { payload: { name?: string; status?: string; [key: string]: unknown } }) => {
     const name = e.payload.name ?? 'subagent';
-    const status = (['started', 'completed', 'error'].includes(e.payload.status ?? '') ? e.payload.status : 'started') as 'started' | 'completed' | 'error';
+    // Normalize the sidecar's status into our 3-state vocabulary. Anything that
+    // is not an explicit `started` is treated as a *terminal* state (unknown
+    // statuses like `failed`/`cancelled`/`timeout` map to `error`) so a finished
+    // subagent never renders as forever-running.
+    const raw = e.payload.status ?? '';
+    const status: 'started' | 'completed' | 'error' =
+      raw === 'started' ? 'started' : raw === 'completed' ? 'completed' : 'error';
     setMessages((prev) => {
-      // If a subagent entry with this name already exists, update its status;
-      // otherwise append a new system-message-style entry.
-      const existingIdx = prev.findIndex((m) => m.role === 'assistant' && m.parts.some((p) => p.type === 'subagent' && p.name === name));
-      if (existingIdx >= 0) {
-        return prev.map((m, i) => i === existingIdx
-          ? { ...m, parts: m.parts.map((p) => p.type === 'subagent' && p.name === name ? { ...p, status } : p) }
-          : m);
+      if (status === 'started') {
+        // A start always begins a new subagent lifecycle — append a fresh entry
+        // so a re-run (or a parallel run) of a same-named subagent never
+        // overwrites a previously completed one.
+        const entry: ChatMessage = { id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, role: 'assistant', parts: [{ type: 'subagent', name, status }] };
+        return [...prev, entry];
       }
-      const entry: ChatMessage = { id: `sub-${Date.now()}`, role: 'assistant', parts: [{ type: 'subagent', name, status }] };
+      // A terminal status updates the most recent still-running entry of this
+      // name; if none is running, append a terminal entry (lost/duplicated start).
+      for (let i = prev.length - 1; i >= 0; i--) {
+        const m = prev[i];
+        if (m.role === 'assistant' && m.parts.some((p) => p.type === 'subagent' && p.name === name && p.status === 'started')) {
+          return prev.map((mm, idx) => idx === i
+            ? { ...mm, parts: mm.parts.map((p) => p.type === 'subagent' && p.name === name && p.status === 'started' ? { ...p, status } : p) }
+            : mm);
+        }
+      }
+      const entry: ChatMessage = { id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, role: 'assistant', parts: [{ type: 'subagent', name, status }] };
       return [...prev, entry];
     });
   });
@@ -252,23 +267,15 @@ export async function subscribeSession(
     scratch.delta = '';
     setStreaming((prev) => { const n = new Set(prev); if (id) n.delete(id); return n; });
     setMessages((prev) => {
-      // When id is known, match by id directly. When id is empty (interrupted
-      // before any text/tool event arrived), fall back to the *last* assistant
-      // message that has actual content — skip subagent-only entries which are
-      // metadata, not the turn the user expects to see marked as interrupted.
-      let fallbackIdx = -1;
-      if (id === '') {
-        for (let i = prev.length - 1; i >= 0; i--) {
-          const m = prev[i];
-          if (m.role === 'assistant' && !m.parts.every((p) => p.type === 'subagent')) {
-            fallbackIdx = i;
-            break;
-          }
-        }
-      }
-      const targetIdx = id !== '' ? -1 : fallbackIdx;
-      return prev.map((m, i) => {
-        if (m.role === 'assistant' && (m.id === id || i === targetIdx)) {
+      // Only the *in-flight* assistant turn — identified by its live streaming
+      // id — can be interrupted. When `id` is empty the turn has already ended
+      // (textdone / error clear the id on normal completion), so there is no
+      // turn to mark; marking the last completed message here would falsely
+      // stamp a finished reply as interrupted. Just drop any pending placeholder
+      // for a turn cancelled before it produced output.
+      if (id === '') return prev.filter((m) => !isPendingOnly(m));
+      return prev.map((m) => {
+        if (m.role === 'assistant' && m.id === id) {
           return {
             ...m,
             interrupted: true,

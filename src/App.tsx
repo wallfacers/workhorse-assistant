@@ -13,6 +13,7 @@ import { isTauri, useWindowState, useAgentConnection } from './ipc';
 import { registerFallbackTools, republishCatalog } from './agent';
 import { AppContext } from './context';
 import { ConfirmProvider } from './components/ConfirmProvider';
+import { ToastProvider } from './components/ToastProvider';
 import { SessionProvider } from './session/SessionProvider';
 import { PANEL, FADE } from './motion';
 
@@ -83,6 +84,7 @@ export default function App() {
   return (
     <AppContext value={appContextValue}>
     <SessionProvider agent={agent}>
+    <ToastProvider>
     <ConfirmProvider>
     <div
       className={`${isDarkMode ? 'dark' : ''} ${floating ? 'rounded-xl border border-outline dark:border-outline-dark' : ''} relative h-screen w-screen flex flex-col overflow-hidden bg-surface-muted dark:bg-surface-dark text-on-canvas dark:text-on-canvas-dark font-sans`}
@@ -154,6 +156,7 @@ export default function App() {
     </div>
     {floating && <WindowResizeHandles />}
     </ConfirmProvider>
+    </ToastProvider>
     </SessionProvider>
     </AppContext>
   );

@@ -1,8 +1,9 @@
-import { useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Check, Copy, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { writeClipboardText } from '../../ipc/clipboard';
 import { submitFeedback } from '../../ipc/feedback';
+import { useToast } from '../ToastProvider';
 
 export interface MessageActionBarProps {
   /** Plain-text content of the assistant message (for copy). */
@@ -28,14 +29,23 @@ export default function MessageActionBar({
   conversationId,
 }: MessageActionBarProps) {
   const { t } = useTranslation();
+  const toast = useToast();
   // Tracks which button (if any) is currently in its "confirmed" state.
   const [confirmed, setConfirmed] = useState<ActionKey | null>(null);
   // Idempotency: remember which feedback keys have already been submitted.
   const submitted = useRef<Set<string>>(new Set());
+  // Holds the pending "confirmed" reset timer so it can be cleared on a repeat
+  // click or on unmount (avoids a leaked timer / setState after unmount).
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const confirm = useCallback((key: ActionKey) => {
     setConfirmed(key);
-    setTimeout(() => setConfirmed(null), CONFIRM_MS);
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => setConfirmed(null), CONFIRM_MS);
+  }, []);
+
+  useEffect(() => () => {
+    if (resetTimer.current) clearTimeout(resetTimer.current);
   }, []);
 
   const handleCopy = useCallback(() => {
@@ -56,8 +66,9 @@ export default function MessageActionBar({
         timestamp: Date.now(),
         conversationId,
       });
+      toast({ message: '感谢反馈', level: 'success' });
     },
-    [messageId, conversationId, confirm],
+    [messageId, conversationId, confirm, toast],
   );
 
   return (

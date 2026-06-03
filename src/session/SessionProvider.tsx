@@ -248,6 +248,14 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   // Tracks which project's session list has been loaded (so bootstrap can
   // distinguish "not loaded yet" from "loaded and empty").
   const sessionsLoadedForRef = useRef<string | null>(null);
+  // Latest live-session list / active id mirrored into refs, so async flows
+  // (notably a batch delete that loops `await deleteSession(id)`) read the
+  // up-to-date state instead of a stale render-closure snapshot — otherwise a
+  // non-functional setState would resurrect already-deleted sessions.
+  const liveSessionsRef = useRef<LiveSession[]>([]);
+  const activeSessionIdRef = useRef<string | null>(null);
+  useEffect(() => { liveSessionsRef.current = liveSessions; }, [liveSessions]);
+  useEffect(() => { activeSessionIdRef.current = activeSessionId; }, [activeSessionId]);
 
   const scratchFor = useCallback((id: string): SessionScratch => {
     let s = scratchRef.current.get(id);
@@ -583,7 +591,13 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
       // B2: compute the next active session up front, then commit each piece of
       // state — no bridge call (setActiveSession) nested inside a setState
       // updater, which React may double-invoke under StrictMode.
-      const remaining = liveSessions.filter((s) => s.id !== id);
+      //
+      // Read the *current* live list and active id from refs (not the render
+      // closure), so a batch delete looping `await deleteSession(id)` sees each
+      // prior removal; updating the refs synchronously keeps the next iteration
+      // correct without waiting for a re-render.
+      const remaining = liveSessionsRef.current.filter((s) => s.id !== id);
+      liveSessionsRef.current = remaining;
       setListedSessions((prev) => prev.filter((s) => s.id !== id));
       setRuntimes((prev) => {
         const next = { ...prev };
@@ -591,14 +605,15 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
         return next;
       });
       setLiveSessions(remaining);
-      if (activeSessionId === id) {
+      if (activeSessionIdRef.current === id) {
         const nextActive = remaining[remaining.length - 1]?.id ?? null;
+        activeSessionIdRef.current = nextActive;
         setActiveSession(nextActive);
         setActiveSessionId(nextActive);
       }
       return true;
     },
-    [liveSessions, activeSessionId],
+    [],
   );
 
   // --- Active conversation actions (ported from AgentRail) -------------------

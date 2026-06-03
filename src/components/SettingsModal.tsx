@@ -22,6 +22,7 @@ import {
 } from '../ipc';
 import { useApp } from '../context';
 import { useConfirm } from './ConfirmProvider';
+import { useToast } from './ToastProvider';
 import { useSession } from '../session/SessionProvider';
 import type { AgentSessionMeta } from '../ipc/agent';
 
@@ -152,6 +153,7 @@ function AgentSection({
 }) {
   const { t } = useTranslation();
   const { resetProjectForRuntimeSwitch } = useSession();
+  const toast = useToast();
 
   const [detect, setDetect] = useState<WslDetect | null>(null);
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
@@ -163,6 +165,8 @@ function AgentSection({
   const [remoteEndpoint, setRemoteEndpoint] = useState('');
   const [endpointErr, setEndpointErr] = useState<string | null>(null);
   const [justApplied, setJustApplied] = useState(false);
+  // Pending reset timer for the 「已应用」 flash, cleared on a repeat apply / unmount.
+  const justAppliedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -182,10 +186,18 @@ function AgentSection({
       if (s.ok) setSupStatus(s.value);
     })();
     let unlisten: (() => void) | undefined;
+    // Guard the listen() promise against an unmount that races its resolution:
+    // if we've already torn down, unlisten immediately instead of leaking.
+    let cancelled = false;
     void onSupervisorStatus(setSupStatus).then((fn) => {
-      unlisten = fn;
+      if (cancelled) fn();
+      else unlisten = fn;
     });
-    return () => unlisten?.();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+      if (justAppliedTimer.current) clearTimeout(justAppliedTimer.current);
+    };
   }, []);
 
   // Persist runtime config, re-drive the supervisor, and re-probe. A mode/distro
@@ -232,7 +244,18 @@ function AgentSection({
     if (next === mode) return;
     // Switching to WSL with no distro yet picks the first detected one.
     const distro = next === 'wsl' ? (config.distro ?? distros[0]) : config.distro;
-    void applyRuntime({ ...config, mode: next, distro });
+    void (async () => {
+      // Managed modes lock the endpoint host to loopback. Reset it on the switch
+      // (e.g. coming from remote, whose endpoint points at a remote host) so the
+      // supervisor's health probe targets the locally-spawned sidecar instead of
+      // the stale remote address — otherwise the switch never reaches Healthy
+      // until the user separately clicks 「应用」.
+      if (next !== 'remote') {
+        const p = port.trim() || '7821';
+        await setAgentEndpoint(`http://127.0.0.1:${p}`);
+      }
+      await applyRuntime({ ...config, mode: next, distro });
+    })();
   };
 
   const changeDistro = (distro: string) => {
@@ -277,8 +300,10 @@ function AgentSection({
       serveCmdOverride: override.trim() === '' ? undefined : override.trim(),
     });
     if (ok) {
+      toast({ message: '设置已保存', level: 'success' });
       setJustApplied(true);
-      setTimeout(() => setJustApplied(false), 2000);
+      if (justAppliedTimer.current) clearTimeout(justAppliedTimer.current);
+      justAppliedTimer.current = setTimeout(() => setJustApplied(false), 2000);
     }
   };
 
@@ -774,6 +799,7 @@ function relativeTime(date: string, locale: string): string {
 function SessionsSection() {
   const { t, i18n } = useTranslation();
   const confirm = useConfirm();
+  const toast = useToast();
   const { fetchAllSessions, renameSession, deleteSession } = useSession();
 
   // Cross-project view: every project's persisted sessions (not just the active
@@ -791,20 +817,8 @@ function SessionsSection() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState('');
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const renameEndedRef = useRef(false);
-
-  // Clear messages after 3s.
-  useEffect(() => {
-    if (!successMessage && !errorMessage) return;
-    const id = setTimeout(() => {
-      setSuccessMessage(null);
-      setErrorMessage(null);
-    }, 3000);
-    return () => clearTimeout(id);
-  }, [successMessage, errorMessage]);
 
   // Hooks must be called unconditionally (React rules-of-hooks). doDelete is a
   // useCallback that used to sit after the early return; moved here so the hook
@@ -822,7 +836,7 @@ function SessionsSection() {
     const ok = await deleteSession(id);
     setDeletingId(null);
     if (ok) {
-      setSuccessMessage(t('sessions.deletedMessage', { count: 1 }));
+      toast({ message: t('sessions.deletedMessage', { count: 1 }), level: 'success' });
       void refreshRows();
       setSelected((prev) => {
         const next = new Set(prev);
@@ -830,9 +844,9 @@ function SessionsSection() {
         return next;
       });
     } else {
-      setErrorMessage(t('common.retry'));
+      toast({ message: t('common.retry'), level: 'error' });
     }
-  }, [deleteSession, t, deletingId, refreshRows, confirm]);
+  }, [deleteSession, t, deletingId, refreshRows, confirm, toast]);
 
   // Sort by updatedAt descending (most recently modified first).
   const sorted = allRows && allRows.length > 0
@@ -888,8 +902,12 @@ function SessionsSection() {
     const next = renameText.trim();
     if (next && renamingId) {
       const ok = await renameSession(renamingId, next);
-      if (!ok) setErrorMessage(t('common.retry'));
-      else void refreshRows();
+      if (ok) {
+        toast({ message: '已重命名', level: 'success' });
+        void refreshRows();
+      } else {
+        toast({ message: t('common.retry'), level: 'error' });
+      }
     }
     setRenamingId(null);
   };
@@ -919,9 +937,9 @@ function SessionsSection() {
     }
     setDeletingId(null);
     if (failed > 0) {
-      setErrorMessage(`${t('sessions.deletedMessage', { count: ids.length - failed })}，${failed} 个失败`);
+      toast({ message: `${t('sessions.deletedMessage', { count: ids.length - failed })}，${failed} 个失败`, level: 'warning' });
     } else {
-      setSuccessMessage(t('sessions.deletedMessage', { count: ids.length }));
+      toast({ message: t('sessions.deletedMessage', { count: ids.length }), level: 'success' });
     }
     void refreshRows();
     setSelected(new Set());
@@ -941,24 +959,6 @@ function SessionsSection() {
           {sorted.length} 个会话
         </span>
       </div>
-
-      {/* Feedback banner: error takes precedence over success */}
-      {(errorMessage || successMessage) && (
-        <div className={`mb-3 px-3 py-1.5 rounded-lg border text-[12px] flex items-center justify-between ${
-          errorMessage
-            ? 'bg-danger/10 border-danger/30 text-danger'
-            : 'bg-success/10 border-success/30 text-success'
-        }`}>
-          <span>{errorMessage || successMessage}</span>
-          <button
-            type="button"
-            onClick={() => { setSuccessMessage(null); setErrorMessage(null); }}
-            className="flex-shrink-0 hover:opacity-70"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        </div>
-      )}
 
       {/* Batch toolbar */}
       {selected.size > 0 && (

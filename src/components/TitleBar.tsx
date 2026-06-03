@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Copy as CopyIcon, FolderOpen, Minus, Square, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, Copy as CopyIcon, FolderOpen, Minus, Square, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   isTauri,
@@ -7,9 +7,11 @@ import {
   toggleMaximizeWindow,
   closeWindow,
   pickFolder,
+  getRuntimeConfig,
 } from '../ipc';
 import { useSession } from '../session/SessionProvider';
 import { useConfirm } from './ConfirmProvider';
+import { useToast } from './ToastProvider';
 import ProjectBrowser from './ProjectBrowser';
 
 interface TitleBarProps {
@@ -83,10 +85,9 @@ function ProjectSwitcher() {
     deleteProject,
     pendingPickerRequest,
     resolvePicker,
-    agentDistro,
   } = useSession();
   const confirm = useConfirm();
-  const isWslMode = !!agentDistro;
+  const toast = useToast();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [browsing, setBrowsing] = useState(false);
@@ -152,8 +153,13 @@ function ProjectSwitcher() {
     ? currentProject.split(/[/\\]/).filter(Boolean).pop() || currentProject
     : t('project.default');
 
-  /** Single "Open project" action — native picker (Native) or in-app browser (WSL). */
+  /** Single "Open project" action — native picker (Native) or in-app browser (WSL).
+   *  The WSL-vs-Native decision keys off `RuntimeConfig.mode` (the single source
+   *  of truth, same as Terminal) fetched fresh here — NOT the sidecar's
+   *  self-reported `/health.distro`, which can disagree with the configured mode. */
   const handleOpenProject = async () => {
+    const rt = await getRuntimeConfig();
+    const isWslMode = rt.ok && rt.value.mode === 'wsl';
     if (isWslMode) {
       setBrowsing(true);
       return;
@@ -178,7 +184,12 @@ function ProjectSwitcher() {
       confirmText: t('agent.confirmDelete'),
     });
     if (!ok) return;
-    await deleteProject(path);
+    const deleted = await deleteProject(path);
+    if (deleted) {
+      toast({ message: `项目 "${name}" 已删除`, level: 'success' });
+    } else {
+      toast({ message: '删除项目失败', level: 'error' });
+    }
     closeMenu();
   };
 
@@ -233,15 +244,18 @@ function ProjectSwitcher() {
                   >
                     {p}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => void requestDeleteProject(p)}
-                    aria-label={t('project.delete')}
-                    title={t('project.delete')}
-                    className="mr-1 flex-shrink-0 rounded-sm p-1 text-on-surface-muted opacity-0 transition-opacity hover:text-danger group-hover/proj:opacity-100 dark:text-on-canvas-dark-muted"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  <span className="mr-1 flex flex-shrink-0 items-center gap-1">
+                    {p === currentProject && <Check className="h-3.5 w-3.5 text-on-surface-muted dark:text-on-canvas-dark-muted" />}
+                    <button
+                      type="button"
+                      onClick={() => void requestDeleteProject(p)}
+                      aria-label={t('project.delete')}
+                      title={t('project.delete')}
+                      className="flex-shrink-0 rounded-sm p-1 text-on-surface-muted opacity-0 transition-opacity hover:text-danger group-hover/proj:opacity-100 dark:text-on-canvas-dark-muted"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
                 </div>
               ))}
               {knownPaths.length > 0 && <div className="my-1 border-t border-outline/50 dark:border-outline-dark/60" />}

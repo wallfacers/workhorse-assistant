@@ -93,7 +93,10 @@ impl Backend for NativeBackend {
     }
 
     fn spawn(&self) -> std::io::Result<Spawned> {
-        let child = Command::new(&self.program).args(&self.args).spawn()?;
+        let child = Command::new(&self.program)
+            .args(&self.args)
+            .stderr(std::process::Stdio::piped())
+            .spawn()?;
         let pid = child.id();
         Ok(Spawned { child, pid: Some(pid) })
     }
@@ -185,12 +188,22 @@ fn discover_host_port_owner(port: u16) -> Option<(u32, String)> {
 fn discover_host_port_owner(port: u16) -> Option<(u32, String)> {
     let out = Command::new("netstat").args(["-ano", "-p", "tcp"]).output().ok()?;
     let text = String::from_utf8_lossy(&out.stdout);
-    let needle = format!(":{port}");
+    // Columns: Proto, Local Address, Foreign Address, State, PID. Match the port
+    // exactly on the LOCAL address only — a substring `contains(":{port}")` would
+    // also match a superset port (`:78210`) or the foreign-address column.
     let pid: u32 = text
         .lines()
-        .filter(|l| l.contains("LISTENING") && l.contains(&needle))
-        .filter_map(|l| l.split_whitespace().last())
-        .filter_map(|p| p.parse::<u32>().ok())
+        .filter_map(|l| {
+            let cols: Vec<&str> = l.split_whitespace().collect();
+            if cols.len() < 5 || cols[3] != "LISTENING" {
+                return None;
+            }
+            let local_port: u16 = cols[1].rsplit(':').next()?.parse().ok()?;
+            if local_port != port {
+                return None;
+            }
+            cols[4].parse::<u32>().ok()
+        })
         .next()?;
     let tl = Command::new("tasklist")
         .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
