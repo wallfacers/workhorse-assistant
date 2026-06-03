@@ -534,17 +534,22 @@ impl AgentBridge {
     }
 
     /// Enumerate a directory in the sidecar namespace
-    /// (`GET /v1/fs/list?path=<dir>`). An empty/None `path` lets the sidecar use
-    /// its `default_workdir`. Body returned verbatim
+    /// (`GET /v1/fs/list?path=<dir>&root=<projectRoot>`). An empty/None `path`
+    /// lets the sidecar use the enumeration root; `root` is the project being
+    /// browsed and confines the listing to that subtree (None falls back to the
+    /// sidecar's `default_workdir`). Body returned verbatim
     /// (`{ "path": "...", "entries": [{ "name", "path", "isDir" }] }`). The
     /// sidecar's meaningful 4xx (404 missing, 400 not-a-dir, 403 forbidden /
-    /// outside default_workdir / virtual FS) are mapped to typed errors so the
-    /// UI surfaces them instead of retrying as transient.
-    pub fn fs_list(&self, path: Option<&str>) -> Result<Value, AgentError> {
+    /// outside the root / virtual FS) are mapped to typed errors so the UI
+    /// surfaces them instead of retrying as transient.
+    pub fn fs_list(&self, path: Option<&str>, root: Option<&str>) -> Result<Value, AgentError> {
         let endpoint = self.endpoint();
         let mut req = ureq::get(&format!("{endpoint}/v1/fs/list")).timeout(HTTP_TIMEOUT);
         if let Some(p) = path.filter(|p| !p.is_empty()) {
             req = req.query("path", p);
+        }
+        if let Some(r) = root.filter(|r| !r.is_empty()) {
+            req = req.query("root", r);
         }
         match req.call() {
             Ok(resp) => resp

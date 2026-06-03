@@ -176,7 +176,9 @@ export function useAgentProjectTools(): void {
           }
 
           // --- Direct mode: validate via fsList, then open -------------------
-          const res = await fsList(targetPath);
+          // Validate the candidate project path against itself as the root, so a
+          // path anywhere in the sidecar namespace can be confirmed to exist.
+          const res = await fsList(targetPath, targetPath);
           if (!res.ok) {
             // Try the parent for a helpful suggestion.
             const parent = targetPath.replace(/[/\\]+$/, '');

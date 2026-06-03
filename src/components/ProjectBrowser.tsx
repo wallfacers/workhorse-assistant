@@ -43,7 +43,10 @@ export default function ProjectBrowser({
   const load = useCallback(async (target?: string) => {
     setLoading(true);
     setError(null);
-    const res = await fsList(target);
+    // Pass the directory being browsed as its own `root`: the picker must be
+    // able to browse anywhere to choose a project, so confinement is the
+    // current directory itself (an omitted target falls back to default_workdir).
+    const res = await fsList(target, target);
     setLoading(false);
     if (res.ok) {
       setPath(res.value.path);

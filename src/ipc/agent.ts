@@ -387,8 +387,11 @@ async function publishCatalog(
 // sidecar's data directory directly — D1).
 // ---------------------------------------------------------------------------
 
-/** List the sessions persisted for a project path (`GET /v1/sessions?workdir=`). */
-export async function listAgentSessions(workdir: string): Promise<Result<AgentSessionMeta[]>> {
+/** List persisted sessions. With a project `workdir`, the project-scoped list
+ *  (`GET /v1/sessions?workdir=`); with `''` (the default), the full set across
+ *  ALL projects (the sidecar treats an empty workdir as "no filter") — used by
+ *  the cross-project session-management table. */
+export async function listAgentSessions(workdir = ''): Promise<Result<AgentSessionMeta[]>> {
   if (!isTauri()) return notInTauri();
   try {
     const body = await invoke<{ sessions?: AgentSessionMeta[] }>('agent_list_sessions', { workdir });
@@ -409,14 +412,16 @@ export async function listAgentProjects(): Promise<Result<AgentProjectMeta[]>> {
   }
 }
 
-/** Enumerate a directory in the sidecar namespace (`GET /v1/fs/list?path=`).
- *  Omit `path` to browse the sidecar's `default_workdir`. The Rust bridge maps
- *  the sidecar's 404/400/403 to `not_found`/`validation` so callers can show a
- *  message instead of retrying. */
-export async function fsList(path?: string): Promise<Result<FsListing>> {
+/** Enumerate a directory in the sidecar namespace
+ *  (`GET /v1/fs/list?path=&root=`). Omit `path` to browse the enumeration root.
+ *  `root` is the project being browsed: the sidecar confines the listing to that
+ *  subtree (omit → falls back to the sidecar's `default_workdir`). The Rust
+ *  bridge maps the sidecar's 404/400/403 to `not_found`/`validation` so callers
+ *  can show a message instead of retrying. */
+export async function fsList(path?: string, root?: string): Promise<Result<FsListing>> {
   if (!isTauri()) return notInTauri();
   try {
-    const body = await invoke<FsListing>('agent_fs_list', { path: path ?? null });
+    const body = await invoke<FsListing>('agent_fs_list', { path: path ?? null, root: root ?? null });
     return ok({ path: body.path, entries: body.entries ?? [] });
   } catch (e) {
     return { ok: false, error: toIpcError(e) };

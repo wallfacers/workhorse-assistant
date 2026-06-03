@@ -64,12 +64,6 @@ function loadRecent(): string[] {
   }
 }
 
-/** Normalize a project path for comparison: trim trailing separators, collapse
- *  repeated separators, and lowercase (Windows paths are case-insensitive). */
-function normalizePath(p: string): string {
-  return p.replace(/[\\/]+$/, '').replace(/[\\/]+/g, '/').toLowerCase();
-}
-
 const genId = (p: string) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
 /** A session attached (live) in this renderer. */
@@ -101,11 +95,6 @@ interface SessionContextValue {
   /** WSL distro reported by the sidecar's `/health` (null when not WSL). Lets
    *  the terminal launch a WSL shell rooted at the project (add-wsl-remote C3). */
   agentDistro: string | null;
-  /** True when the current project has no sessions AND the agent's default workdir
-   *  differs from the current project — the user is likely in the wrong project. */
-  projectMismatch: boolean;
-  /** The sidecar's reported default workdir (agent process CWD). */
-  agentDefaultWorkdir: string | null;
   /** Request the project picker to open pre-navigated to `path`. Resolves with
    *  the user's picked path, or `null` if the picker was cancelled/dismissed.
    *  A second call while one is pending cancels the outstanding request. */
@@ -116,8 +105,12 @@ interface SessionContextValue {
   resolvePicker: (picked: string | null) => void;
   // Sessions
   sessions: SessionListItem[];
-  /** Raw AgentSessionMeta[] for the session management table (timestamps, message counts). */
+  /** Raw AgentSessionMeta[] for the active project (the in-app switcher list). */
   listedSessionsMeta: AgentSessionMeta[];
+  /** Fetch the full persisted session list across ALL projects (each row carries
+   *  its `workdir`). Distinct from `listedSessionsMeta`; backs the cross-project
+   *  session-management table. */
+  fetchAllSessions: () => Promise<AgentSessionMeta[]>;
   activeSessionId: string | null;
   activeTitle: string;
   switchSession: (id: string) => Promise<void>;
@@ -397,18 +390,6 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     bootstrapForRef.current = null;
   }, []);
 
-  /** True when the user is likely looking at the wrong project: the current
-   *  project has zero sessions, the sidecar reports a different default workdir,
-   *  and the session list has finished loading (so we aren't mid-flight). */
-  const projectMismatch = useMemo(() => {
-    if (agent.status !== 'connected') return false;
-    if (!currentProject) return false;
-    if (sessionsLoadedForRef.current !== currentProject) return false;
-    if (listedSessions.length > 0) return false;
-    if (!agent.defaultWorkdir) return false;
-    return normalizePath(agent.defaultWorkdir) !== normalizePath(currentProject);
-  }, [agent.status, currentProject, listedSessions, agent.defaultWorkdir]);
-
   // --- Session actions -------------------------------------------------------
   const switchSession = useCallback(
     async (id: string) => {
@@ -481,13 +462,20 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     // listedSessions is sorted newest-updated first by the sidecar.
     if (listedSessions.length > 0) {
       void switchSession(listedSessions[0].id);
-    } else if (projectMismatch) {
-      // Don't create a new session under the wrong project — the UI will
-      // show a hint prompting the user to switch to agent.defaultWorkdir.
     } else {
+      // Any local directory is a valid project: an empty project just starts a
+      // fresh session (no "wrong directory" nag — the user picks projects from
+      // the TitleBar switcher). decouple-project-from-launch-cwd.
       void newSession(currentProject);
     }
-  }, [agent.status, agent.defaultWorkdir, currentProject, liveSessions.length, listedSessions, newSession, openProject, switchSession, projectMismatch]);
+  }, [agent.status, agent.defaultWorkdir, currentProject, liveSessions.length, listedSessions, newSession, openProject, switchSession]);
+
+  // Cross-project session list for the management table: an empty workdir asks
+  // the sidecar for every project's persisted sessions (decouple-project-from-launch-cwd).
+  const fetchAllSessions = useCallback(async (): Promise<AgentSessionMeta[]> => {
+    const res = await listAgentSessions();
+    return res.ok ? res.value : [];
+  }, []);
 
   const renameSession = useCallback(async (id: string, title: string): Promise<boolean> => {
     const res = await renameAgentSession(id, title);
@@ -622,13 +610,12 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     openProject,
     resetProjectForRuntimeSwitch,
     agentDistro: agent.distro,
-    projectMismatch,
-    agentDefaultWorkdir: agent.defaultWorkdir ?? null,
     requestPicker,
     pendingPickerRequest,
     resolvePicker,
     sessions,
     listedSessionsMeta: listedSessions,
+    fetchAllSessions,
     activeSessionId,
     activeTitle,
     switchSession,

@@ -140,7 +140,7 @@ const AGENT_STATUS_DOT: Record<AgentConnection['status'], string> = {
 export default function AgentRail() {
   const { t } = useTranslation();
   const { agent, autoExpandReasoning } = useApp();
-  const { runtime, activeSessionId, sendMessage, cancel, decidePermission, newSession, projectMismatch, agentDefaultWorkdir, openProject } = useSession();
+  const { runtime, activeSessionId, sendMessage, cancel, decidePermission, newSession } = useSession();
   const messages = runtime.messages;
   const streamingIds = runtime.streaming;
 
@@ -350,50 +350,28 @@ export default function AgentRail() {
       ) : (
         <div className="flex-1 flex items-center justify-center px-3">
           <div className="w-full max-w-[360px]">
-            {projectMismatch ? (
-              // Project mismatch: the user's localStorage currentProject doesn't
-              // match the sidecar's default workdir, and the current project has
-              // no sessions. Point them to the right project.
-              <div className="text-center">
-                <div className="w-10 h-10 mx-auto rounded-lg bg-warning/10 dark:bg-warning/10 text-warning dark:text-warning flex items-center justify-center shadow-sm mb-3">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <p className="text-on-surface-muted dark:text-on-canvas-dark-muted text-[12px] mb-2">{t('agent.projectMismatch')}</p>
-                <p className="text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-4 font-mono truncate px-2" title={agentDefaultWorkdir ?? ''}>
-                  {agentDefaultWorkdir}
-                </p>
+            <>
+              <div className="text-center mb-4">
+                <div className="w-10 h-10 mx-auto rounded-lg bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow-sm mb-3">W</div>
+                <p className="text-on-surface-muted dark:text-on-canvas-dark-muted text-[12px]">{t('agent.welcome')}</p>
+              </div>
+              {activeSessionId ? (
+                inputBox
+              ) : (
+                // No active session (empty project, or the last one was just
+                // deleted): any local directory is a valid project, so just offer
+                // to start a fresh session. Project switching lives in the TitleBar.
                 <button
                   type="button"
-                  onClick={() => { if (agentDefaultWorkdir) void openProject(agentDefaultWorkdir); }}
+                  onClick={() => void newSession()}
                   disabled={agent.status !== 'connected'}
                   className="flex w-full items-center justify-center gap-2 rounded-lg border border-outline bg-surface px-3 py-2.5 text-[12.5px] font-semibold text-on-surface transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50 dark:border-outline-dark dark:bg-surface-dark dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
                 >
-                  <span>{t('agent.switchToProject')}</span>
+                  <Plus className="h-4 w-4" />
+                  <span>{t('agent.newSession')}</span>
                 </button>
-              </div>
-            ) : (
-              <>
-                <div className="text-center mb-4">
-                  <div className="w-10 h-10 mx-auto rounded-lg bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow-sm mb-3">W</div>
-                  <p className="text-on-surface-muted dark:text-on-canvas-dark-muted text-[12px]">{t('agent.welcome')}</p>
-                </div>
-                {activeSessionId ? (
-                  inputBox
-                ) : (
-                  // No active session (e.g. the last one was just deleted): the input
-                  // would send into the void, so offer a way back in instead.
-                  <button
-                    type="button"
-                    onClick={() => void newSession()}
-                    disabled={agent.status !== 'connected'}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-outline bg-surface px-3 py-2.5 text-[12.5px] font-semibold text-on-surface transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50 dark:border-outline-dark dark:bg-surface-dark dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>{t('agent.newSession')}</span>
-                  </button>
-                )}
-              </>
-            )}
+              )}
+            </>
           </div>
         </div>
       )}

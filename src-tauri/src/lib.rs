@@ -182,8 +182,9 @@ fn agent_list_projects(bridge: State<'_, AgentBridge>) -> Result<Value, AgentErr
 fn agent_fs_list(
     bridge: State<'_, AgentBridge>,
     path: Option<String>,
+    root: Option<String>,
 ) -> Result<Value, AgentError> {
-    bridge.fs_list(path.as_deref())
+    bridge.fs_list(path.as_deref(), root.as_deref())
 }
 
 #[tauri::command(async)]
