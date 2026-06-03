@@ -177,7 +177,7 @@ export default function SessionHeader() {
             onClick={() => setSwitcherOpen((v) => !v)}
             className="flex max-w-full items-center gap-1 rounded-md px-1.5 py-1 text-[12.5px] font-semibold text-on-surface transition-colors hover:bg-canvas/70 dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
           >
-            <Tooltip content={title}>
+            <Tooltip content={title} overflowOnly>
               <span className="block truncate min-w-0">{title}</span>
             </Tooltip>
             <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-on-surface-muted" />
@@ -216,7 +216,7 @@ export default function SessionHeader() {
                     }}
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-on-surface transition-colors hover:bg-surface-muted dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
                   >
-                    <Tooltip content={s.title || t('agent.untitledSession')}>
+                    <Tooltip content={s.title || t('agent.untitledSession')} overflowOnly>
                       <span className="block truncate min-w-0">{s.title || t('agent.untitledSession')}</span>
                     </Tooltip>
                     {(s.running || s.id === activeSessionId) && (
