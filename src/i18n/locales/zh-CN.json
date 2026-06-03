@@ -158,7 +158,9 @@
     "delete": "删除",
     "confirmDelete": "确认删除",
     "untitled": "未命名会话",
-    "confirmDeleteOne": "确定要删除这个会话吗？此操作不可撤销。"
+    "confirmDeleteOne": "确定要删除这个会话吗？此操作不可撤销。",
+    "count": "{{count}} 个会话",
+    "selectedCount": "已选 {{selected}}/{{total}}"
   },
   "shortcuts": {
     "newTask": "新建任务",
@@ -196,6 +198,14 @@
     "actions": {
       "open": "打开",
       "revealInFolder": "所在位置"
+    },
+    "preview": {
+      "reportTitle": "GPT-4o 系统卡深度分析报告",
+      "paperTitle": "论文标题：",
+      "author": "作者：",
+      "fileName": "GPT-4o_System_Card_深度分析报告.md",
+      "fileType": "Markdown 文档",
+      "fileLocation": "文件位置"
     }
   },
   "terminal": {
@@ -232,5 +242,22 @@
     "conversationTitle": "与Workhorse的对话",
     "placeholder": "请输入任务，交给我来帮你完成",
     "aiDisclaimer": "以上内容由 AI 生成"
+  },
+  "toast": {
+    "settingsSaved": "设置已保存",
+    "sessionDeleted": "会话已删除",
+    "sessionDeleteFailed": "删除会话失败",
+    "renamed": "已重命名",
+    "projectDeleted": "项目 \"{{name}}\" 已删除",
+    "projectDeleteFailed": "删除项目失败",
+    "feedbackThanks": "感谢反馈",
+    "batchDeletePartial": "{{count}} 个失败"
+  },
+  "relativeTime": {
+    "justNow": "刚刚",
+    "minutesAgo": "{{count}} 分钟前",
+    "hoursAgo": "{{count}} 小时前",
+    "yesterday": "昨天",
+    "daysAgo": "{{count}} 天前"
   }
 }

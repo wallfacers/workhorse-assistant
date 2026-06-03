@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { CheckCircle2, CircleX, Info, TriangleAlert, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { TOAST } from '../motion';
 
 /* ------------------------------------------------------------------ */
@@ -105,6 +106,7 @@ function ToastItem({
   entry: ToastEntry;
   onDismiss: (id: number) => void;
 }) {
+  const { t } = useTranslation();
   const { Icon, tint, border, iconColor } = LEVEL_CONFIG[entry.level];
 
   return (
@@ -127,7 +129,7 @@ function ToastItem({
         type="button"
         onClick={() => onDismiss(entry.id)}
         className="relative flex-shrink-0 p-0.5 rounded-sm text-on-surface-muted dark:text-on-canvas-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
-        aria-label="关闭"
+        aria-label={t('common.close')}
       >
         <X className="w-3 h-3" />
       </button>

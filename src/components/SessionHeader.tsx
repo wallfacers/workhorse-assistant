@@ -124,9 +124,9 @@ export default function SessionHeader() {
     if (ok) {
       const deleted = await deleteSession(activeSessionId);
       if (deleted) {
-        toast({ message: '会话已删除', level: 'success' });
+        toast({ message: t('toast.sessionDeleted'), level: 'success' });
       } else {
-        toast({ message: '删除会话失败', level: 'error' });
+        toast({ message: t('toast.sessionDeleteFailed'), level: 'error' });
       }
     }
   };
@@ -148,7 +148,7 @@ export default function SessionHeader() {
     const next = renameText.trim();
     if (next && activeSessionId) {
       const ok = await renameSession(activeSessionId, next);
-      if (ok) toast({ message: '已重命名', level: 'success' });
+      if (ok) toast({ message: t('toast.renamed'), level: 'success' });
     }
     setRenaming(false);
   };

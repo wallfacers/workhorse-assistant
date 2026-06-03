@@ -186,9 +186,9 @@ function ProjectSwitcher() {
     if (!ok) return;
     const deleted = await deleteProject(path);
     if (deleted) {
-      toast({ message: `项目 "${name}" 已删除`, level: 'success' });
+      toast({ message: t('toast.projectDeleted', { name }), level: 'success' });
     } else {
-      toast({ message: '删除项目失败', level: 'error' });
+      toast({ message: t('toast.projectDeleteFailed'), level: 'error' });
     }
     closeMenu();
   };

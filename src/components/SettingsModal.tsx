@@ -300,7 +300,7 @@ function AgentSection({
       serveCmdOverride: override.trim() === '' ? undefined : override.trim(),
     });
     if (ok) {
-      toast({ message: '设置已保存', level: 'success' });
+      toast({ message: t('toast.settingsSaved'), level: 'success' });
       setJustApplied(true);
       if (justAppliedTimer.current) clearTimeout(justAppliedTimer.current);
       justAppliedTimer.current = setTimeout(() => setJustApplied(false), 2000);
@@ -773,7 +773,7 @@ function projectLabel(workdir: string): string {
 }
 
 /** Format a date string as relative time in the current locale. */
-function relativeTime(date: string, locale: string): string {
+function relativeTime(date: string, t: ReturnType<typeof useTranslation>['t'], language: string): string {
   const now = Date.now();
   const then = new Date(date).getTime();
   if (isNaN(then)) return '—';
@@ -783,14 +783,12 @@ function relativeTime(date: string, locale: string): string {
   const diffHr = Math.round(diffMin / 60);
   const diffDay = Math.round(diffHr / 24);
 
-  const isZh = locale.startsWith('zh');
-
-  if (diffSec < 60) return isZh ? '刚刚' : 'just now';
-  if (diffMin < 60) return isZh ? `${diffMin} 分钟前` : `${diffMin}m ago`;
-  if (diffHr < 24) return isZh ? `${diffHr} 小时前` : `${diffHr}h ago`;
-  if (diffDay === 1) return isZh ? '昨天' : 'Yesterday';
-  if (diffDay < 7) return isZh ? `${diffDay} 天前` : `${diffDay}d ago`;
-  return new Date(then).toLocaleDateString(isZh ? 'zh-CN' : 'en-US', {
+  if (diffSec < 60) return t('relativeTime.justNow');
+  if (diffMin < 60) return t('relativeTime.minutesAgo', { count: diffMin });
+  if (diffHr < 24) return t('relativeTime.hoursAgo', { count: diffHr });
+  if (diffDay === 1) return t('relativeTime.yesterday');
+  if (diffDay < 7) return t('relativeTime.daysAgo', { count: diffDay });
+  return new Date(then).toLocaleDateString(language === 'zh-CN' ? 'zh-CN' : 'en-US', {
     month: 'short',
     day: 'numeric',
   });
@@ -903,7 +901,7 @@ function SessionsSection() {
     if (next && renamingId) {
       const ok = await renameSession(renamingId, next);
       if (ok) {
-        toast({ message: '已重命名', level: 'success' });
+        toast({ message: t('toast.renamed'), level: 'success' });
         void refreshRows();
       } else {
         toast({ message: t('common.retry'), level: 'error' });
@@ -937,7 +935,7 @@ function SessionsSection() {
     }
     setDeletingId(null);
     if (failed > 0) {
-      toast({ message: `${t('sessions.deletedMessage', { count: ids.length - failed })}，${failed} 个失败`, level: 'warning' });
+      toast({ message: `${t('sessions.deletedMessage', { count: ids.length - failed })}，${t('toast.batchDeletePartial', { count: failed })}`, level: 'warning' });
     } else {
       toast({ message: t('sessions.deletedMessage', { count: ids.length }), level: 'success' });
     }
@@ -956,7 +954,7 @@ function SessionsSection() {
           {t('sessions.title')}
         </p>
         <span className="text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">
-          {sorted.length} 个会话
+          {t('sessions.count', { count: sorted.length })}
         </span>
       </div>
 
@@ -964,7 +962,7 @@ function SessionsSection() {
       {selected.size > 0 && (
         <div className="mb-2 flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark-muted)]">
           <span className="text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted">
-            已选 {selected.size}/{sorted.length}
+            {t('sessions.selectedCount', { selected: selected.size, total: sorted.length })}
           </span>
           <button
             type="button"
@@ -1107,7 +1105,7 @@ function SessionsSection() {
 
                     {/* Updated time */}
                     <td className="px-2.5 py-2 text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted whitespace-nowrap border-r border-outline/50 dark:border-outline-dark/50">
-                      {s.updatedAt ? relativeTime(s.updatedAt, i18n.language) : '—'}
+                      {s.updatedAt ? relativeTime(s.updatedAt, t, i18n.language) : '—'}
                     </td>
 
                     {/* Actions */}

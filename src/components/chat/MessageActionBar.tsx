@@ -66,7 +66,7 @@ export default function MessageActionBar({
         timestamp: Date.now(),
         conversationId,
       });
-      toast({ message: '感谢反馈', level: 'success' });
+      toast({ message: t('toast.feedbackThanks'), level: 'success' });
     },
     [messageId, conversationId, confirm, toast],
   );

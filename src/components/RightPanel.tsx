@@ -114,28 +114,28 @@ export default function RightPanel({ onClose }: RightPanelProps) {
           <div className="px-4 py-3">
             <div className="bg-surface dark:bg-surface-dark-elevated p-4 pb-5 rounded-lg border border-outline/50 dark:border-outline-dark/60 shadow-[0_2px_8px_rgba(0,0,0,0.015)] text-on-surface dark:text-on-canvas-dark">
               <h4 className="text-[14px] font-bold mb-3 text-on-surface dark:text-on-canvas-dark leading-tight">
-                GPT-4o 系统卡深度分析报告
+                {t('workspace.preview.reportTitle')}
               </h4>
               <div className="space-y-1.5 mb-4 text-on-surface-muted dark:text-on-canvas-dark-muted text-[12px] leading-relaxed">
                 <p>
-                  <span className="text-on-surface-muted dark:text-on-canvas-dark-muted font-medium">论文标题：</span>
+                  <span className="text-on-surface-muted dark:text-on-canvas-dark-muted font-medium">{t('workspace.preview.paperTitle')}</span>
                   <span className="text-on-surface dark:text-on-canvas-dark font-medium">GPT-4o System Card</span>
                 </p>
                 <p>
-                  <span className="text-on-surface-muted dark:text-on-canvas-dark-muted font-medium">作者：</span>
+                  <span className="text-on-surface-muted dark:text-on-canvas-dark-muted font-medium">{t('workspace.preview.author')}</span>
                   <span className="text-on-surface dark:text-on-canvas-dark font-medium">OpenAI (2024)</span>
                 </p>
               </div>
 
               <div className="text-[11.5px] text-on-surface-muted dark:text-on-canvas-dark-muted space-y-2 bg-surface-muted dark:bg-surface-dark/60 p-3 rounded-lg border border-outline/40 dark:border-outline-dark/30">
                 <h5 className="font-bold text-on-surface dark:text-on-canvas-dark leading-snug">
-                  GPT-4o_System_Card_深度分析报告.md
+                  {t('workspace.preview.fileName')}
                 </h5>
                 <p className="text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-2 flex items-center font-medium">
-                  Markdown 文档 <span className="mx-2 text-on-surface-muted">•</span> 15.65 KB
+                  {t('workspace.preview.fileType')} <span className="mx-2 text-on-surface-muted">•</span> 15.65 KB
                 </p>
                 <div className="flex items-start min-w-0">
-                  <span className="w-14 flex-shrink-0 text-on-surface-muted dark:text-on-canvas-dark-muted font-medium">文件位置</span>
+                  <span className="w-14 flex-shrink-0 text-on-surface-muted dark:text-on-canvas-dark-muted font-medium">{t('workspace.preview.fileLocation')}</span>
                   <MonoPath
                     variant="block"
                     path="C:\\Users\\wushengzhou\\AppData\\Roaming\\Tencent\\Workhorse\\workspace\\output"
