@@ -238,6 +238,9 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
   // superseded subscription unlistens itself instead of leaking.
   const subsRef = useRef<Map<string, { gen: number; uns: UnlistenFn[] }>>(new Map());
   const subGenRef = useRef<Map<string, number>>(new Map());
+  // Pending auto-dismiss timers for transient SSE indicators (compaction 3s,
+  // retry 30s). Tracked per session so they can be cleared on teardown.
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>[]>>(new Map());
   // Guards the bootstrap session creation (below): the project a bootstrap was
   // last attempted for, so we create at most one per project and never loop on a
   // failing attach. Reset when the connection drops so recovery re-bootstraps.
@@ -307,11 +310,17 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
           // displays these when the session id matches the active session.
           onCompaction: () => {
             setCompactionSessionId(id);
-            setTimeout(() => setCompactionSessionId((cur) => (cur === id ? null : cur)), 3000);
+            const tid = setTimeout(() => setCompactionSessionId((cur) => (cur === id ? null : cur)), 3000);
+            const arr = timersRef.current.get(id) ?? [];
+            arr.push(tid);
+            timersRef.current.set(id, arr);
           },
           onProviderRetry: () => {
             setRetrySessionId(id);
-            setTimeout(() => setRetrySessionId((cur) => (cur === id ? null : cur)), 30000);
+            const tid = setTimeout(() => setRetrySessionId((cur) => (cur === id ? null : cur)), 30000);
+            const arr = timersRef.current.get(id) ?? [];
+            arr.push(tid);
+            timersRef.current.set(id, arr);
           },
           onOutputResumed: () => {
             setRetrySessionId((cur) => (cur === id ? null : cur));
@@ -328,6 +337,9 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     for (const [id, entry] of subsRef.current) {
       if (!want.has(id)) {
         entry.uns.forEach((u) => u());
+        // Clear pending auto-dismiss timers for this session.
+        timersRef.current.get(id)?.forEach((t) => clearTimeout(t));
+        timersRef.current.delete(id);
         subsRef.current.delete(id);
         // Bump the generation so any in-flight subscribe for this id is rejected
         // when it resolves (it would otherwise re-populate a dead slot).

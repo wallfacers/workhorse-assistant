@@ -251,16 +251,33 @@ export async function subscribeSession(
     scratch.assistantId = '';
     scratch.delta = '';
     setStreaming((prev) => { const n = new Set(prev); if (id) n.delete(id); return n; });
-    setMessages((prev) => prev.map((m) => {
-      if (m.role === 'assistant' && (m.id === id || (id === '' && prev.indexOf(m) === prev.length - 1))) {
-        return {
-          ...m,
-          interrupted: true,
-          parts: m.parts.map((p) => p.type === 'reasoning' && p.status === 'streaming' ? { ...p, status: 'done' as const, endedAt: Date.now() } : p),
-        };
+    setMessages((prev) => {
+      // When id is known, match by id directly. When id is empty (interrupted
+      // before any text/tool event arrived), fall back to the *last* assistant
+      // message that has actual content — skip subagent-only entries which are
+      // metadata, not the turn the user expects to see marked as interrupted.
+      let fallbackIdx = -1;
+      if (id === '') {
+        for (let i = prev.length - 1; i >= 0; i--) {
+          const m = prev[i];
+          if (m.role === 'assistant' && !m.parts.every((p) => p.type === 'subagent')) {
+            fallbackIdx = i;
+            break;
+          }
+        }
       }
-      return m;
-    }).filter((m) => !isPendingOnly(m)));
+      const targetIdx = id !== '' ? -1 : fallbackIdx;
+      return prev.map((m, i) => {
+        if (m.role === 'assistant' && (m.id === id || i === targetIdx)) {
+          return {
+            ...m,
+            interrupted: true,
+            parts: m.parts.map((p) => p.type === 'reasoning' && p.status === 'streaming' ? { ...p, status: 'done' as const, endedAt: Date.now() } : p),
+          };
+        }
+        return m;
+      }).filter((m) => !isPendingOnly(m));
+    });
   });
 
   return unlistens;

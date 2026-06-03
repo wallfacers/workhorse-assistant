@@ -320,9 +320,9 @@ export default function AgentRail() {
                           }
                           if (part.type === 'subagent') {
                             const label =
-                              part.status === 'completed' ? `${part.name} 执行完成`
-                              : part.status === 'error' ? `${part.name} 执行出错`
-                              : `${part.name} 开始执行`;
+                              part.status === 'completed' ? t('agent.subagentCompleted', { name: part.name })
+                              : part.status === 'error' ? t('agent.subagentError', { name: part.name })
+                              : t('agent.subagentStarted', { name: part.name });
                             return (
                               <div
                                 key={`subagent-${i}`}

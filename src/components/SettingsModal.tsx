@@ -245,8 +245,23 @@ function AgentSection({
   // nothing else is dirty.
   const apply = async () => {
     setEndpointErr(null);
-    const nextEndpoint =
-      mode === 'remote' ? remoteEndpoint.trim() : `http://127.0.0.1:${port.trim()}`;
+    let nextEndpoint: string;
+    if (mode === 'remote') {
+      nextEndpoint = remoteEndpoint.trim();
+    } else {
+      // Validate the managed-mode port before constructing the endpoint.
+      const trimmedPort = port.trim();
+      if (!trimmedPort) {
+        setEndpointErr(t('settings.runtime.portRequired'));
+        return;
+      }
+      const portNum = parseInt(trimmedPort, 10);
+      if (!/^\d+$/.test(trimmedPort) || portNum < 1 || portNum > 65535) {
+        setEndpointErr(t('settings.runtime.portOutOfRange'));
+        return;
+      }
+      nextEndpoint = `http://127.0.0.1:${trimmedPort}`;
+    }
     const epRes = await setAgentEndpoint(nextEndpoint);
     if (!epRes.ok) {
       setEndpointErr(epRes.error.message);
@@ -463,10 +478,17 @@ function AgentSection({
 }
 
 /** Parse the port from an endpoint URL for the managed-mode port field; falls
- *  back to the documented default when absent/unparseable. */
+ *  back to the documented default when absent/unparseable. Uses the browser's
+ *  URL API to stay aligned with the Rust-side `port_from_endpoint` parser. */
 function portOf(endpoint: string): string {
-  const m = endpoint.match(/:(\d{1,5})(?:\/|$)/);
-  return m ? m[1] : '7821';
+  try {
+    const url = new URL(endpoint);
+    if (url.port) return url.port;
+    // Default port for the scheme (e.g. 80 for http) — prefer the sidecar default.
+    return '7821';
+  } catch {
+    return '7821';
+  }
 }
 
 /** A single runtime-mode choice card (Native / WSL). */

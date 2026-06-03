@@ -47,6 +47,9 @@
     "compactionIndicator": "上下文已压缩",
     "retryIndicator": "模型重试中…",
     "interruptedMarker": "（已中断）",
+    "subagentStarted": "{{name}} 开始执行",
+    "subagentCompleted": "{{name}} 执行完成",
+    "subagentError": "{{name}} 执行出错",
     "feedback": {
       "copy": "复制",
       "good": "好用",
@@ -116,6 +119,8 @@
       "remoteNotice": "需在远程 agent 配置中放行本应用的 Origin；本版本暂不支持已启用鉴权（Bearer token）的远程 agent。",
       "port": "端口（高级）",
       "portHint": "本机托管固定绑定 127.0.0.1，仅端口可调；端口即连接地址的唯一来源。",
+      "portRequired": "端口不能为空",
+      "portOutOfRange": "端口须为 1–65535 之间的数字",
       "state": {
         "disabled": "未托管",
         "probing": "探测中…",
