@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Copy as CopyIcon, FolderOpen, Minus, Square, X } from 'lucide-react';
+import { ChevronDown, Copy as CopyIcon, FolderOpen, Minus, Square, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   isTauri,
@@ -9,6 +9,7 @@ import {
   pickFolder,
 } from '../ipc';
 import { useSession } from '../session/SessionProvider';
+import { useConfirm } from './ConfirmProvider';
 import ProjectBrowser from './ProjectBrowser';
 
 interface TitleBarProps {
@@ -79,10 +80,12 @@ function ProjectSwitcher() {
     recentProjects,
     currentProject,
     openProject,
+    deleteProject,
     pendingPickerRequest,
     resolvePicker,
     agentDistro,
   } = useSession();
+  const confirm = useConfirm();
   const isWslMode = !!agentDistro;
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -164,6 +167,21 @@ function ProjectSwitcher() {
     // User cancelled (null) or error — do nothing.
   };
 
+  /** Delete a project record (confirmed). Hard-deletes its sessions sidecar-side;
+   *  the on-disk directory is untouched, so it can be re-opened later. */
+  const requestDeleteProject = async (path: string) => {
+    const name = path.split(/[/\\]/).filter(Boolean).pop() || path;
+    const ok = await confirm({
+      title: t('project.deleteTitle'),
+      body: t('project.deleteBody', { name }),
+      danger: true,
+      confirmText: t('agent.confirmDelete'),
+    });
+    if (!ok) return;
+    await deleteProject(path);
+    closeMenu();
+  };
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -196,22 +214,35 @@ function ProjectSwitcher() {
           ) : (
             <>
               {knownPaths.map((p) => (
-                <button
+                <div
                   key={p}
-                  type="button"
-                  onClick={() => {
-                    void openProject(p);
-                    closeMenu();
-                  }}
-                  title={p}
-                  className={`block w-full truncate px-3 py-1.5 text-left text-[12.5px] transition-colors hover:bg-surface-muted dark:hover:bg-surface-dark-muted ${
-                    p === currentProject
-                      ? 'font-semibold text-on-surface dark:text-on-canvas-dark'
-                      : 'text-on-surface-muted dark:text-on-canvas-dark-muted'
-                  }`}
+                  className="group/proj flex items-center transition-colors hover:bg-surface-muted dark:hover:bg-surface-dark-muted"
                 >
-                  {p}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void openProject(p);
+                      closeMenu();
+                    }}
+                    title={p}
+                    className={`min-w-0 flex-1 truncate px-3 py-1.5 text-left text-[12.5px] ${
+                      p === currentProject
+                        ? 'font-semibold text-on-surface dark:text-on-canvas-dark'
+                        : 'text-on-surface-muted dark:text-on-canvas-dark-muted'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void requestDeleteProject(p)}
+                    aria-label={t('project.delete')}
+                    title={t('project.delete')}
+                    className="mr-1 flex-shrink-0 rounded-sm p-1 text-on-surface-muted opacity-0 transition-opacity hover:text-danger group-hover/proj:opacity-100 dark:text-on-canvas-dark-muted"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               ))}
               {knownPaths.length > 0 && <div className="my-1 border-t border-outline/50 dark:border-outline-dark/60" />}
               <button

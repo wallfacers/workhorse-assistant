@@ -74,7 +74,7 @@ export default function Modal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 dark:bg-black/55 backdrop-blur-sm"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-4 bg-black/30 dark:bg-black/55 backdrop-blur-sm"
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div

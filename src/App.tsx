@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PanelRightOpen } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import AgentRail from './components/AgentRail';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -11,7 +12,9 @@ import WindowResizeHandles from './components/WindowResizeHandles';
 import { isTauri, useWindowState, useAgentConnection } from './ipc';
 import { registerFallbackTools, republishCatalog } from './agent';
 import { AppContext } from './context';
+import { ConfirmProvider } from './components/ConfirmProvider';
 import { SessionProvider } from './session/SessionProvider';
+import { PANEL, FADE } from './motion';
 
 export default function App() {
   const { t } = useTranslation();
@@ -80,6 +83,7 @@ export default function App() {
   return (
     <AppContext value={appContextValue}>
     <SessionProvider agent={agent}>
+    <ConfirmProvider>
     <div
       className={`${isDarkMode ? 'dark' : ''} ${floating ? 'rounded-xl border border-outline dark:border-outline-dark' : ''} relative h-screen w-screen flex flex-col overflow-hidden bg-surface-muted dark:bg-surface-dark text-on-canvas dark:text-on-canvas-dark font-sans`}
     >
@@ -108,27 +112,48 @@ export default function App() {
           </Panel>
         </Group>
 
-        {rightPanelOpen ? (
-          <RightPanel onClose={() => setRightPanelOpen(false)} />
-        ) : (
-          <div className="flex-shrink-0 flex items-start pt-4 px-1">
-            <button
-              type="button"
-              data-testid="open-work-panel"
-              data-agent-clickable
-              onClick={() => setRightPanelOpen(true)}
-              aria-label={t('workspace.expandPanel')}
-              title={t('workspace.expandPanel')}
-              className="p-1.5 rounded-sm text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
+        {/* Right panel (工作台) — animated open/close.
+            Uses opacity + translateX (GPU-only) instead of width to avoid
+            layout thrashing on low-GPU environments (WSL2, remote desktop). */}
+        <AnimatePresence>
+          {rightPanelOpen && (
+            <motion.div
+              key="right-panel"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: PANEL.duration, ease: PANEL.ease }}
+              className="flex-shrink-0"
             >
-              <PanelRightOpen className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+              <RightPanel onClose={() => setRightPanelOpen(false)} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Open button — always mounted, opacity-toggled (design D4) */}
+        <motion.div
+          animate={{ opacity: rightPanelOpen ? 0 : 1 }}
+          transition={{ duration: FADE.duration, ease: FADE.ease }}
+          className="flex-shrink-0 flex items-start pt-4 px-1"
+          style={{ pointerEvents: rightPanelOpen ? 'none' : 'auto' }}
+        >
+          <button
+            type="button"
+            data-testid="open-work-panel"
+            data-agent-clickable
+            onClick={() => setRightPanelOpen(true)}
+            aria-label={t('workspace.expandPanel')}
+            title={t('workspace.expandPanel')}
+            className="p-1.5 rounded-sm text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
+          >
+            <PanelRightOpen className="w-4 h-4" />
+          </button>
+        </motion.div>
       </div>
 
     </div>
     {floating && <WindowResizeHandles />}
+    </ConfirmProvider>
     </SessionProvider>
     </AppContext>
   );

@@ -6,7 +6,9 @@ import {
   useRef,
   useState,
 } from 'react';
+import { motion } from 'motion/react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
+import { SPLIT } from '../../motion';
 import type { Group as GroupType, LayoutNode } from './workspaceReducer';
 import { flattenLeaves } from './workspaceReducer';
 import PaneCard from './PaneCard';
@@ -76,6 +78,8 @@ export default function TerminalGroup({
   const containerRef = useRef<HTMLDivElement>(null);
   const placeholderRefs = useRef<Map<string, HTMLElement>>(new Map());
   const [rects, setRects] = useState<Record<string, Rect>>({});
+  // Deferred close: animate first, then dispatch (design D8).
+  const [closingPaneId, setClosingPaneId] = useState<string | null>(null);
 
   const leaves = flattenLeaves(group.layout);
   const paneIds = leaves.map((p) => p.id);
@@ -184,6 +188,7 @@ export default function TerminalGroup({
       <div className="pointer-events-none absolute inset-0">
         {leaves.map((pane) => {
           const r = rects[pane.id];
+          const isClosing = pane.id === closingPaneId;
           const style: CSSProperties = {
             position: 'absolute',
             left: r?.left ?? 0,
@@ -192,17 +197,39 @@ export default function TerminalGroup({
             height: r?.height ?? 0,
           };
           return (
-            <div key={pane.id} style={style} className="pointer-events-auto">
+            <motion.div
+              key={pane.id}
+              initial={SPLIT.enter}
+              animate={isClosing ? SPLIT.exit : { opacity: 1, scale: 1 }}
+              transition={{ duration: SPLIT.duration, ease: SPLIT.ease }}
+              style={style}
+              className="pointer-events-auto"
+              onAnimationComplete={() => {
+                // Deferred close: dispatch after close animation finishes (design D8).
+                // Only fires when isClosing animation completes.
+                if (isClosing) {
+                  onClosePane(pane.id);
+                  setClosingPaneId(null);
+                }
+              }}
+            >
               <PaneCard
                 node={pane}
                 isActive={pane.id === group.activePaneId}
                 totalPanes={leaves.length}
                 onSplit={(dir) => onSplitPane(pane.id, dir)}
-                onClose={() => onClosePane(pane.id)}
+                onClose={() => {
+                  // Don't dispatch immediately — trigger close animation first.
+                  setClosingPaneId(pane.id);
+                }}
                 onActivate={() => onActivatePane(pane.id)}
                 onTitle={onPaneTitle}
               />
-            </div>
+              {/* Dim overlay during close animation (design 6.4) */}
+              {isClosing && (
+                <div className="absolute inset-0 bg-surface-muted/30 dark:bg-surface-dark/30 rounded-lg pointer-events-auto" />
+              )}
+            </motion.div>
           );
         })}
       </div>

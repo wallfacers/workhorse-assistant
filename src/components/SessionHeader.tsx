@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useSession, type SessionListItem } from '../session/SessionProvider';
+import { useConfirm } from './ConfirmProvider';
 import Tooltip from './Tooltip';
 
 /** Close a popover when the user clicks outside `ref` (mirrors `ProfileMenu`). */
@@ -93,11 +94,11 @@ export default function SessionHeader() {
     deleteSession,
   } = useSession();
 
+  const confirm = useConfirm();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameText, setRenameText] = useState('');
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // Enter / Escape both unmount the input, which fires `onBlur` → a second
   // `submitRename`. This sentinel makes the rename single-shot: the first of
@@ -107,10 +108,19 @@ export default function SessionHeader() {
   const renameEndedRef = useRef(false);
 
   const switcherRef = useClickOutside(switcherOpen, () => setSwitcherOpen(false));
-  const menuRef = useClickOutside(menuOpen, () => {
+  const menuRef = useClickOutside(menuOpen, () => setMenuOpen(false));
+
+  const requestDelete = async () => {
+    if (!activeSessionId) return;
     setMenuOpen(false);
-    setConfirmingDelete(false);
-  });
+    const ok = await confirm({
+      title: t('agent.deleteSession'),
+      body: t('agent.deleteSessionConfirm'),
+      danger: true,
+      confirmText: t('agent.confirmDelete'),
+    });
+    if (ok) void deleteSession(activeSessionId);
+  };
 
   const title = activeTitle || t('agent.untitledSession');
 
@@ -243,10 +253,7 @@ export default function SessionHeader() {
           type="button"
           aria-label={t('agent.sessionActions')}
           disabled={!activeSessionId}
-          onClick={() => {
-            setMenuOpen((v) => !v);
-            setConfirmingDelete(false);
-          }}
+          onClick={() => setMenuOpen((v) => !v)}
           className="rounded-sm p-1.5 text-on-surface-muted transition-colors hover:bg-canvas/70 hover:text-on-surface disabled:opacity-40 dark:text-on-canvas-dark-muted dark:hover:bg-surface-dark-muted dark:hover:text-on-canvas-dark"
         >
           <MoreHorizontal className="h-4 w-4" />
@@ -261,29 +268,14 @@ export default function SessionHeader() {
               <Pencil className="h-3.5 w-3.5" />
               <span>{t('agent.renameSession')}</span>
             </button>
-            {confirmingDelete ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setConfirmingDelete(false);
-                  if (activeSessionId) void deleteSession(activeSessionId);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] font-semibold text-danger transition-colors hover:bg-danger/10 dark:text-danger dark:hover:bg-danger/10"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>{t('agent.confirmDelete')}</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmingDelete(true)}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-danger transition-colors hover:bg-danger/10 dark:text-danger dark:hover:bg-danger/10"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>{t('agent.deleteSession')}</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => void requestDelete()}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-danger transition-colors hover:bg-danger/10 dark:text-danger dark:hover:bg-danger/10"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>{t('agent.deleteSession')}</span>
+            </button>
           </div>
         )}
       </div>

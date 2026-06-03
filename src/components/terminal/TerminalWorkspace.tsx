@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { motion } from 'motion/react';
 import type { ProfileId } from '../../ipc';
+import { FADE } from '../../motion';
 import {
   initWorkspace,
   workspaceReducer,
@@ -107,11 +109,17 @@ export default function TerminalWorkspace() {
           </div>
         ) : (
           state.groups.map((g) => (
-            <div
+            <motion.div
               key={g.id}
-              className={`absolute inset-0 ${
-                g.id === state.activeGroupId ? '' : 'hidden'
-              }`}
+              initial={false}
+              animate={{
+                opacity: g.id === state.activeGroupId ? 1 : 0,
+              }}
+              transition={{ duration: FADE.duration, ease: FADE.ease }}
+              className="absolute inset-0"
+              style={{
+                pointerEvents: g.id === state.activeGroupId ? 'auto' : 'none',
+              }}
             >
               <TerminalGroup
                 group={g}
@@ -126,7 +134,7 @@ export default function TerminalWorkspace() {
                 }
                 onPaneTitle={handlePaneTitle}
               />
-            </div>
+            </motion.div>
           ))
         )}
       </div>

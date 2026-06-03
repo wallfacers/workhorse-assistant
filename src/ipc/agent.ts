@@ -419,6 +419,21 @@ export async function listAgentProjects(): Promise<Result<AgentProjectMeta[]>> {
   }
 }
 
+/** Delete a project record (`DELETE /v1/projects?workdir=`). A project is a
+ *  derived view (a workdir with ≥1 session), so this hard-deletes every session
+ *  under `workdir` server-side; the on-disk directory is untouched. Returns the
+ *  number of sessions deleted. This is a shared helper — callers gate it behind
+ *  the global confirmation dialog at the UI layer, not here. */
+export async function deleteAgentProject(workdir: string): Promise<Result<number>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    const body = await invoke<{ deleted?: number }>('agent_delete_project', { workdir });
+    return ok(body.deleted ?? 0);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
 /** Enumerate a directory in the sidecar namespace
  *  (`GET /v1/fs/list?path=&root=`). Omit `path` to browse the enumeration root.
  *  `root` is the project being browsed: the sidecar confines the listing to that

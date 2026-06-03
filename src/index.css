@@ -75,6 +75,13 @@
     Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Consolas,
     monospace;
+
+  /* Stacking scale (DESIGN.md › Elevation & Depth › Stacking). Reference via
+   * z-[var(--z-*)]; never hand-tune z-index at call sites. */
+  --z-modal: 50;
+  --z-confirm: 60;
+  --z-toast: 70;
+  --z-tooltip: 80;
 }
 
 /* ----------------------------------------------------------------

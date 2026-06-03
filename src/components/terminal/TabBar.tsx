@@ -1,6 +1,8 @@
 import { X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import type { ProfileId } from '../../ipc';
+import { TAB } from '../../motion';
 import type { Group } from './workspaceReducer';
 import ProfileMenu from './ProfileMenu';
 
@@ -36,13 +38,19 @@ export default function TabBar({
            they don't protrude past the rounded corners. */}
       <div className="min-w-0 rounded-lg bg-outline/50 overflow-hidden dark:bg-surface-dark-muted/70">
         <div className="flex items-center gap-1 overflow-x-auto p-1 custom-scrollbar">
+          <AnimatePresence>
           {groups.map((g, i) => {
             const active = g.id === activeGroupId;
             return (
-              <div
+              <motion.div
                 key={g.id}
+                layout
+                initial={TAB.enter}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={TAB.exit}
+                transition={{ duration: TAB.duration, ease: TAB.ease }}
                 onClick={() => onActivate(g.id)}
-                className={`group/tab flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-md py-1.5 pl-4 pr-2.5 text-xs font-semibold transition-all duration-150 ${
+                className={`group/tab flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-md py-1.5 pl-4 pr-2.5 text-xs font-semibold transition-colors duration-150 ${
                   active
                     ? 'bg-surface text-on-surface shadow-sm dark:bg-surface-dark-muted dark:text-on-canvas-dark'
                     : 'text-on-surface-muted hover:text-on-surface dark:text-on-canvas-dark-muted dark:hover:text-on-canvas-dark'
@@ -65,9 +73,10 @@ export default function TabBar({
                 >
                   <X className="h-3 w-3" />
                 </button>
-              </div>
+              </motion.div>
             );
           })}
+          </AnimatePresence>
         </div>
       </div>
       <ProfileMenu onSelect={onAddGroup} title={t('terminal.newGroup')} />

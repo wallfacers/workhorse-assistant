@@ -49,6 +49,7 @@ export {
   attachedSessionIds,
   listAgentSessions,
   listAgentProjects,
+  deleteAgentProject,
   fsList,
   agentSessionHistory,
   renameAgentSession,

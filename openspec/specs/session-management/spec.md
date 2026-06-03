@@ -90,31 +90,33 @@ session's actions column.
 
 ### Requirement: Single session delete
 
-Each session row SHALL provide a delete action with a confirmation step to prevent
-accidental deletion.
+Each session row SHALL provide a delete action that confirms through the global
+confirmation dialog before deleting. The inline two-step ("click again to
+confirm") affordance SHALL be removed.
 
-#### Scenario: Request delete
+#### Scenario: Request delete opens the dialog
 
 - **WHEN** the user clicks the delete (trash) icon in a session row
-- **THEN** the button changes to a "确认删除" / "Confirm" state styled in danger
-  color (red)
+- **THEN** the global confirmation dialog opens, describing the destructive
+  single-session delete with a danger-styled confirm action
 
 #### Scenario: Confirm delete
 
-- **WHEN** the user clicks the confirmed delete button
+- **WHEN** the user confirms in the dialog
 - **THEN** the session is deleted via `deleteAgentSession` and the row is removed
   from the table
 
 #### Scenario: Cancel delete request
 
-- **WHEN** the delete button is in confirmation state and the user clicks elsewhere
-  or presses Escape
-- **THEN** the button reverts to its normal state
+- **WHEN** the dialog is open and the user cancels (cancel button, overlay, or
+  Escape)
+- **THEN** no deletion occurs and the table is unchanged
 
 ### Requirement: Batch session selection and deletion
 
 The table SHALL support selecting multiple sessions via checkboxes and deleting
-them in one operation.
+them in one operation. The batch deletion SHALL be confirmed through the global
+confirmation dialog; the previous inline confirmation banner SHALL be removed.
 
 #### Scenario: Select individual sessions
 
@@ -131,16 +133,20 @@ them in one operation.
 #### Scenario: Batch delete with confirmation
 
 - **WHEN** the user clicks "删除选中 (N)" with N > 0 sessions selected
-- **THEN** a confirmation banner appears: "确定要删除 N 个会话？此操作不可撤销。" /
-  "Delete N sessions? This cannot be undone."
-- **AND** the banner has "确认删除" / "Confirm" (danger) and "取消" / "Cancel" buttons
+- **THEN** the global confirmation dialog opens stating "确定要删除 N 个会话？此操作不可撤销。" /
+  "Delete N sessions? This cannot be undone." with a danger-styled confirm action
 
 #### Scenario: Execute batch delete
 
-- **WHEN** the user confirms the batch delete
+- **WHEN** the user confirms the batch delete in the dialog
 - **THEN** each selected session is deleted sequentially via `deleteAgentSession`
 - **AND** the table refreshes to show remaining sessions
 - **AND** a brief success message is shown: "已删除 N 个会话" / "Deleted N sessions"
+
+#### Scenario: Cancel batch delete
+
+- **WHEN** the dialog is open and the user cancels
+- **THEN** no sessions are deleted and the selection is preserved
 
 #### Scenario: No sessions selected
 

@@ -21,6 +21,7 @@ import {
   unifiedStatus,
 } from '../ipc';
 import { useApp } from '../context';
+import { useConfirm } from './ConfirmProvider';
 import { useSession } from '../session/SessionProvider';
 import type { AgentSessionMeta } from '../ipc/agent';
 
@@ -71,7 +72,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/40"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-[810px] h-[520px] bg-surface dark:bg-surface-dark-elevated rounded-lg border border-outline dark:border-outline-dark shadow-[0_16px_48px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col">
@@ -750,6 +751,7 @@ function relativeTime(date: string, locale: string): string {
 
 function SessionsSection() {
   const { t, i18n } = useTranslation();
+  const confirm = useConfirm();
   const { fetchAllSessions, renameSession, deleteSession } = useSession();
 
   // Cross-project view: every project's persisted sessions (not just the active
@@ -764,7 +766,6 @@ function SessionsSection() {
   }, [refreshRows]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirmingBatch, setConfirmingBatch] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState('');
@@ -788,6 +789,13 @@ function SessionsSection() {
   // count is stable across renders regardless of the data being empty or not.
   const doDelete = useCallback(async (id: string) => {
     if (deletingId) return; // already deleting something
+    const confirmed = await confirm({
+      title: t('sessions.delete'),
+      body: t('sessions.confirmDeleteOne'),
+      danger: true,
+      confirmText: t('agent.confirmDelete'),
+    });
+    if (!confirmed) return;
     setDeletingId(id);
     const ok = await deleteSession(id);
     setDeletingId(null);
@@ -802,7 +810,7 @@ function SessionsSection() {
     } else {
       setErrorMessage(t('common.retry'));
     }
-  }, [deleteSession, t, deletingId, refreshRows]);
+  }, [deleteSession, t, deletingId, refreshRows, confirm]);
 
   // Sort by updatedAt descending (most recently modified first).
   const sorted = allRows && allRows.length > 0
@@ -873,8 +881,14 @@ function SessionsSection() {
 
   const confirmBatchDelete = async () => {
     if (deletingId) return;
+    const ok = await confirm({
+      title: t('sessions.deleteSelected', { count: selected.size }),
+      body: t('sessions.confirmBatchDelete', { count: selected.size }),
+      danger: true,
+      confirmText: t('agent.confirmDelete'),
+    });
+    if (!ok) return;
     setDeletingId('__batch__');
-    setConfirmingBatch(false);
     const ids = [...selected];
     let failed = 0;
     for (const id of ids) {
@@ -930,38 +944,14 @@ function SessionsSection() {
           <span className="text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted">
             已选 {selected.size}/{sorted.length}
           </span>
-          {confirmingBatch ? (
-            <div className="flex items-center gap-2">
-              <span className="text-[10.5px] text-danger">
-                {t('sessions.confirmBatchDelete', { count: selected.size })}
-              </span>
-              <button
-                type="button"
-                onClick={confirmBatchDelete}
-                disabled={deletingId !== null}
-                className="px-2 py-0.5 rounded-md bg-danger text-[10.5px] font-semibold text-white hover:bg-danger/90 transition-colors disabled:opacity-50"
-              >
-                {t('common.confirm')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmingBatch(false)}
-                disabled={deletingId !== null}
-                className="px-2 py-0.5 rounded-md border border-outline dark:border-outline-dark text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
-              >
-                {t('common.cancel')}
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirmingBatch(true)}
-              disabled={deletingId !== null}
-              className="px-2 py-0.5 rounded-md text-[10.5px] font-medium text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
-            >
-              {t('sessions.deleteSelected', { count: selected.size })}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => void confirmBatchDelete()}
+            disabled={deletingId !== null}
+            className="px-2 py-0.5 rounded-md text-[10.5px] font-medium text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
+          >
+            {t('sessions.deleteSelected', { count: selected.size })}
+          </button>
         </div>
       )}
 

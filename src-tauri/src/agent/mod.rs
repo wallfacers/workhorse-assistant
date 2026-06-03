@@ -612,6 +612,36 @@ impl AgentBridge {
             .map_err(|e| AgentError::internal(format!("bad /v1/projects response: {e}")))
     }
 
+    /// Delete a project record (`DELETE /v1/projects?workdir=<path>`). A project
+    /// is a derived view, so this hard-deletes every session under `workdir`
+    /// server-side; the on-disk directory is untouched. Returns the sidecar body
+    /// (`{ "deleted": <int> }`). A 404 means an older sidecar without the
+    /// endpoint — surfaced as `not_found` so the UI can explain.
+    pub fn delete_project(&self, workdir: &str) -> Result<Value, AgentError> {
+        let endpoint = self.endpoint();
+        let req = ureq::request("DELETE", &format!("{endpoint}/v1/projects"))
+            .timeout(HTTP_TIMEOUT)
+            .query("workdir", workdir);
+        match req.call() {
+            Ok(resp) => resp
+                .into_json()
+                .map_err(|e| AgentError::internal(format!("bad /v1/projects response: {e}"))),
+            Err(ureq::Error::Status(code, resp)) => {
+                let msg = resp
+                    .into_json::<Value>()
+                    .ok()
+                    .and_then(|v| v.get("message").and_then(|m| m.as_str()).map(str::to_string))
+                    .unwrap_or_else(|| format!("delete_project returned {code}"));
+                Err(match code {
+                    404 => AgentError::not_found(msg),
+                    400 => AgentError::validation(msg),
+                    _ => AgentError::internal(format!("delete_project HTTP {code}: {msg}")),
+                })
+            }
+            Err(e) => Err(AgentError::transient(format!("delete_project failed: {e}"))),
+        }
+    }
+
     /// Enumerate a directory in the sidecar namespace
     /// (`GET /v1/fs/list?path=<dir>&root=<projectRoot>`). An empty/None `path`
     /// lets the sidecar use the enumeration root; `root` is the project being

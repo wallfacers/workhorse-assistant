@@ -267,6 +267,22 @@ Workhorse has **two elevation levels**, no more.
 Do **not** add per-component shadows. Use a 1px outline (`outline` / `outline-dark`)
 to separate surfaces of the same elevation.
 
+### Stacking (z-index) scale
+
+Z-order is a **named scale**, not hand-tuned numbers at call sites. Overlays
+reference a token (`z-[var(--z-modal)]` etc.); a bare `z-50` is a smell. Higher
+tier always wins; leave gaps so future tiers slot in without renumbering.
+
+| Token         | Value | Role                                                        |
+|---------------|-------|-------------------------------------------------------------|
+| `--z-modal`   | 50    | Modal dialogs and their overlays (e.g. the Settings modal). |
+| `--z-confirm` | 60    | The global confirmation dialog — sits **above** any modal.  |
+| `--z-toast`   | 70    | Transient toasts / status banners.                          |
+| `--z-tooltip` | 80    | Tooltips — always topmost; `pointer-events-none`, transient.|
+
+The confirmation dialog (`useConfirm`) MUST render at `--z-confirm` so a delete
+triggered from inside the Settings modal is still confirmable above it.
+
 ## Shapes
 
 The radius language is a **flat, role-based scale** that replicates the Claude

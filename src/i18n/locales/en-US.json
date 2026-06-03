@@ -51,7 +51,8 @@
       "copy": "Copy",
       "good": "Good",
       "bad": "Bad"
-    }
+    },
+    "deleteSessionConfirm": "Delete this session? This cannot be undone."
   },
   "project": {
     "default": "Default project",
@@ -67,7 +68,10 @@
     "noSubfolders": "No subfolders",
     "loading": "Loading",
     "pickerHint": "Project picker opened — please confirm the path",
-    "pickerAlreadyOpen": "Project picker is already open — finish the current selection first"
+    "pickerAlreadyOpen": "Project picker is already open — finish the current selection first",
+    "delete": "Delete project",
+    "deleteTitle": "Delete project record",
+    "deleteBody": "Delete the project \"{{name}}\"? This permanently removes all of its session records (the on-disk directory is left untouched) and cannot be undone."
   },
   "settings": {
     "title": "Settings",
@@ -148,7 +152,8 @@
     "rename": "Rename",
     "delete": "Delete",
     "confirmDelete": "Confirm delete",
-    "untitled": "Untitled"
+    "untitled": "Untitled",
+    "confirmDeleteOne": "Delete this session? This cannot be undone."
   },
   "shortcuts": {
     "newTask": "New task",

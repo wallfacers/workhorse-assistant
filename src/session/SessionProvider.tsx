@@ -39,6 +39,7 @@ import {
   sendPermissionDecision,
   listAgentSessions,
   listAgentProjects,
+  deleteAgentProject,
   agentSessionHistory,
   renameAgentSession,
   deleteAgentSession,
@@ -89,6 +90,10 @@ interface SessionContextValue {
   recentProjects: string[];
   currentProject: string;
   openProject: (path: string) => Promise<void>;
+  /** Delete a project record (hard-deletes its sessions sidecar-side; directory
+   *  untouched). Drops it from recents and re-bootstraps if it was active.
+   *  Returns false on failure. Gate behind the confirm dialog at the call site. */
+  deleteProject: (path: string) => Promise<boolean>;
   /** Drop project + session state ahead of a runtime switch (Native↔WSL / distro
    *  change), so the bootstrap re-seeds from the new runtime's default workdir. */
   resetProjectForRuntimeSwitch: () => void;
@@ -351,12 +356,15 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     void refreshSessions(currentProject);
   }, [currentProject, refreshSessions]);
 
-  useEffect(() => {
-    void (async () => {
-      const res = await listAgentProjects();
-      if (res.ok) setProjects(res.value);
-    })();
+  // Re-pull the sidecar's known-projects list (after mount and after a delete).
+  const refreshProjects = useCallback(async () => {
+    const res = await listAgentProjects();
+    if (res.ok) setProjects(res.value);
   }, []);
+
+  useEffect(() => {
+    void refreshProjects();
+  }, [refreshProjects]);
 
   const openProject = useCallback(
     async (path: string) => {
@@ -411,6 +419,47 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     sessionsLoadedForRef.current = null;
     bootstrapForRef.current = null;
   }, []);
+
+  /** Delete a project record: hard-delete all its sessions in the sidecar (the
+   *  on-disk directory is untouched), drop it from local recents, and — if it was
+   *  the active project — clear it so the bootstrap re-seeds from the sidecar
+   *  default (or the picker / empty state). Returns false if the sidecar rejected
+   *  the delete. Gated behind the global confirm dialog at the UI layer. */
+  const deleteProject = useCallback(
+    async (path: string): Promise<boolean> => {
+      const res = await deleteAgentProject(path);
+      if (!res.ok) return false;
+      // Drop from local recents (and persist).
+      setRecentProjects((prev) => {
+        const next = prev.filter((p) => p !== path);
+        try {
+          localStorage.setItem(LS_RECENT, JSON.stringify(next));
+        } catch {
+          // best-effort; in-memory list still updates
+        }
+        return next;
+      });
+      // If it was the active project, clear it and let the bootstrap re-seed.
+      if (path === currentProject) {
+        setCurrentProject('');
+        try {
+          localStorage.removeItem(LS_PROJECT);
+        } catch {
+          // localStorage unavailable — in-memory reset still applies.
+        }
+        setActiveSessionId(null);
+        setActiveSession(null);
+        setLiveSessions([]);
+        setRuntimes({});
+        setListedSessions([]);
+        sessionsLoadedForRef.current = null;
+        bootstrapForRef.current = null;
+      }
+      await refreshProjects();
+      return true;
+    },
+    [currentProject, refreshProjects],
+  );
 
   // --- Session actions -------------------------------------------------------
   const switchSession = useCallback(
@@ -630,6 +679,7 @@ export function SessionProvider({ agent, children }: { agent: AgentConnection; c
     recentProjects,
     currentProject,
     openProject,
+    deleteProject,
     resetProjectForRuntimeSwitch,
     agentDistro: agent.distro,
     requestPicker,
