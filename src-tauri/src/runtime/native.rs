@@ -72,6 +72,11 @@ impl Backend for NativeBackend {
         &self.endpoint
     }
 
+    fn expected_distro(&self) -> Option<&str> {
+        // Native runs on the host — a healthy sidecar must report no distro.
+        None
+    }
+
     fn probe(&self) -> PortProbe {
         if probe_healthy(&self.endpoint) {
             return PortProbe::HealthySidecar;

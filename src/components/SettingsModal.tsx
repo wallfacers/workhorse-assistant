@@ -21,6 +21,7 @@ import {
 } from '../ipc';
 import { useApp } from '../context';
 import { useSession } from '../session/SessionProvider';
+import type { AgentSessionMeta } from '../ipc/agent';
 
 type NavItem = 'theme' | 'shortcuts' | 'agent' | 'sessions';
 
@@ -275,7 +276,7 @@ function AgentSection({
       </div>
 
       {/* Runtime mode — Native (default) or WSL (opt-in, Windows + WSL only). */}
-      <RuntimeModeSection onReconnect={agent.reconnect} />
+      <RuntimeModeSection onReconnect={agent.reconnect} agentDistro={agent.distro} />
     </div>
   );
 }
@@ -299,7 +300,16 @@ const SUPERVISOR_DOT: Record<SupervisorState, string> = {
  * the current runtime's sidecar is reaped before the next starts), then
  * re-probes the connection. A live status badge tracks the supervisor state.
  */
-function RuntimeModeSection({ onReconnect }: { onReconnect: () => void }) {
+function RuntimeModeSection({
+  onReconnect,
+  agentDistro,
+}: {
+  onReconnect: () => void;
+  /** `/health.distro` — the distro the sidecar actually reports running in
+   *  (null when not WSL / not yet connected). Compared against the configured
+   *  distro to surface runtime/config drift (unify-wsl-distro-source). */
+  agentDistro: string | null;
+}) {
   const { t } = useTranslation();
   const { resetProjectForRuntimeSwitch } = useSession();
   const [detect, setDetect] = useState<WslDetect | null>(null);
@@ -349,6 +359,26 @@ function RuntimeModeSection({ onReconnect }: { onReconnect: () => void }) {
   const wslAvailable = detect?.available ?? false;
   const selectedDistro = config.distro ?? distros[0] ?? '';
   const overrideDirty = override.trim() !== savedOverride.trim();
+
+  // Config-priority drift (unify-wsl-distro-source): the user's RuntimeConfig is
+  // authoritative; `/health.distro` (agentDistro) is the actual running distro.
+  // Surface a mismatch so the user can re-align with「应用并重启」.
+  //  - WSL mode:  configured distro vs reported distro differ → mismatch;
+  //               reported distro absent while running → unknown.
+  //  - Native:    a reported distro at all means a WSL sidecar is bound → mismatch.
+  const settled = status.state === 'healthy' || status.state === 'adopted';
+  const drift: { kind: 'mismatch' | 'unknown'; configured: string; actual: string } | null =
+    mode === 'wsl'
+      ? agentDistro
+        ? agentDistro !== (config.distro ?? '')
+          ? { kind: 'mismatch', configured: config.distro ?? '—', actual: agentDistro }
+          : null
+        : settled
+          ? { kind: 'unknown', configured: config.distro ?? '—', actual: '' }
+          : null
+      : agentDistro
+        ? { kind: 'mismatch', configured: t('settings.runtime.native'), actual: agentDistro }
+        : null;
 
   const selectMode = (next: RuntimeKind) => {
     if (next === mode) return;
@@ -414,6 +444,17 @@ function RuntimeModeSection({ onReconnect }: { onReconnect: () => void }) {
         )}
       </div>
 
+      {/* Runtime/config drift notice — config-priority: prompt re-align, not accept. */}
+      {drift && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2">
+          <span className="text-[11.5px] text-on-surface dark:text-on-canvas-dark">
+            {drift.kind === 'unknown'
+              ? t('settings.runtime.driftUnknown')
+              : t('settings.runtime.driftMismatch', { configured: drift.configured, actual: drift.actual })}
+          </span>
+        </div>
+      )}
+
       {/* Distro dropdown — WSL only. */}
       {mode === 'wsl' && wslAvailable && (
         <div className="mb-4">
@@ -453,6 +494,17 @@ function RuntimeModeSection({ onReconnect }: { onReconnect: () => void }) {
         </div>
         <p className="mt-1 text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t('settings.runtime.advancedHint')}</p>
       </div>
+
+      {/* Always-available restart: re-drives the supervisor with the current
+          config even when nothing is dirty — the only path to a manual restart
+          when mode/distro/command are unchanged. */}
+      <button
+        type="button"
+        onClick={() => void apply(config)}
+        className="mt-2 rounded-lg bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90"
+      >
+        {t('settings.runtime.applyRestart')}
+      </button>
     </div>
   );
 }
@@ -705,6 +757,14 @@ function ShortcutsSection() {
 // SessionsSection — session management table (add-session-management)
 // ---------------------------------------------------------------------------
 
+/** Last path segment of a project workdir, for the compact Project column
+ *  (handles POSIX and Windows separators). The full path shows on hover. */
+function projectLabel(workdir: string): string {
+  const trimmed = workdir.replace(/[/\\]+$/, '');
+  const idx = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  return idx >= 0 ? trimmed.slice(idx + 1) || trimmed : trimmed;
+}
+
 /** Format a date string as relative time in the current locale. */
 function relativeTime(date: string, locale: string): string {
   const now = Date.now();
@@ -731,7 +791,18 @@ function relativeTime(date: string, locale: string): string {
 
 function SessionsSection() {
   const { t, i18n } = useTranslation();
-  const { listedSessionsMeta, renameSession, deleteSession } = useSession();
+  const { fetchAllSessions, renameSession, deleteSession } = useSession();
+
+  // Cross-project view: every project's persisted sessions (not just the active
+  // project's switcher list). Refetched after rename/delete since those mutate
+  // the active-project list, not this one (decouple-project-from-launch-cwd).
+  const [allRows, setAllRows] = useState<AgentSessionMeta[]>([]);
+  const refreshRows = useCallback(async () => {
+    setAllRows(await fetchAllSessions());
+  }, [fetchAllSessions]);
+  useEffect(() => {
+    void refreshRows();
+  }, [refreshRows]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmingBatch, setConfirmingBatch] = useState(false);
@@ -754,8 +825,8 @@ function SessionsSection() {
   }, [successMessage, errorMessage]);
 
   // Sort by updatedAt descending (most recently modified first).
-  const sorted = listedSessionsMeta && listedSessionsMeta.length > 0
-    ? [...listedSessionsMeta].sort((a, b) => {
+  const sorted = allRows && allRows.length > 0
+    ? [...allRows].sort((a, b) => {
         const da = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
         const db = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
         return db - da;
@@ -808,6 +879,7 @@ function SessionsSection() {
     if (next && renamingId) {
       const ok = await renameSession(renamingId, next);
       if (!ok) setErrorMessage(t('common.retry'));
+      else void refreshRows();
     }
     setRenamingId(null);
   };
@@ -824,6 +896,7 @@ function SessionsSection() {
     setDeletingId(null);
     if (ok) {
       setSuccessMessage(t('sessions.deletedMessage', { count: 1 }));
+      void refreshRows();
       setSelected((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -850,6 +923,7 @@ function SessionsSection() {
     } else {
       setSuccessMessage(t('sessions.deletedMessage', { count: ids.length }));
     }
+    void refreshRows();
     setSelected(new Set());
   };
 
@@ -952,6 +1026,9 @@ function SessionsSection() {
                 <th className="text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
                   {t('sessions.columns.title')}
                 </th>
+                <th className="w-28 text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
+                  {t('sessions.columns.project')}
+                </th>
                 <th className="w-16 text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
                   {t('sessions.columns.status')}
                 </th>
@@ -1021,6 +1098,16 @@ function SessionsSection() {
                           {s.title || t('sessions.untitled')}
                         </span>
                       )}
+                    </td>
+
+                    {/* Project */}
+                    <td className="px-2.5 py-2 border-r border-outline/50 dark:border-outline-dark/50">
+                      <span
+                        className="truncate max-w-[110px] block font-mono text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted"
+                        title={s.workdir}
+                      >
+                        {projectLabel(s.workdir)}
+                      </span>
                     </td>
 
                     {/* Status */}

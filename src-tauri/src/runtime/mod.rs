@@ -32,8 +32,8 @@ use crate::config::{RuntimeConfig, RuntimeKind};
 
 pub use core::{SupervisorState, SupervisorStatus};
 use core::{
-    backoff_delay_ms, decide, next_on_child_exit, ownership_for, AfterExit, Ownership, PortProbe,
-    ReconcileAction, POLL_INTERVAL, REAP_GRACE, START_GRACE,
+    backoff_delay_ms, decide, distro_aligned, next_on_child_exit, ownership_for, AfterExit,
+    Ownership, PortProbe, ReconcileAction, POLL_INTERVAL, REAP_GRACE, START_GRACE,
 };
 
 const STATUS_EVENT: &str = "supervisor://status";
@@ -55,6 +55,10 @@ pub trait Backend: Send + Sync {
     fn label(&self) -> &'static str;
     /// The health endpoint this back-end's sidecar listens on.
     fn endpoint(&self) -> &str;
+    /// The distro this back-end's `RuntimeConfig` expects the sidecar to run in:
+    /// `Some(name)` for WSL, `None` for Native. Compared against `/health.distro`
+    /// to enforce config-priority on adoption (unify-wsl-distro-source).
+    fn expected_distro(&self) -> Option<&str>;
     /// Gate-1 classification of whatever holds the port.
     fn probe(&self) -> PortProbe;
     /// Spawn the sidecar.
@@ -82,6 +86,30 @@ pub fn probe_healthy(endpoint: &str) -> bool {
         Err(_) => false,
     }
 }
+
+/// Fetch `/health.distro` — the distro the sidecar reports running in. `None`
+/// when unreachable or the field is absent (native sidecars omit it). Used to
+/// reconcile the running namespace against the configured one.
+fn health_distro(endpoint: &str) -> Option<String> {
+    let url = format!("{}/health", endpoint.trim_end_matches('/'));
+    let resp = ureq::get(&url).timeout(Duration::from_secs(3)).call().ok()?;
+    let v: serde_json::Value = resp.into_json().ok()?;
+    v.get("distro").and_then(|d| d.as_str()).map(|s| s.to_string())
+}
+
+/// Human-readable drift reason for `supervisor://status` (`native` stands in for
+/// the absent-distro case on both sides).
+fn drift_reason(expected: Option<&str>, actual: Option<&str>) -> String {
+    format!(
+        "runtime distro drift: configured={}, actual={}",
+        expected.unwrap_or("native"),
+        actual.unwrap_or("native"),
+    )
+}
+
+/// Bound on config-priority reaps of an adopted-but-mismatched sidecar, so an
+/// external sidecar that keeps reclaiming the port cannot loop the monitor.
+const MAX_RECONCILE_REAPS: u32 = 3;
 
 // --- Runtime state ----------------------------------------------------------
 
@@ -230,6 +258,8 @@ fn run_monitor(
     backend: Arc<dyn Backend>,
 ) {
     let mut failure_count: u32 = 0;
+    // Bounded config-priority reaps of an adopted-but-mismatched sidecar.
+    let mut reconcile_reaps: u32 = 0;
 
     loop {
         if superseded(&inner, &stop, generation) {
@@ -245,8 +275,48 @@ fn run_monitor(
         }
         match action {
             ReconcileAction::Adopt => {
-                emit_status(&app, &inner, &backend, SupervisorStatus::new(SupervisorState::Adopted));
-                return; // reachability is auto-connect's job; nothing to supervise.
+                // Config-priority (unify-wsl-distro-source): the adopted sidecar
+                // must run in the configured namespace. If its `/health.distro`
+                // disagrees with the backend's expected distro, RuntimeConfig
+                // wins — reap the mismatched (but protocol-confirmed workhorse)
+                // sidecar and respawn ours. Bounded by MAX_RECONCILE_REAPS so an
+                // external sidecar that keeps reclaiming the port cannot loop.
+                let actual = health_distro(backend.endpoint());
+                if distro_aligned(backend.expected_distro(), actual.as_deref()) {
+                    emit_status(&app, &inner, &backend, SupervisorStatus::new(SupervisorState::Adopted));
+                    return; // reachability is auto-connect's job; nothing to supervise.
+                }
+                let reason = drift_reason(backend.expected_distro(), actual.as_deref());
+                reconcile_reaps += 1;
+                if reconcile_reaps > MAX_RECONCILE_REAPS {
+                    emit_status(
+                        &app,
+                        &inner,
+                        &backend,
+                        SupervisorStatus::with_reason(
+                            SupervisorState::Failed,
+                            format!("external sidecar keeps reclaiming the port ({reason})"),
+                        ),
+                    );
+                    return;
+                }
+                emit_status(
+                    &app,
+                    &inner,
+                    &backend,
+                    SupervisorStatus::with_reason(
+                        SupervisorState::Restarting,
+                        format!("{reason}; restarting per config"),
+                    ),
+                );
+                // The adopted process is a confirmed workhorse-agent on our port,
+                // just in the wrong namespace — reap by discovered pid, then loop
+                // to re-probe (now Free) and spawn ours. Ownership corrects itself
+                // on the next iteration (Spawn → Ours).
+                if let Some(pid) = backend.capture_pid() {
+                    backend.reap(pid, REAP_GRACE);
+                }
+                continue;
             }
             ReconcileAction::FailForeign { occupant } => {
                 emit_status(

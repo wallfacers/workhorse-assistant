@@ -84,3 +84,49 @@ TBD - created by archiving change add-native-runtime-mode. Update Purpose after 
 - **THEN** 产物 SHALL 包含按 target triple 命名的 `workhorse-agent` 可执行文件
 - **AND** Native supervisor SHALL 能经 Tauri sidecar 路径解析定位它
 
+### Requirement: 手动重启运行时
+
+运行时设置区 SHALL 提供一个**不依赖配置变更**的手动重启控件。触发该控件时，系统 SHALL 以当前持久化的 `RuntimeConfig` 重新驱动 supervisor（回收当前 sidecar 后重新启动），即使模式、发行版与启动命令均未发生变化。
+
+该控件 SHALL 独立于命令框旁的「保存并重连」按钮——后者仅在高级启动命令被改动（dirty）时可用，不能覆盖「配置无变化时仍需重启」的场景。
+
+#### Scenario: 配置无变化时仍可重启
+
+- **WHEN** 用户未改动运行时模式、发行版或高级启动命令，点击「应用并重启」控件
+- **THEN** 系统 SHALL 以当前 `RuntimeConfig` 重新驱动 supervisor
+- **AND** SHALL 先回收当前模式的 sidecar 并确认端口释放，再以同一配置重新启动 sidecar
+- **AND** 渲染层 SHALL 重新探测 `/health`（reconnect）
+
+#### Scenario: 重启控件始终可点
+
+- **WHEN** 用户查看运行时设置区
+- **THEN** 「应用并重启」控件 SHALL 始终可点击，不受高级启动命令是否被改动（`overrideDirty`）的门控
+
+#### Scenario: 重启沿用既有互斥与归属保护
+
+- **WHEN** 用户触发手动重启，而当前端口被一个无法确认为本系统所启的进程占用
+- **THEN** 系统 SHALL NOT 杀该进程
+- **AND** SHALL 沿用既有运行时互斥与 `supervisor://status` 报告路径，不因手动重启而绕过归属保护
+
+### Requirement: 设置区呈现实际运行态并支持一键对齐
+
+运行时设置区 SHALL 以 `RuntimeConfig`（用户配置）为权威呈现当前运行时模式与发行版。当 `/health` 校验显示实际运行态与配置一致时，呈现单一发行版即可。当实际与配置不一致（adopt 漂移、改配置未重启的窗口期）或实际值无法确认时，设置区 SHALL 显式提示该不一致，并引导用户用「应用并重启」按配置重新对齐（见 change `add-runtime-restart-button`）。
+
+> 配置优先：设置区呈现的「目标」始终是用户配置；漂移提示的作用是让用户察觉「实际尚未对齐」，解决手段是按配置重启对齐，而非接受实际值改写配置。
+
+#### Scenario: 配置与实际一致
+
+- **WHEN** `RuntimeConfig.distro = "Ubuntu"` 且 `/health.distro = "Ubuntu"`
+- **THEN** 设置区 SHALL 呈现 `Ubuntu` 为当前发行版，不显示漂移提示
+
+#### Scenario: 实际未对齐配置时提示并引导对齐
+
+- **WHEN** `RuntimeConfig.distro = "Ubuntu"` 而 `/health.distro = "Debian"`（或 Native 配置下却探测到 WSL sidecar）
+- **THEN** 设置区 SHALL 提示「配置为 Ubuntu，实际运行为 Debian，尚未对齐」
+- **AND** SHALL 引导用户点击「应用并重启」以按配置重新启动 sidecar
+
+#### Scenario: 实际值无法确认时提示
+
+- **WHEN** 模式为 `Wsl` 但 `/health` 未上报 `distro`（sidecar 未就绪或探测失败）
+- **THEN** 设置区 SHALL 提示「无法确认实际运行发行版」，而非默认显示配置值为已生效
+

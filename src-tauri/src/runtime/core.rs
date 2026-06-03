@@ -156,6 +156,22 @@ pub fn is_workhorse(cmdline: &str) -> bool {
     cmdline.contains("workhorse-agent")
 }
 
+/// Config-priority distro reconciliation (unify-wsl-distro-source). Given the
+/// distro the backend *expects* (the user's `RuntimeConfig`: `Some(name)` for
+/// WSL, `None` for Native) and the distro the sidecar *actually* reports on
+/// `/health` (`None` when it omits the field, i.e. not running under WSL),
+/// returns whether the running sidecar's namespace matches the configured one.
+/// A `false` means the running sidecar is in the wrong namespace and — since
+/// config wins — must be reaped and respawned per config. Pure — unit-tested.
+pub fn distro_aligned(expected: Option<&str>, actual: Option<&str>) -> bool {
+    match (expected, actual) {
+        (None, None) => true,         // Native configured, native sidecar — aligned
+        (None, Some(_)) => false,     // Native configured, but a WSL sidecar answers
+        (Some(_), None) => false,     // WSL configured, but sidecar reports no distro
+        (Some(e), Some(a)) => e == a, // both WSL — aligned iff same registration name
+    }
+}
+
 /// Extract the `--port` value from a built command (defaults to [`DEFAULT_PORT`]).
 pub fn parse_port(command: &str) -> u16 {
     command
@@ -238,6 +254,17 @@ mod tests {
             build_serve_command(7821, Some("   ")),
             "workhorse-agent serve --host 127.0.0.1 --port 7821"
         );
+    }
+
+    #[test]
+    fn distro_alignment_is_config_priority() {
+        // Native configured (expected None): aligned only with a native sidecar.
+        assert!(distro_aligned(None, None));
+        assert!(!distro_aligned(None, Some("Ubuntu"))); // WSL sidecar under Native
+        // WSL configured: aligned only with the same registration name.
+        assert!(distro_aligned(Some("Ubuntu"), Some("Ubuntu")));
+        assert!(!distro_aligned(Some("Ubuntu"), Some("Debian")));
+        assert!(!distro_aligned(Some("Ubuntu"), None)); // sidecar omitted distro
     }
 
     #[test]

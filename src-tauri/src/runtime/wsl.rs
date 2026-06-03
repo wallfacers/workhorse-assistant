@@ -57,6 +57,11 @@ impl Backend for WslBackend {
         &self.endpoint
     }
 
+    fn expected_distro(&self) -> Option<&str> {
+        // The configured distro (registration name) the sidecar must report.
+        Some(&self.distro)
+    }
+
     fn probe(&self) -> PortProbe {
         if probe_healthy(&self.endpoint) {
             return PortProbe::HealthySidecar;

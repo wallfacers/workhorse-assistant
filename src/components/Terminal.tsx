@@ -12,6 +12,7 @@ import {
   readClipboardText,
   writeClipboardText,
   hostIsWindows,
+  getRuntimeConfig,
   type ProfileId,
 } from '../ipc';
 import { useApp } from '../context';
@@ -116,12 +117,15 @@ export default function Terminal({ profileId, onTitle }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const isDark = useApp().isDarkMode;
-  // Project + WSL context, captured at spawn time (add-wsl-remote C3). Read via
-  // a ref so changing the project does not re-run the spawn effect — existing
+  // Project context, captured at spawn time (add-wsl-remote C3). Read via a ref
+  // so changing the project does not re-run the spawn effect — existing
   // terminals keep their session; only newly-mounted panes pick up the change.
-  const { currentProject, agentDistro } = useSession();
-  const spawnCtxRef = useRef({ workdir: currentProject, distro: agentDistro });
-  spawnCtxRef.current = { workdir: currentProject, distro: agentDistro };
+  // The WSL namespace (mode + distro) is NOT read here from `/health`; it comes
+  // from `RuntimeConfig` fetched at spawn time below (unify-wsl-distro-source:
+  // config-priority, and `SessionProvider` stays untouched).
+  const { currentProject } = useSession();
+  const spawnCtxRef = useRef({ workdir: currentProject });
+  spawnCtxRef.current = { workdir: currentProject };
 
   // Sync xterm theme when dark mode changes.
   // xterm.css defaults .xterm-viewport to #000; we must force the viewport
@@ -198,19 +202,26 @@ export default function Terminal({ profileId, onTitle }: TerminalProps) {
     if (hasSize) fit.fit();
 
     void (async () => {
-      // C3: when the sidecar runs under WSL, a generic `terminal` pane launches
-      // as a WSL shell rooted at the project; explicit CLI profiles are left as
-      // chosen. workdir/distro are passed for the core to resolve (a WSL workdir
-      // is not a host-valid cwd, so only the `wsl` profile consumes it).
+      // Namespace decision is config-driven (unify-wsl-distro-source): a generic
+      // `terminal` pane promotes to a WSL shell when the user's RuntimeConfig is
+      // `mode==='wsl'`, using the *configured* distro for `wsl.exe -d <distro>`.
+      // We deliberately do NOT key off `/health.distro` (the sidecar's
+      // self-report) — RuntimeConfig is the single source of truth, so the agent,
+      // project namespace, and terminal all follow the same switch. Explicit CLI
+      // profiles are left as chosen. workdir/distro are passed for the core to
+      // resolve (a WSL workdir is not a host-valid cwd, so only `wsl` consumes it).
       //
-      // C5 / D-WSL-7: only promote to `wsl` on a *Windows host* — `wsl.exe` only
+      // C5 / D-WSL-7: still only promote on a *Windows host* — `wsl.exe` only
       // bridges from Windows. Off-Windows (incl. a build running inside WSL) the
       // pane stays a local shell rooted at the project path; `host_is_windows`
       // is the host-OS signal (the Rust `resolve_profile` `cfg` is the backstop).
-      const { workdir, distro } = spawnCtxRef.current;
+      const { workdir } = spawnCtxRef.current;
       const onWindows = await hostIsWindows();
+      const rt = await getRuntimeConfig();
+      const cfg = rt.ok ? rt.value : null;
+      const distro = cfg?.mode === 'wsl' ? cfg.distro : undefined;
       const effectiveProfile: ProfileId =
-        profileId === 'terminal' && distro && onWindows ? 'wsl' : profileId;
+        profileId === 'terminal' && cfg?.mode === 'wsl' && onWindows ? 'wsl' : profileId;
       const wd = workdir || undefined;
       const ds = distro || undefined;
       const spawned = hasSize

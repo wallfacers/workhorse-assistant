@@ -44,8 +44,6 @@
       "heartbeatFailed": "心跳检测失败",
       "reconnecting": "连接已断开，正在重连"
     },
-    "projectMismatch": "当前项目下没有会话。Agent 运行在其他目录，要切换过去吗？",
-    "switchToProject": "切换到 Agent 项目",
     "feedback": {
       "copy": "复制",
       "good": "好用",
@@ -103,6 +101,9 @@
       "distro": "WSL 发行版",
       "advancedCommand": "启动命令（高级）",
       "advancedHint": "留空使用约定默认：workhorse-agent serve --host 127.0.0.1 --port <端口>",
+      "applyRestart": "应用并重启",
+      "driftMismatch": "配置为 {{configured}}，实际运行为 {{actual}}，尚未对齐。点击「应用并重启」按配置重启。",
+      "driftUnknown": "无法确认实际运行发行版。点击「应用并重启」按配置重启。",
       "state": {
         "disabled": "未托管",
         "probing": "探测中…",
@@ -118,6 +119,7 @@
     "title": "会话管理",
     "columns": {
       "title": "标题",
+      "project": "项目",
       "status": "状态",
       "messages": "消息数",
       "updated": "更新时间",

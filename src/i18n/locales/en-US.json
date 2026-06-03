@@ -44,8 +44,6 @@
       "heartbeatFailed": "Heartbeat failed",
       "reconnecting": "Disconnected, reconnecting"
     },
-    "projectMismatch": "No sessions in the current project. The agent is running in a different directory — switch over?",
-    "switchToProject": "Switch to agent project",
     "feedback": {
       "copy": "Copy",
       "good": "Good",
@@ -103,6 +101,9 @@
       "distro": "WSL distro",
       "advancedCommand": "Serve command (advanced)",
       "advancedHint": "Leave blank for the convention default: workhorse-agent serve --host 127.0.0.1 --port <port>",
+      "applyRestart": "Apply & Restart",
+      "driftMismatch": "Configured for {{configured}}, but actually running {{actual}} — not aligned. Click \"Apply & Restart\" to restart per config.",
+      "driftUnknown": "Cannot confirm the actual running distro. Click \"Apply & Restart\" to restart per config.",
       "state": {
         "disabled": "Not managed",
         "probing": "Probing…",
@@ -118,6 +119,7 @@
     "title": "Session Management",
     "columns": {
       "title": "Title",
+      "project": "Project",
       "status": "Status",
       "messages": "Messages",
       "updated": "Updated",
