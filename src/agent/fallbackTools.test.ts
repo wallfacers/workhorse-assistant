@@ -28,7 +28,10 @@ describe('click_by_testid', () => {
     document.body.appendChild(btn);
 
     const result = await executeAction('click_by_testid', { testId: 'go' });
-    expect(result).toEqual({ ok: true, value: null });
+    expect(result).toEqual({
+      ok: true,
+      value: { clicked: true, testId: 'go', tagName: 'button' },
+    });
     expect(onClick).toHaveBeenCalledOnce();
     off();
   });
