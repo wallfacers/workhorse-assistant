@@ -109,6 +109,13 @@ export interface HealthInfo {
   version: string;
   protocol_version: string;
   capabilities: string[];
+  /** Human-readable reason when `ok` is false (e.g. `"no_provider_key"`).
+   *  Lets the UI surface why the sidecar is degraded instead of a generic error. */
+  reason?: string;
+  /** Sidecar uptime in seconds. */
+  uptime_sec?: number;
+  /** Number of currently active (live) sessions on the sidecar. */
+  sessions_active?: number;
   /** The sidecar's default project path; used for cold-start when there is no
    *  remembered project. Optional: a sidecar predating the WSL-remote batch
    *  omits it (additive, does not bump `protocol_version`). */

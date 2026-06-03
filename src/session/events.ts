@@ -205,5 +205,22 @@ export async function subscribeSession(
     await on(`agent://connection_failed/${sessionId}`, () => onConnectionFailed());
   }
 
+  // --- subagent event (subagent lifecycle, forwarded raw) ---
+  // TODO: surface in UI when subagent panel is built. For now, consumed as a
+  // no-op listener so the Tauri event is acknowledged and not silently dropped.
+  await on(`agent://subagent_event/${sessionId}`, () => {});
+
+  // --- compaction (context compression completed) ---
+  // TODO: show compaction indicator in the chat header. For now acknowledged.
+  await on(`agent://compaction/${sessionId}`, () => {});
+
+  // --- provider retry (rate-limit / overload backoff) ---
+  // TODO: show retry status in the chat. For now acknowledged.
+  await on(`agent://provider_retry/${sessionId}`, () => {});
+
+  // --- interrupted (user-cancelled turn) ---
+  // TODO: mark the interrupted turn in the message list. For now acknowledged.
+  await on(`agent://interrupted/${sessionId}`, () => {});
+
   return unlistens;
 }

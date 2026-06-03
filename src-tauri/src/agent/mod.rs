@@ -105,6 +105,17 @@ pub struct HealthInfo {
     pub version: String,
     pub protocol_version: String,
     pub capabilities: Vec<String>,
+    /// Human-readable reason when `ok` is false (e.g. `"no_provider_key"`).
+    /// Lets the renderer show why the sidecar is degraded instead of a generic
+    /// error.
+    #[serde(default)]
+    pub reason: Option<String>,
+    /// Sidecar uptime in seconds.
+    #[serde(default)]
+    pub uptime_sec: Option<f64>,
+    /// Number of currently active (live) sessions on the sidecar.
+    #[serde(default)]
+    pub sessions_active: Option<u64>,
     /// The sidecar's default project path; the renderer uses it for cold-start
     /// when there is no remembered project. Optional for backward-compat with a
     /// sidecar that predates the WSL-remote batch (these fields are additive and
@@ -135,7 +146,10 @@ impl AgentBridge {
             .into_json()
             .map_err(|e| AgentError::internal(format!("bad /health response: {e}")))?;
         if !info.ok {
-            return Err(AgentError::internal("sidecar /health returned ok:false"));
+            let reason = info.reason.as_deref().unwrap_or("unknown");
+            return Err(AgentError::internal(format!(
+                "sidecar /health returned ok:false ({reason})"
+            )));
         }
         if info.protocol_version != EXPECTED_PROTOCOL_VERSION {
             return Err(AgentError::internal(format!(
@@ -214,10 +228,17 @@ struct ToolDonePayload {
     output: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
+    /// Whether the tool call succeeded (from the sidecar's `ok` field).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ok: Option<bool>,
+    /// Wall-clock time in ms the tool call took (from the sidecar's `took_ms`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    took_ms: Option<u64>,
 }
 
 /// Payload of `agent://error/{sessionId}` — error from the sidecar relayed
-/// from the `error` SSE event (e.g. provider model not found).
+/// from the `error` SSE event (e.g. provider model not found). `details` is
+/// forwarded when present so the renderer can use code-specific structured data.
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct ErrorPayload {
@@ -225,6 +246,8 @@ struct ErrorPayload {
     code: String,
     message: String,
     recoverable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<Value>,
 }
 
 /// Payload of `agent://session_title/{sessionId}` — the sidecar derived a title
@@ -259,6 +282,46 @@ struct ConnectionRestoredPayload {
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct ConnectionFailedPayload {
+    session_id: String,
+}
+
+/// Payload of `agent://subagent_event/{sessionId}` — a subagent lifecycle event
+/// relayed from the sidecar's `subagent_event` SSE event. Raw JSON forwarded so
+/// the renderer can parse subagent-specific fields without Rust changes.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct SubagentEventPayload {
+    session_id: String,
+    #[serde(flatten)]
+    data: Value,
+}
+
+/// Payload of `agent://compaction/{sessionId}` — context compaction completed,
+/// relayed from the sidecar's `compaction` SSE event.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct CompactionPayload {
+    session_id: String,
+    #[serde(flatten)]
+    data: Value,
+}
+
+/// Payload of `agent://provider_retry/{sessionId}` — the provider returned a
+/// retryable error (rate limit, overload, etc.), relayed from the sidecar's
+/// `provider_retry` SSE event.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ProviderRetryPayload {
+    session_id: String,
+    #[serde(flatten)]
+    data: Value,
+}
+
+/// Payload of `agent://interrupted/{sessionId}` — the active turn was
+/// interrupted (user cancel), relayed from the sidecar's `interrupted` SSE event.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct InterruptedPayload {
     session_id: String,
 }
 
@@ -878,7 +941,8 @@ fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &s
         Some("tool_call_start") => {
             let payload = ToolStartPayload {
                 session_id: session_id.to_string(),
-                tool_call_id: event.get("tool_call_id").and_then(Value::as_str).unwrap_or_default().to_string(),
+                // Go sidecar sends `"id"`, not `"tool_call_id"`.
+                tool_call_id: event.get("id").and_then(Value::as_str).unwrap_or_default().to_string(),
                 name: event.get("name").and_then(Value::as_str).unwrap_or_default().to_string(),
                 input: event.get("input").cloned().unwrap_or(Value::Null),
             };
@@ -887,10 +951,13 @@ fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &s
         Some("tool_call_done") => {
             let payload = ToolDonePayload {
                 session_id: session_id.to_string(),
-                tool_call_id: event.get("tool_call_id").and_then(Value::as_str).unwrap_or_default().to_string(),
+                // Go sidecar sends `"id"`, not `"tool_call_id"`.
+                tool_call_id: event.get("id").and_then(Value::as_str).unwrap_or_default().to_string(),
                 // Treat an explicit JSON `null` the same as an absent field.
                 output: event.get("output").filter(|v| !v.is_null()).cloned(),
                 error: event.get("error").and_then(Value::as_str).map(str::to_string),
+                ok: event.get("ok").and_then(Value::as_bool),
+                took_ms: event.get("took_ms").and_then(Value::as_u64),
             };
             let _ = app.emit(&format!("agent://tooldone/{session_id}"), payload);
         }
@@ -898,8 +965,9 @@ fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &s
             let payload = ReasoningStartPayload {
                 session_id: session_id.to_string(),
                 block_index: event.get("block_index").and_then(Value::as_i64).unwrap_or(0),
+                // Go sidecar sends `"type"`, not `"reasoning_type"`.
                 reasoning_type: event
-                    .get("reasoning_type")
+                    .get("type")
                     .and_then(Value::as_str)
                     .unwrap_or("thinking")
                     .to_string(),
@@ -945,6 +1013,7 @@ fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &s
                 code: event.get("code").and_then(Value::as_str).unwrap_or_default().to_string(),
                 message: event.get("message").and_then(Value::as_str).unwrap_or_default().to_string(),
                 recoverable: event.get("recoverable").and_then(Value::as_bool).unwrap_or(false),
+                details: event.get("details").filter(|v| !v.is_null()).cloned(),
             };
             let _ = app.emit(&format!("agent://error/{session_id}"), payload);
         }
@@ -955,6 +1024,35 @@ fn relay_event(app: &AppHandle, session_id: &str, seq: &Arc<AtomicU64>, data: &s
             };
             let _ = app.emit(&format!("agent://session_title/{session_id}"), payload);
         }
+        Some("subagent_event") => {
+            let payload = SubagentEventPayload {
+                session_id: session_id.to_string(),
+                data: event.clone(),
+            };
+            let _ = app.emit(&format!("agent://subagent_event/{session_id}"), payload);
+        }
+        Some("compaction") => {
+            let payload = CompactionPayload {
+                session_id: session_id.to_string(),
+                data: event.clone(),
+            };
+            let _ = app.emit(&format!("agent://compaction/{session_id}"), payload);
+        }
+        Some("provider_retry") => {
+            let payload = ProviderRetryPayload {
+                session_id: session_id.to_string(),
+                data: event.clone(),
+            };
+            let _ = app.emit(&format!("agent://provider_retry/{session_id}"), payload);
+        }
+        Some("interrupted") => {
+            let payload = InterruptedPayload {
+                session_id: session_id.to_string(),
+            };
+            let _ = app.emit(&format!("agent://interrupted/{session_id}"), payload);
+        }
+        // `pong` is a keepalive response consumed by the SSE reader's own
+        // read-timeout health check; no need to relay it to the renderer.
         _ => {}
     }
 }
