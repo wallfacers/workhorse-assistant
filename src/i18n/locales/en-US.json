@@ -83,7 +83,8 @@
       "theme": "Theme",
       "shortcuts": "Shortcuts",
       "agent": "Agent",
-      "sessions": "Sessions"
+      "sessions": "Sessions",
+      "permissions": "Permissions"
     },
     "appearance": "Appearance",
     "lightTheme": "Light",
@@ -130,6 +131,42 @@
         "restarting": "Restarting…",
         "failed": "Failed to start"
       }
+    },
+    "permissions": {
+      "title": "Permissions",
+      "description": "Configure the agent's permanent permission rules. Saved to config.yaml and applied immediately — no restart.",
+      "loadError": "Failed to load permission rules",
+      "empty": "No permission rules yet",
+      "colTool": "Tool",
+      "colPattern": "Pattern",
+      "colDecision": "Decision",
+      "colSource": "Source",
+      "colActions": "Actions",
+      "decisionAllow": "Allow",
+      "decisionDeny": "Deny",
+      "sourcePreset": "Config file",
+      "sourceManual": "Manual",
+      "manualReadonly": "Manual rule (created via API); read-only here",
+      "defaultPolicy": "Default policy",
+      "defaultAsk": "Ask every time",
+      "defaultAllow": "Always allow",
+      "defaultDeny": "Always deny",
+      "defaultHint": "Fallback when no rule matches",
+      "addRule": "Add rule",
+      "toolLabel": "Tool",
+      "toolAny": "All tools (*)",
+      "patternLabel": "Pattern",
+      "patternPlaceholder": "e.g. git * or /tmp/**",
+      "decisionLabel": "Decision",
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "saving": "Saving…",
+      "saveError": "Failed to save",
+      "patternRequired": "Pattern is required",
+      "deleteConfirmTitle": "Delete permission rule",
+      "deleteConfirmBody": "Delete the rule \"{{tool}} {{pattern}}\"?",
+      "conflictWarning": "A rule with the opposite decision exists; deny wins at runtime"
     }
   },
   "sessions": {

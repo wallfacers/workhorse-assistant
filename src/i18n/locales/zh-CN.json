@@ -83,7 +83,8 @@
       "theme": "主题",
       "shortcuts": "快捷键",
       "agent": "智能体",
-      "sessions": "会话"
+      "sessions": "会话",
+      "permissions": "权限"
     },
     "appearance": "外观",
     "lightTheme": "浅色",
@@ -130,6 +131,42 @@
         "restarting": "重启中…",
         "failed": "启动失败"
       }
+    },
+    "permissions": {
+      "title": "权限",
+      "description": "配置 agent 的永久权限规则；保存到 config.yaml 并立即生效，无需重启。",
+      "loadError": "无法加载权限规则",
+      "empty": "暂无权限规则",
+      "colTool": "工具",
+      "colPattern": "模式",
+      "colDecision": "决策",
+      "colSource": "来源",
+      "colActions": "操作",
+      "decisionAllow": "允许",
+      "decisionDeny": "拒绝",
+      "sourcePreset": "配置文件",
+      "sourceManual": "手动",
+      "manualReadonly": "手动规则（历史经 API 创建），此处仅可查看",
+      "defaultPolicy": "默认策略",
+      "defaultAsk": "每次询问",
+      "defaultAllow": "始终允许",
+      "defaultDeny": "始终拒绝",
+      "defaultHint": "无匹配规则时的兜底行为",
+      "addRule": "添加规则",
+      "toolLabel": "工具",
+      "toolAny": "所有工具 (*)",
+      "patternLabel": "模式",
+      "patternPlaceholder": "如 git * 或 /tmp/**",
+      "decisionLabel": "决策",
+      "save": "保存",
+      "cancel": "取消",
+      "delete": "删除",
+      "saving": "保存中…",
+      "saveError": "保存失败",
+      "patternRequired": "模式不能为空",
+      "deleteConfirmTitle": "删除权限规则",
+      "deleteConfirmBody": "确定删除规则「{{tool}} {{pattern}}」吗？",
+      "conflictWarning": "已存在相反决策的规则，运行时 deny 优先级更高"
     }
   },
   "sessions": {

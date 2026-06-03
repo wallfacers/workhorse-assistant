@@ -196,6 +196,24 @@ fn agent_fs_list(
 }
 
 #[tauri::command(async)]
+fn agent_list_permissions(bridge: State<'_, AgentBridge>) -> Result<Value, AgentError> {
+    bridge.list_permissions()
+}
+
+#[tauri::command(async)]
+fn agent_get_permission_config(bridge: State<'_, AgentBridge>) -> Result<Value, AgentError> {
+    bridge.get_permission_config()
+}
+
+#[tauri::command(async)]
+fn agent_set_permission_config(
+    bridge: State<'_, AgentBridge>,
+    config: Value,
+) -> Result<Value, AgentError> {
+    bridge.set_permission_config(config)
+}
+
+#[tauri::command(async)]
 fn agent_forward_result(
     bridge: State<'_, AgentBridge>,
     session_id: String,
@@ -315,6 +333,9 @@ pub fn run() {
             agent_list_projects,
             agent_delete_project,
             agent_fs_list,
+            agent_list_permissions,
+            agent_get_permission_config,
+            agent_set_permission_config,
             agent_forward_result,
             agent_publish_catalog,
             agent_detach,

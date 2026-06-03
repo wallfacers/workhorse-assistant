@@ -684,6 +684,60 @@ impl AgentBridge {
         }
     }
 
+    /// List the permanent permission rules currently enforced by the sidecar
+    /// (`GET /v1/permissions`). Body returned verbatim (`{ "rules": [...] }`),
+    /// each rule carrying its `source` (`preset` / `manual`).
+    pub fn list_permissions(&self) -> Result<Value, AgentError> {
+        let endpoint = self.endpoint();
+        let resp = ureq::get(&format!("{endpoint}/v1/permissions"))
+            .timeout(HTTP_TIMEOUT)
+            .call()
+            .map_err(|e| AgentError::transient(format!("list_permissions failed: {e}")))?;
+        resp.into_json()
+            .map_err(|e| AgentError::internal(format!("bad /v1/permissions response: {e}")))
+    }
+
+    /// Read the permission subset of the sidecar's config.yaml — the source of
+    /// truth for preset rules and the default policy (`GET /v1/permission-config`).
+    pub fn get_permission_config(&self) -> Result<Value, AgentError> {
+        let endpoint = self.endpoint();
+        let resp = ureq::get(&format!("{endpoint}/v1/permission-config"))
+            .timeout(HTTP_TIMEOUT)
+            .call()
+            .map_err(|e| AgentError::transient(format!("get_permission_config failed: {e}")))?;
+        resp.into_json()
+            .map_err(|e| AgentError::internal(format!("bad /v1/permission-config response: {e}")))
+    }
+
+    /// Write the permission subset back to the sidecar's config.yaml
+    /// (`PUT /v1/permission-config`). The sidecar preserves comments and hot-
+    /// reloads the change. A 400 (invalid decision) is surfaced as a validation
+    /// error so the UI can show it rather than retry.
+    pub fn set_permission_config(&self, config: Value) -> Result<Value, AgentError> {
+        let endpoint = self.endpoint();
+        match ureq::request("PUT", &format!("{endpoint}/v1/permission-config"))
+            .timeout(HTTP_TIMEOUT)
+            .send_json(config)
+        {
+            Ok(resp) => resp
+                .into_json()
+                .map_err(|e| AgentError::internal(format!("bad /v1/permission-config response: {e}"))),
+            Err(ureq::Error::Status(code, resp)) => {
+                let msg = resp
+                    .into_json::<Value>()
+                    .ok()
+                    .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(str::to_string))
+                    .unwrap_or_else(|| format!("set_permission_config returned {code}"));
+                Err(match code {
+                    400 => AgentError::validation(msg),
+                    404 => AgentError::not_found(msg),
+                    _ => AgentError::internal(format!("set_permission_config HTTP {code}: {msg}")),
+                })
+            }
+            Err(e) => Err(AgentError::transient(format!("set_permission_config failed: {e}"))),
+        }
+    }
+
     /// Send a user message to the sidecar session via POST /v1/sessions/{id}/stream.
     /// The sidecar routes it to the agent's inbox and starts a turn.
     pub fn send_message(&self, session_id: &str, content: &str) -> Result<(), AgentError> {
@@ -1124,6 +1178,24 @@ mod tests {
             .forward_result("nope", "tu-1", serde_json::json!({"ok": true}))
             .expect_err("unknown session must be NotFound");
         assert!(matches!(err.kind, ErrorKind::NotFound));
+    }
+
+    #[test]
+    fn permission_methods_unreachable_are_transient() {
+        let bridge = AgentBridge::default();
+        // Nothing listens on port 1 → connection refused → transient, not a crash.
+        bridge.set_endpoint("http://127.0.0.1:1".to_string()).unwrap();
+
+        let e1 = bridge.list_permissions().expect_err("unreachable must error");
+        assert!(matches!(e1.kind, ErrorKind::Transient));
+
+        let e2 = bridge.get_permission_config().expect_err("unreachable must error");
+        assert!(matches!(e2.kind, ErrorKind::Transient));
+
+        let e3 = bridge
+            .set_permission_config(serde_json::json!({"default_permission": "", "preset_rules": []}))
+            .expect_err("unreachable must error");
+        assert!(matches!(e3.kind, ErrorKind::Transient));
     }
 
     #[test]

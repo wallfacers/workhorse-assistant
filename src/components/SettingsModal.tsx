@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Check, ChevronDown, Moon, Pencil, Square, CheckSquare, Sun, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, Moon, Pencil, Plus, Square, CheckSquare, Sun, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type {
   AgentConnection,
@@ -19,6 +19,16 @@ import {
   supervisorStatus,
   onSupervisorStatus,
   unifiedStatus,
+  listPermissions,
+  getPermissionConfig,
+  setPermissionConfig,
+} from '../ipc';
+import type {
+  PermissionRule,
+  PermissionConfig,
+  PresetRule,
+  PermanentDecision,
+  DefaultPermission,
 } from '../ipc';
 import { useApp } from '../context';
 import { useConfirm } from './ConfirmProvider';
@@ -26,7 +36,7 @@ import { useToast } from './ToastProvider';
 import { useSession } from '../session/SessionProvider';
 import type { AgentSessionMeta } from '../ipc/agent';
 
-type NavItem = 'theme' | 'shortcuts' | 'agent' | 'sessions';
+type NavItem = 'theme' | 'shortcuts' | 'agent' | 'permissions' | 'sessions';
 
 /** Display labels stay in each language's own script (i18n convention). */
 const LANGUAGES: { code: string; label: string }[] = [
@@ -68,6 +78,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     theme: t('settings.nav.theme'),
     shortcuts: t('settings.nav.shortcuts'),
     agent: t('settings.nav.agent'),
+    permissions: t('settings.nav.permissions'),
     sessions: t('settings.nav.sessions'),
   };
 
@@ -96,7 +107,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
           {/* Left nav */}
           <div className="w-44 flex-shrink-0 border-r border-outline/40 dark:border-outline-dark/40 px-2 py-3 space-y-0.5">
-            {(['theme', 'shortcuts', 'agent', 'sessions'] as NavItem[]).map((item) => (
+            {(['theme', 'shortcuts', 'agent', 'permissions', 'sessions'] as NavItem[]).map((item) => (
               <button
                 key={item}
                 type="button"
@@ -119,6 +130,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             )}
             {activeNav === 'shortcuts' && <ShortcutsSection />}
             {activeNav === 'agent' && <AgentSection agent={agent} autoExpandReasoning={autoExpandReasoning} setAutoExpandReasoning={setAutoExpandReasoning} />}
+            {activeNav === 'permissions' && <PermissionsSection />}
             {activeNav === 'sessions' && <SessionsSection />}
           </div>
         </div>
@@ -1141,6 +1153,298 @@ function SessionsSection() {
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  );
+}
+
+const PERMISSION_TOOL_OPTIONS = ['*', 'Bash', 'Read', 'Write', 'Edit', 'Grep'];
+
+/**
+ * 「权限」settings tab (permission-settings-panel). Lists the permanent rules the
+ * agent currently enforces (GET /v1/permissions) and edits the config.yaml
+ * source of truth via GET/PUT /v1/permission-config. Writes go only to the
+ * config file (never the perm-* API); the agent hot-reloads them.
+ */
+function PermissionsSection() {
+  const { t } = useTranslation();
+  const confirm = useConfirm();
+  const toast = useToast();
+
+  const [rules, setRules] = useState<PermissionRule[] | null>(null);
+  const [config, setConfig] = useState<PermissionConfig | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const [adding, setAdding] = useState(false);
+  const [formTool, setFormTool] = useState('Bash');
+  const [formPattern, setFormPattern] = useState('');
+  const [formDecision, setFormDecision] = useState<PermanentDecision>('allow_permanent');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoadError(null);
+    const [r, c] = await Promise.all([listPermissions(), getPermissionConfig()]);
+    if (!r.ok) { setLoadError(r.error.message); return; }
+    if (!c.ok) { setLoadError(c.error.message); return; }
+    setRules(r.value);
+    setConfig(c.value);
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const refreshRules = useCallback(async () => {
+    const r = await listPermissions();
+    if (r.ok) setRules(r.value);
+  }, []);
+
+  // Write the source of truth, then re-read effective rules so the list shows
+  // the hot-reloaded result.
+  const writeConfig = useCallback(async (next: PermissionConfig): Promise<boolean> => {
+    setSaving(true);
+    const res = await setPermissionConfig(next);
+    setSaving(false);
+    if (!res.ok) {
+      toast({ message: `${t('settings.permissions.saveError')}: ${res.error.message}`, level: 'error' });
+      return false;
+    }
+    setConfig(res.value);
+    await refreshRules();
+    return true;
+  }, [refreshRules, t, toast]);
+
+  const submitAdd = useCallback(async () => {
+    if (!config) return;
+    const pattern = formPattern.trim();
+    if (!pattern) { setFormError(t('settings.permissions.patternRequired')); return; }
+    setFormError(null);
+    const rule: PresetRule = { tool: formTool, pattern, decision: formDecision };
+    const next: PermissionConfig = { ...config, preset_rules: [...config.preset_rules, rule] };
+    if (await writeConfig(next)) {
+      setAdding(false);
+      setFormPattern('');
+      setFormDecision('allow_permanent');
+      setFormTool('Bash');
+    }
+  }, [config, formPattern, formTool, formDecision, writeConfig, t]);
+
+  const deletePreset = useCallback(async (rule: PermissionRule) => {
+    if (!config) return;
+    const okConfirm = await confirm({
+      title: t('settings.permissions.deleteConfirmTitle'),
+      body: t('settings.permissions.deleteConfirmBody', { tool: rule.tool || '*', pattern: rule.pattern }),
+      danger: true,
+      confirmText: t('settings.permissions.delete'),
+    });
+    if (!okConfirm) return;
+    const next: PermissionConfig = {
+      ...config,
+      preset_rules: config.preset_rules.filter(
+        (p) => !(p.tool === rule.tool && p.pattern === rule.pattern && p.decision === rule.decision),
+      ),
+    };
+    await writeConfig(next);
+  }, [config, confirm, t, writeConfig]);
+
+  const setDefault = useCallback(async (value: DefaultPermission) => {
+    if (!config || config.default_permission === value) return;
+    await writeConfig({ ...config, default_permission: value });
+  }, [config, writeConfig]);
+
+  const conflict = !!config && formPattern.trim() !== '' && config.preset_rules.some(
+    (p) => p.tool === formTool && p.pattern === formPattern.trim() && p.decision !== formDecision,
+  );
+
+  if (loadError) {
+    return (
+      <div className="space-y-3">
+        <p className="text-[12.5px] text-danger">{t('settings.permissions.loadError')}</p>
+        <p className="text-[11.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="rounded-md border border-outline dark:border-outline-dark px-3 py-1.5 text-[12px] font-medium text-on-surface dark:text-on-canvas-dark hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
+        >
+          {t('common.retry')}
+        </button>
+      </div>
+    );
+  }
+
+  if (rules === null || config === null) {
+    return <p className="text-[12.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t('common.retry')}…</p>;
+  }
+
+  const defaultOptions: { value: DefaultPermission; label: string }[] = [
+    { value: '', label: t('settings.permissions.defaultAsk') },
+    { value: 'allow_permanent', label: t('settings.permissions.defaultAllow') },
+    { value: 'deny_permanent', label: t('settings.permissions.defaultDeny') },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-[13px] font-semibold text-on-surface dark:text-on-canvas-dark">{t('settings.permissions.title')}</h3>
+        <p className="mt-1 text-[11.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t('settings.permissions.description')}</p>
+      </div>
+
+      {/* Default policy */}
+      <div>
+        <div className="mb-1.5 text-[12px] font-medium text-on-surface dark:text-on-canvas-dark">{t('settings.permissions.defaultPolicy')}</div>
+        <div className="grid grid-cols-3 gap-2">
+          {defaultOptions.map((opt) => {
+            const active = config.default_permission === opt.value;
+            return (
+              <button
+                key={opt.value || 'ask'}
+                type="button"
+                disabled={saving}
+                onClick={() => void setDefault(opt.value)}
+                className={`rounded-md border px-3 py-2 text-[12px] font-medium transition-all duration-150 disabled:opacity-60 ${
+                  active
+                    ? 'border-primary dark:border-primary bg-surface-muted dark:bg-surface-dark-muted/80 text-on-surface dark:text-on-canvas-dark'
+                    : 'border-outline dark:border-outline-dark text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted/60 dark:hover:bg-surface-dark-muted/30'
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1 text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t('settings.permissions.defaultHint')}</p>
+      </div>
+
+      {/* Rules list */}
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-[12px] font-medium text-on-surface dark:text-on-canvas-dark">{t('settings.permissions.title')}</span>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => { setAdding((v) => !v); setFormError(null); }}
+            className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-[12px] font-medium text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-60"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t('settings.permissions.addRule')}
+          </button>
+        </div>
+
+        {adding && (
+          <div className="mb-3 rounded-md border border-outline/60 dark:border-outline-dark/60 bg-surface-muted/50 dark:bg-surface-dark-muted/40 p-3 space-y-2.5">
+            <div className="grid grid-cols-[120px_1fr] gap-2">
+              <select
+                value={formTool}
+                onChange={(e) => setFormTool(e.target.value)}
+                className="rounded-md border border-outline/40 bg-surface px-2 py-1.5 text-[12px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark dark:text-on-canvas-dark dark:focus:ring-outline-dark"
+              >
+                {PERMISSION_TOOL_OPTIONS.map((tool) => (
+                  <option key={tool} value={tool}>{tool === '*' ? t('settings.permissions.toolAny') : tool}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={formPattern}
+                onChange={(e) => { setFormPattern(e.target.value); if (formError) setFormError(null); }}
+                placeholder={t('settings.permissions.patternPlaceholder')}
+                className="rounded-md border border-outline/40 bg-surface px-2 py-1.5 font-mono text-[12px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark dark:text-on-canvas-dark dark:focus:ring-outline-dark"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              {(['allow_permanent', 'deny_permanent'] as PermanentDecision[]).map((dec) => {
+                const active = formDecision === dec;
+                const isAllow = dec === 'allow_permanent';
+                return (
+                  <button
+                    key={dec}
+                    type="button"
+                    onClick={() => setFormDecision(dec)}
+                    className={`rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                      active
+                        ? isAllow
+                          ? 'border-success/30 bg-success/10 text-success'
+                          : 'border-danger/30 bg-danger/10 text-danger'
+                        : 'border-outline dark:border-outline-dark text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted/60 dark:hover:bg-surface-dark-muted/30'
+                    }`}
+                  >
+                    {isAllow ? t('settings.permissions.decisionAllow') : t('settings.permissions.decisionDeny')}
+                  </button>
+                );
+              })}
+            </div>
+            {formError && <p className="text-[11.5px] text-danger">{formError}</p>}
+            {conflict && <p className="text-[11.5px] text-warning">{t('settings.permissions.conflictWarning')}</p>}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void submitAdd()}
+                className="rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                {saving ? t('settings.permissions.saving') : t('settings.permissions.save')}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAdding(false); setFormError(null); }}
+                className="rounded-md border border-outline dark:border-outline-dark px-3 py-1.5 text-[12px] font-medium text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
+              >
+                {t('settings.permissions.cancel')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {rules.length === 0 ? (
+          <p className="py-6 text-center text-[12px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t('settings.permissions.empty')}</p>
+        ) : (
+          <div className="overflow-hidden rounded-md border border-outline/50 dark:border-outline-dark/50">
+            <div className="grid grid-cols-[100px_1fr_72px_88px_40px] gap-2 border-b border-outline/40 dark:border-outline-dark/40 bg-surface-muted/50 dark:bg-surface-dark-muted/40 px-3 py-1.5 text-[11px] font-medium text-on-surface-muted dark:text-on-canvas-dark-muted">
+              <span>{t('settings.permissions.colTool')}</span>
+              <span>{t('settings.permissions.colPattern')}</span>
+              <span>{t('settings.permissions.colDecision')}</span>
+              <span>{t('settings.permissions.colSource')}</span>
+              <span className="text-right">{t('settings.permissions.colActions')}</span>
+            </div>
+            {rules.map((rule) => {
+              const isAllow = rule.decision === 'allow_permanent';
+              const isPreset = rule.source === 'preset';
+              return (
+                <div
+                  key={rule.id}
+                  className="grid grid-cols-[100px_1fr_72px_88px_40px] items-center gap-2 border-b border-outline/30 px-3 py-2 text-[12px] last:border-b-0 dark:border-outline-dark/30"
+                >
+                  <span className="truncate font-mono text-on-surface dark:text-on-canvas-dark">{rule.tool || '*'}</span>
+                  <span className="truncate font-mono text-on-surface-muted dark:text-on-canvas-dark-muted" title={rule.pattern}>{rule.pattern || '*'}</span>
+                  <span className={isAllow ? 'text-success' : 'text-danger'}>
+                    {isAllow ? t('settings.permissions.decisionAllow') : t('settings.permissions.decisionDeny')}
+                  </span>
+                  <span
+                    className={`justify-self-start rounded-full px-2 py-0.5 text-[10.5px] font-medium ${
+                      isPreset
+                        ? 'bg-primary/10 text-on-surface dark:text-on-canvas-dark'
+                        : 'bg-surface-muted text-on-surface-muted dark:bg-surface-dark-muted dark:text-on-canvas-dark-muted'
+                    }`}
+                    title={isPreset ? undefined : t('settings.permissions.manualReadonly')}
+                  >
+                    {isPreset ? t('settings.permissions.sourcePreset') : t('settings.permissions.sourceManual')}
+                  </span>
+                  <span className="justify-self-end">
+                    {isPreset && (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void deletePreset(rule)}
+                        aria-label={t('settings.permissions.delete')}
+                        className="rounded-sm p-1 text-on-surface-muted hover:bg-danger/10 hover:text-danger dark:text-on-canvas-dark-muted transition-colors disabled:opacity-60"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
