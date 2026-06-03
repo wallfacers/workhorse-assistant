@@ -997,11 +997,11 @@ function SessionsSection() {
                     )}
                   </button>
                 </th>
-                <th className="text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
-                  {t('sessions.columns.title')}
-                </th>
                 <th className="w-28 text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
                   {t('sessions.columns.project')}
+                </th>
+                <th className="text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
+                  {t('sessions.columns.title')}
                 </th>
                 <th className="w-16 text-left px-2.5 py-2 bg-[var(--color-surface-muted)] dark:bg-[var(--color-surface-dark)] border-b border-r border-outline dark:border-outline-dark font-semibold text-on-surface dark:text-on-canvas-dark">
                   {t('sessions.columns.status')}
@@ -1046,6 +1046,16 @@ function SessionsSection() {
                       </button>
                     </td>
 
+                    {/* Project */}
+                    <td className="px-2.5 py-2 border-r border-outline/50 dark:border-outline-dark/50">
+                      <span
+                        className="truncate max-w-[110px] block font-mono text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted"
+                        title={s.workdir}
+                      >
+                        {projectLabel(s.workdir)}
+                      </span>
+                    </td>
+
                     {/* Title */}
                     <td className="px-2.5 py-2 border-r border-outline/50 dark:border-outline-dark/50">
                       {renamingId === s.id ? (
@@ -1072,16 +1082,6 @@ function SessionsSection() {
                           {s.title || t('sessions.untitled')}
                         </span>
                       )}
-                    </td>
-
-                    {/* Project */}
-                    <td className="px-2.5 py-2 border-r border-outline/50 dark:border-outline-dark/50">
-                      <span
-                        className="truncate max-w-[110px] block font-mono text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted"
-                        title={s.workdir}
-                      >
-                        {projectLabel(s.workdir)}
-                      </span>
                     </td>
 
                     {/* Status */}
