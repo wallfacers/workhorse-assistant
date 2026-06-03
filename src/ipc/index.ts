@@ -79,3 +79,5 @@ export type {
   SupervisorState,
   SupervisorStatus,
 } from './wsl';
+export { unifiedStatus } from './unifiedStatus';
+export type { UnifiedStatus, StatusTone } from './unifiedStatus';

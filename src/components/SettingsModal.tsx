@@ -8,7 +8,7 @@ import type {
   RuntimeConfig,
   RuntimeKind,
   SupervisorStatus,
-  SupervisorState,
+  StatusTone,
 } from '../ipc';
 import {
   getAgentEndpoint,
@@ -18,6 +18,7 @@ import {
   setRuntimeConfig,
   supervisorStatus,
   onSupervisorStatus,
+  unifiedStatus,
 } from '../ipc';
 import { useApp } from '../context';
 import { useSession } from '../session/SessionProvider';
@@ -48,10 +49,11 @@ const SHORTCUTS: { key: string; descKey: string }[] = [
   { key: 'Esc',     descKey: 'shortcuts.cancelClose' },
 ];
 
-const STATUS_DOT: Record<AgentConnection['status'], string> = {
+/** Single status-dot color per unified-status tone (unify-runtime-source-panel). */
+const TONE_DOT: Record<StatusTone, string> = {
   idle: 'bg-on-surface-muted',
-  connecting: 'bg-warning animate-pulse',
-  connected: 'bg-success',
+  pending: 'bg-warning animate-pulse',
+  ok: 'bg-success',
   error: 'bg-danger',
 };
 
@@ -123,6 +125,21 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   );
 }
 
+/**
+ * Unified 「运行来源」 panel (unify-runtime-source-panel). Merges the former
+ * connection block and runtime-mode block into one axis: `原生 / WSL / 远程`.
+ *
+ *  - 原生/WSL: the supervisor hosts a local sidecar; the endpoint host is locked
+ *    to loopback and only the port is adjustable (advanced). Status comes from
+ *    the supervisor.
+ *  - 远程: connect to an agent already running elsewhere. The supervisor stays
+ *    Disabled (R2) and reachability is owned by the auto-connect probe; the full
+ *    endpoint is editable.
+ *
+ * A single derived status dot and a single 「应用」 action replace the two of each
+ * that used to exist. The endpoint and the (former) `RuntimeConfig.port` are now
+ * the same value — the port is parsed from the endpoint.
+ */
 function AgentSection({
   agent,
   autoExpandReasoning,
@@ -133,123 +150,289 @@ function AgentSection({
   setAutoExpandReasoning: (v: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const isConnecting = agent.status === 'connecting';
-  const isConnected = agent.status === 'connected';
+  const { resetProjectForRuntimeSwitch } = useSession();
 
-  // Editable endpoint (B4). Loaded from the bridge; saving validates Rust-side
-  // and then re-probes via reconnect().
-  const [endpoint, setEndpoint] = useState('');
-  const [savedEndpoint, setSavedEndpoint] = useState('');
+  const [detect, setDetect] = useState<WslDetect | null>(null);
+  const [config, setConfig] = useState<RuntimeConfig | null>(null);
+  const [supStatus, setSupStatus] = useState<SupervisorStatus>({ state: 'disabled' });
+  // Staged text fields, committed on 「应用」. `port` is the managed-mode loopback
+  // port; `remoteEndpoint` is the full address typed in remote mode.
+  const [override, setOverride] = useState('');
+  const [port, setPort] = useState('');
+  const [remoteEndpoint, setRemoteEndpoint] = useState('');
   const [endpointErr, setEndpointErr] = useState<string | null>(null);
-  const [justSaved, setJustSaved] = useState(false);
+  const [justApplied, setJustApplied] = useState(false);
 
   useEffect(() => {
     void (async () => {
-      const res = await getAgentEndpoint();
-      if (res.ok) {
-        setEndpoint(res.value);
-        setSavedEndpoint(res.value);
+      const d = await wslDetect();
+      if (d.ok) setDetect(d.value);
+      const c = await getRuntimeConfig();
+      if (c.ok) {
+        setConfig(c.value);
+        setOverride(c.value.serveCmdOverride ?? '');
       }
+      const ep = await getAgentEndpoint();
+      if (ep.ok) {
+        setRemoteEndpoint(ep.value);
+        setPort(portOf(ep.value));
+      }
+      const s = await supervisorStatus();
+      if (s.ok) setSupStatus(s.value);
     })();
+    let unlisten: (() => void) | undefined;
+    void onSupervisorStatus(setSupStatus).then((fn) => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
   }, []);
 
-  const endpointDirty = endpoint.trim() !== savedEndpoint && endpoint.trim() !== '';
+  // Persist runtime config, re-drive the supervisor, and re-probe. A mode/distro
+  // change crosses filesystem namespaces, so drop the remembered project first —
+  // the bootstrap re-seeds from the new runtime's default workdir on reconnect.
+  const applyRuntime = async (next: RuntimeConfig) => {
+    const namespaceChanged = !!config && (next.mode !== config.mode || next.distro !== config.distro);
+    setConfig(next);
+    const res = await setRuntimeConfig(next);
+    if (res.ok) {
+      if (namespaceChanged) resetProjectForRuntimeSwitch();
+      agent.reconnect();
+    }
+    return res.ok;
+  };
 
-  const saveEndpoint = async () => {
-    const next = endpoint.trim();
-    if (!next || next === savedEndpoint) return;
+  if (!config) return null;
+
+  const mode = config.mode;
+  const distros = detect?.distros ?? [];
+  const wslAvailable = detect?.available ?? false;
+  const selectedDistro = config.distro ?? distros[0] ?? '';
+  const status = unifiedStatus(mode, supStatus, agent.status);
+  const statusText =
+    status.labelKey === 'agent.status.failed'
+      ? t(status.labelKey, { error: agent.error ?? '' })
+      : t(status.labelKey);
+
+  // Config-priority drift (unify-wsl-distro-source), WSL only: the user's config
+  // is authoritative; `agent.distro` is the actual running distro.
+  const settled = supStatus.state === 'healthy' || supStatus.state === 'adopted';
+  const drift: { kind: 'mismatch' | 'unknown'; configured: string; actual: string } | null =
+    mode === 'wsl'
+      ? agent.distro
+        ? agent.distro !== (config.distro ?? '')
+          ? { kind: 'mismatch', configured: config.distro ?? '—', actual: agent.distro }
+          : null
+        : settled
+          ? { kind: 'unknown', configured: config.distro ?? '—', actual: '' }
+          : null
+      : null;
+
+  const selectMode = (next: RuntimeKind) => {
+    if (next === mode) return;
+    // Switching to WSL with no distro yet picks the first detected one.
+    const distro = next === 'wsl' ? (config.distro ?? distros[0]) : config.distro;
+    void applyRuntime({ ...config, mode: next, distro });
+  };
+
+  const changeDistro = (distro: string) => {
+    void applyRuntime({ ...config, distro });
+  };
+
+  // The single 「应用」 action. Commits the staged endpoint (managed: loopback +
+  // port; remote: the full address) then re-drives the supervisor with the
+  // current config. Always available — the only path to a manual restart when
+  // nothing else is dirty.
+  const apply = async () => {
     setEndpointErr(null);
-    const res = await setAgentEndpoint(next);
-    if (!res.ok) {
-      setEndpointErr(res.error.message);
+    const nextEndpoint =
+      mode === 'remote' ? remoteEndpoint.trim() : `http://127.0.0.1:${port.trim()}`;
+    const epRes = await setAgentEndpoint(nextEndpoint);
+    if (!epRes.ok) {
+      setEndpointErr(epRes.error.message);
       return;
     }
-    setSavedEndpoint(next);
-    setJustSaved(true);
-    setTimeout(() => setJustSaved(false), 2000);
-    agent.reconnect();
+    const saved = await getAgentEndpoint();
+    if (saved.ok) {
+      setRemoteEndpoint(saved.value);
+      setPort(portOf(saved.value));
+    }
+    const ok = await applyRuntime({
+      ...config,
+      serveCmdOverride: override.trim() === '' ? undefined : override.trim(),
+    });
+    if (ok) {
+      setJustApplied(true);
+      setTimeout(() => setJustApplied(false), 2000);
+    }
   };
 
-  const statusLabel: Record<AgentConnection['status'], string> = {
-    idle: t('agent.status.disconnected'),
-    connecting: t('agent.status.connecting'),
-    connected: t('agent.status.connected'),
-    error: t('agent.status.failed'),
-  };
+  const placeholder =
+    mode === 'wsl'
+      ? 'workhorse-agent serve --host 127.0.0.1 --port 7821'
+      : '/path/to/workhorse-agent serve --host 127.0.0.1 --port 7821';
+
+  const applyLabel = justApplied
+    ? t('settings.endpointSaved')
+    : mode === 'remote'
+      ? t('settings.reconnect')
+      : t('settings.runtime.applyRestart');
 
   return (
     <div>
-      <p className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider mb-4">{t('settings.connection')}</p>
+      <p className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider mb-4">
+        {t('settings.runtime.title')}
+      </p>
 
-      {/* Status row */}
-      <div className="flex items-center gap-2.5 mb-4">
-        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[agent.status]}`} />
-        <span className="text-[12.5px] font-medium text-on-surface dark:text-on-canvas-dark">
-          {statusLabel[agent.status]}
-        </span>
+      {/* Single source axis: 原生 always; WSL only when detected; 远程 always. */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <RuntimeOption
+          label={t('settings.runtime.native')}
+          description={t('settings.runtime.nativeDescription')}
+          active={mode === 'native'}
+          disabled={false}
+          onClick={() => selectMode('native')}
+        />
+        <RuntimeOption
+          label={t('settings.runtime.wsl')}
+          description={
+            wslAvailable ? t('settings.runtime.wslDescription') : t('settings.runtime.wslUnavailable')
+          }
+          active={mode === 'wsl'}
+          disabled={!wslAvailable}
+          onClick={() => selectMode('wsl')}
+        />
+        <RuntimeOption
+          label={t('settings.runtime.remote')}
+          description={t('settings.runtime.remoteDescription')}
+          active={mode === 'remote'}
+          disabled={false}
+          onClick={() => selectMode('remote')}
+        />
       </div>
 
-      {/* Error message */}
-      {agent.error && (
-        <div className="mb-4 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30 text-[12px] text-danger">
-          {agent.error}
+      {/* Single derived status: supervisor in managed modes, auto-connect in remote. */}
+      <div className="flex items-center gap-2.5 mb-4">
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${TONE_DOT[status.tone]}`} />
+        <span className="text-[12.5px] font-medium text-on-surface dark:text-on-canvas-dark">
+          {statusText}
+        </span>
+        {status.runtimeKey && (
+          <span className="text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">
+            · {t(status.runtimeKey)}
+          </span>
+        )}
+        {status.reason && (
+          <span className="text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted truncate">{status.reason}</span>
+        )}
+      </div>
+
+      {/* Runtime/config drift notice — WSL config-priority: prompt re-align. */}
+      {drift && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2">
+          <span className="text-[11.5px] text-on-surface dark:text-on-canvas-dark">
+            {drift.kind === 'unknown'
+              ? t('settings.runtime.driftUnknown')
+              : t('settings.runtime.driftMismatch', { configured: drift.configured, actual: drift.actual })}
+          </span>
         </div>
       )}
 
-      {/* Endpoint (editable, B4) */}
-      <div className="mb-4">
-        <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">{t('settings.endpoint')}</label>
-        <div className="flex items-center gap-2">
+      {/* Distro dropdown — WSL only. */}
+      {mode === 'wsl' && wslAvailable && (
+        <div className="mb-4">
+          <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">{t('settings.runtime.distro')}</label>
+          <DistroSelect distros={distros} selected={selectedDistro} onChange={changeDistro} />
+        </div>
+      )}
+
+      {/* Remote address — full endpoint editable. Managed modes hide this. */}
+      {mode === 'remote' ? (
+        <div className="mb-2">
+          <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">{t('settings.endpoint')}</label>
           <input
             type="text"
-            value={endpoint}
+            value={remoteEndpoint}
             spellCheck={false}
             onChange={(e) => {
-              setEndpoint(e.target.value);
+              setRemoteEndpoint(e.target.value);
               setEndpointErr(null);
             }}
             onKeyDown={(e) => {
               if (e.nativeEvent.isComposing) return;
-              if (e.key === 'Enter') void saveEndpoint();
+              if (e.key === 'Enter') void apply();
             }}
-            placeholder="http://127.0.0.1:7821"
-            className="min-w-0 flex-1 rounded-md border border-outline/40 bg-surface-muted px-3 py-2 font-mono text-[12.5px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
+            placeholder="http://192.168.1.50:7821"
+            className="w-full rounded-md border border-outline/40 bg-surface-muted px-3 py-2 font-mono text-[12.5px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
           />
-          <button
-            type="button"
-            onClick={() => void saveEndpoint()}
-            disabled={!endpointDirty}
-            className="flex-shrink-0 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {justSaved ? t('settings.endpointSaved') : t('settings.endpointSave')}
-          </button>
+          <p className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-outline/40 bg-surface-muted/60 px-2.5 py-1.5 text-[10.5px] text-on-surface-muted dark:border-outline-dark/50 dark:bg-surface-dark-muted/40 dark:text-on-canvas-dark-muted">
+            {t('settings.runtime.remoteNotice')}
+          </p>
         </div>
-        {endpointErr && (
-          <p className="mt-1 text-[10.5px] text-danger">{endpointErr}</p>
-        )}
-        <p className="mt-1 text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">
-          {t('settings.endpointHint')}
-        </p>
-      </div>
+      ) : (
+        <>
+          {/* Managed: host locked to loopback, only the port is adjustable. */}
+          <div className="mb-3">
+            <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">{t('settings.runtime.port')}</label>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[12px] text-on-surface-muted dark:text-on-canvas-dark-muted">127.0.0.1 :</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={port}
+                spellCheck={false}
+                onChange={(e) => {
+                  setPort(e.target.value.replace(/[^0-9]/g, ''));
+                  setEndpointErr(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing) return;
+                  if (e.key === 'Enter') void apply();
+                }}
+                placeholder="7821"
+                className="w-24 rounded-md border border-outline/40 bg-surface-muted px-3 py-2 font-mono text-[12.5px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
+              />
+            </div>
+            <p className="mt-1 text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t('settings.runtime.portHint')}</p>
+          </div>
 
-      {/* Action buttons */}
-      <div className="flex items-center gap-2">
-        {isConnected ? (
+          {/* Advanced serve-command override (managed modes only). */}
+          <div className="mb-2">
+            <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">{t('settings.runtime.advancedCommand')}</label>
+            <input
+              type="text"
+              value={override}
+              spellCheck={false}
+              onChange={(e) => setOverride(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing) return;
+                if (e.key === 'Enter') void apply();
+              }}
+              placeholder={placeholder}
+              className="w-full rounded-md border border-outline/40 bg-surface-muted px-3 py-2 font-mono text-[12px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
+            />
+            <p className="mt-1 text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t('settings.runtime.advancedHint')}</p>
+          </div>
+        </>
+      )}
+
+      {endpointErr && <p className="mb-2 text-[10.5px] text-danger">{endpointErr}</p>}
+
+      {/* Single 「应用」 action + secondary disconnect (when connected). */}
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void apply()}
+          className="rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90"
+        >
+          {applyLabel}
+        </button>
+        {agent.status === 'connected' && (
           <button
             type="button"
             onClick={() => agent.disconnect()}
-            className="px-4 py-1.5 rounded-md border border-outline dark:border-outline-dark text-[12px] font-medium text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
+            className="rounded-md border border-outline dark:border-outline-dark px-3 py-2 text-[12px] font-medium text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
           >
             {t('settings.disconnect')}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => agent.reconnect()}
-            disabled={isConnecting}
-            className="px-4 py-1.5 rounded-md bg-primary text-[12px] font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isConnecting ? t('agent.status.connecting') : t('settings.reconnect')}
           </button>
         )}
       </div>
@@ -274,239 +457,15 @@ function AgentSection({
           </span>
         </button>
       </div>
-
-      {/* Runtime mode — Native (default) or WSL (opt-in, Windows + WSL only). */}
-      <RuntimeModeSection onReconnect={agent.reconnect} agentDistro={agent.distro} />
     </div>
   );
 }
 
-/** Status-badge colors per supervisor state. */
-const SUPERVISOR_DOT: Record<SupervisorState, string> = {
-  disabled: 'bg-on-surface-muted',
-  probing: 'bg-warning animate-pulse',
-  starting: 'bg-warning animate-pulse',
-  restarting: 'bg-warning animate-pulse',
-  adopted: 'bg-success',
-  healthy: 'bg-success',
-  failed: 'bg-danger',
-};
-
-/**
- * Runtime-mode controls (add-native-runtime-mode). Selects which runtime hosts
- * the sidecar: `Native` (default — bundled host binary, the only sensible mode
- * off-Windows) or `WSL` (opt-in, shown only on a Windows host with a distro).
- * Switching persists config and (re)drives the Rust supervisor (runtime mutex:
- * the current runtime's sidecar is reaped before the next starts), then
- * re-probes the connection. A live status badge tracks the supervisor state.
- */
-function RuntimeModeSection({
-  onReconnect,
-  agentDistro,
-}: {
-  onReconnect: () => void;
-  /** `/health.distro` — the distro the sidecar actually reports running in
-   *  (null when not WSL / not yet connected). Compared against the configured
-   *  distro to surface runtime/config drift (unify-wsl-distro-source). */
-  agentDistro: string | null;
-}) {
-  const { t } = useTranslation();
-  const { resetProjectForRuntimeSwitch } = useSession();
-  const [detect, setDetect] = useState<WslDetect | null>(null);
-  const [config, setConfig] = useState<RuntimeConfig | null>(null);
-  const [status, setStatus] = useState<SupervisorStatus>({ state: 'disabled' });
-  const [override, setOverride] = useState('');
-  const [savedOverride, setSavedOverride] = useState('');
-
-  useEffect(() => {
-    void (async () => {
-      const d = await wslDetect();
-      if (d.ok) setDetect(d.value);
-      const c = await getRuntimeConfig();
-      if (c.ok) {
-        setConfig(c.value);
-        setOverride(c.value.serveCmdOverride ?? '');
-        setSavedOverride(c.value.serveCmdOverride ?? '');
-      }
-      const s = await supervisorStatus();
-      if (s.ok) setStatus(s.value);
-    })();
-    let unlisten: (() => void) | undefined;
-    void onSupervisorStatus(setStatus).then((fn) => {
-      unlisten = fn;
-    });
-    return () => unlisten?.();
-  }, []);
-
-  // Persist config, re-drive the supervisor, and re-probe the connection. A
-  // mode or distro change crosses filesystem namespaces, so drop the remembered
-  // project/sessions first — the bootstrap re-seeds from the new runtime's
-  // default workdir once the reconnect lands.
-  const apply = async (next: RuntimeConfig) => {
-    const namespaceChanged = !!config && (next.mode !== config.mode || next.distro !== config.distro);
-    setConfig(next);
-    const res = await setRuntimeConfig(next);
-    if (res.ok) {
-      if (namespaceChanged) resetProjectForRuntimeSwitch();
-      onReconnect();
-    }
-  };
-
-  if (!config) return null;
-
-  const mode = config.mode;
-  const distros = detect?.distros ?? [];
-  const wslAvailable = detect?.available ?? false;
-  const selectedDistro = config.distro ?? distros[0] ?? '';
-  const overrideDirty = override.trim() !== savedOverride.trim();
-
-  // Config-priority drift (unify-wsl-distro-source): the user's RuntimeConfig is
-  // authoritative; `/health.distro` (agentDistro) is the actual running distro.
-  // Surface a mismatch so the user can re-align with「应用并重启」.
-  //  - WSL mode:  configured distro vs reported distro differ → mismatch;
-  //               reported distro absent while running → unknown.
-  //  - Native:    a reported distro at all means a WSL sidecar is bound → mismatch.
-  const settled = status.state === 'healthy' || status.state === 'adopted';
-  const drift: { kind: 'mismatch' | 'unknown'; configured: string; actual: string } | null =
-    mode === 'wsl'
-      ? agentDistro
-        ? agentDistro !== (config.distro ?? '')
-          ? { kind: 'mismatch', configured: config.distro ?? '—', actual: agentDistro }
-          : null
-        : settled
-          ? { kind: 'unknown', configured: config.distro ?? '—', actual: '' }
-          : null
-      : agentDistro
-        ? { kind: 'mismatch', configured: t('settings.runtime.native'), actual: agentDistro }
-        : null;
-
-  const selectMode = (next: RuntimeKind) => {
-    if (next === mode) return;
-    // Switching to WSL with no distro yet picks the first detected one.
-    const distro = next === 'wsl' ? (config.distro ?? distros[0]) : config.distro;
-    void apply({ ...config, mode: next, distro });
-  };
-
-  const changeDistro = (distro: string) => {
-    void apply({ ...config, distro });
-  };
-
-  const saveOverride = () => {
-    const next = override.trim();
-    void apply({ ...config, serveCmdOverride: next === '' ? undefined : next });
-    setSavedOverride(next);
-  };
-
-  const placeholder =
-    mode === 'wsl'
-      ? 'workhorse-agent serve --host 127.0.0.1 --port 7821'
-      : '/path/to/workhorse-agent serve --host 127.0.0.1 --port 7821';
-
-  return (
-    <div className="mt-6 pt-4 border-t border-outline/40 dark:border-outline-dark/40">
-      <p className="text-[11.5px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted tracking-wider mb-3">
-        {t('settings.runtime.title')}
-      </p>
-
-      {/* Mode selector: Native always; WSL only when detected. */}
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        <RuntimeOption
-          label={t('settings.runtime.native')}
-          description={t('settings.runtime.nativeDescription')}
-          active={mode === 'native'}
-          disabled={false}
-          onClick={() => selectMode('native')}
-        />
-        <RuntimeOption
-          label={t('settings.runtime.wsl')}
-          description={
-            wslAvailable ? t('settings.runtime.wslDescription') : t('settings.runtime.wslUnavailable')
-          }
-          active={mode === 'wsl'}
-          disabled={!wslAvailable}
-          onClick={() => selectMode('wsl')}
-        />
-      </div>
-
-      {/* Live supervisor status badge (shown for both runtimes). */}
-      <div className="flex items-center gap-2.5 mb-4">
-        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${SUPERVISOR_DOT[status.state]}`} />
-        <span className="text-[12.5px] font-medium text-on-surface dark:text-on-canvas-dark">
-          {t(`settings.runtime.state.${status.state}`)}
-        </span>
-        {status.runtime && (
-          <span className="text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">
-            · {t(`settings.runtime.${status.runtime}`)}
-          </span>
-        )}
-        {status.reason && (
-          <span className="text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted truncate">{status.reason}</span>
-        )}
-      </div>
-
-      {/* Runtime/config drift notice — config-priority: prompt re-align, not accept. */}
-      {drift && (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2">
-          <span className="text-[11.5px] text-on-surface dark:text-on-canvas-dark">
-            {drift.kind === 'unknown'
-              ? t('settings.runtime.driftUnknown')
-              : t('settings.runtime.driftMismatch', { configured: drift.configured, actual: drift.actual })}
-          </span>
-        </div>
-      )}
-
-      {/* Distro dropdown — WSL only. */}
-      {mode === 'wsl' && wslAvailable && (
-        <div className="mb-4">
-          <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">{t('settings.runtime.distro')}</label>
-          <DistroSelect
-            distros={distros}
-            selected={selectedDistro}
-            onChange={changeDistro}
-          />
-        </div>
-      )}
-
-      {/* Advanced serve-command override (both runtimes). */}
-      <div className="mb-2">
-        <label className="block text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-1.5">{t('settings.runtime.advancedCommand')}</label>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={override}
-            spellCheck={false}
-            onChange={(e) => setOverride(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.nativeEvent.isComposing) return;
-              if (e.key === 'Enter') saveOverride();
-            }}
-            placeholder={placeholder}
-            className="min-w-0 flex-1 rounded-md border border-outline/40 bg-surface-muted px-3 py-2 font-mono text-[12px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
-          />
-          <button
-            type="button"
-            onClick={saveOverride}
-            disabled={!overrideDirty}
-            className="flex-shrink-0 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {t('settings.endpointSave')}
-          </button>
-        </div>
-        <p className="mt-1 text-[10.5px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t('settings.runtime.advancedHint')}</p>
-      </div>
-
-      {/* Always-available restart: re-drives the supervisor with the current
-          config even when nothing is dirty — the only path to a manual restart
-          when mode/distro/command are unchanged. */}
-      <button
-        type="button"
-        onClick={() => void apply(config)}
-        className="mt-2 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90"
-      >
-        {t('settings.runtime.applyRestart')}
-      </button>
-    </div>
-  );
+/** Parse the port from an endpoint URL for the managed-mode port field; falls
+ *  back to the documented default when absent/unparseable. */
+function portOf(endpoint: string): string {
+  const m = endpoint.match(/:(\d{1,5})(?:\/|$)/);
+  return m ? m[1] : '7821';
 }
 
 /** A single runtime-mode choice card (Native / WSL). */

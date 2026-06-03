@@ -145,15 +145,28 @@ impl Supervisor {
     pub fn drive(&self, app: &AppHandle, cfg: RuntimeConfig, endpoint: String) {
         // Runtime mutex: tear the current back-end down before driving the next,
         // so the fixed port is released and a stale sidecar cannot be adopted.
+        // This runs for every mode, including Remote — switching to Remote still
+        // reaps a previously-spawned local sidecar (it just starts nothing new).
         self.teardown_internal();
+
+        // Remote (R2, unify-runtime-source-panel): the app hosts no process, so
+        // the supervisor stays Disabled and the auto-connect probe owns liveness.
+        // No spawn, no monitor thread, no port reconciliation.
+        if !cfg.mode.is_managed() {
+            self.set_status(
+                app,
+                SupervisorStatus::new(SupervisorState::Disabled).with_runtime("remote"),
+            );
+            return;
+        }
 
         let backend: Arc<dyn Backend> = match cfg.mode {
             RuntimeKind::Native => Arc::new(native::NativeBackend::new(
                 endpoint,
-                cfg.port,
                 cfg.serve_cmd_override.clone(),
                 native::resolve_program(app),
             )),
+            RuntimeKind::Remote => unreachable!("Remote handled above (unmanaged)"),
             RuntimeKind::Wsl => {
                 if !cfg!(windows) {
                     self.set_status(
@@ -180,7 +193,7 @@ impl Supervisor {
                         return;
                     }
                 };
-                Arc::new(wsl::WslBackend::new(endpoint, distro, cfg.port, cfg.serve_cmd_override.clone()))
+                Arc::new(wsl::WslBackend::new(endpoint, distro, cfg.serve_cmd_override.clone()))
             }
         };
 

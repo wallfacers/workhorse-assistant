@@ -14,19 +14,20 @@ export interface WslDetect {
 }
 
 /** Which runtime hosts the sidecar (mirrors the Rust `RuntimeKind`). */
-export type RuntimeKind = 'native' | 'wsl';
+export type RuntimeKind = 'native' | 'wsl' | 'remote';
 
 /** Persisted runtime-mode settings (mirrors the Rust `RuntimeConfig`). */
 export interface RuntimeConfig {
   /** Runtime mode. `native` (default) runs the bundled host binary; `wsl` runs
-   *  it inside a distro (Windows-only, opt-in). */
+   *  it inside a distro (Windows-only, opt-in); `remote` connects to an agent
+   *  already running elsewhere (no local process; supervisor stays disabled). */
   mode: RuntimeKind;
   /** Distro the sidecar runs in (registration name); required when `mode==='wsl'`. */
   distro?: string;
-  /** Advanced override for the serve command. */
+  /** Advanced override for the serve command (managed modes only). */
   serveCmdOverride?: string;
-  /** Loopback port the sidecar binds. */
-  port: number;
+  /** Reserved for a future remote auth Bearer token (not wired this change). */
+  authToken?: string;
 }
 
 /** Supervisor lifecycle state, surfaced for the Settings status badge. */

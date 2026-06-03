@@ -23,16 +23,28 @@ use tauri::{AppHandle, Manager};
 /// `agent-auto-connect` / `wsl-managed-sidecar` spec.
 pub const ENDPOINT_ENV: &str = "WORKHORSE_AGENT_ENDPOINT";
 const DEFAULT_ENDPOINT: &str = "http://127.0.0.1:7821";
-const DEFAULT_PORT: u16 = 7821;
 
 /// Which runtime hosts the `workhorse-agent` sidecar. `Native` (default) runs the
-/// bundled host binary; `Wsl` runs it inside a WSL distro (Windows only, opt-in).
+/// bundled host binary; `Wsl` runs it inside a WSL distro (Windows only, opt-in);
+/// `Remote` connects to an agent already running elsewhere (the app hosts no
+/// process — the supervisor stays disabled and reachability is owned by the
+/// auto-connect probe).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RuntimeKind {
     #[default]
     Native,
     Wsl,
+    Remote,
+}
+
+impl RuntimeKind {
+    /// Whether this runtime is **managed** by the supervisor (it spawns/reaps a
+    /// local sidecar). `Remote` is not managed — the supervisor stays `Disabled`
+    /// and the auto-connect probe is the sole liveness source (R2).
+    pub fn is_managed(self) -> bool {
+        !matches!(self, RuntimeKind::Remote)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -50,13 +62,16 @@ pub struct RuntimeConfig {
     /// (`workhorse-agent serve --host 127.0.0.1 --port <p>`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub serve_cmd_override: Option<String>,
-    /// Loopback port the sidecar binds.
-    pub port: u16,
+    /// Reserved for a future remote auth Bearer token (unify-runtime-source-panel
+    /// non-goal: not wired this change). Persisted only when set so existing
+    /// configs are untouched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_token: Option<String>,
 }
 
 impl Default for RuntimeConfig {
     fn default() -> Self {
-        Self { mode: RuntimeKind::Native, distro: None, serve_cmd_override: None, port: DEFAULT_PORT }
+        Self { mode: RuntimeKind::Native, distro: None, serve_cmd_override: None, auth_token: None }
     }
 }
 
@@ -185,7 +200,7 @@ mod tests {
                 mode: RuntimeKind::Wsl,
                 distro: Some("Ubuntu".into()),
                 serve_cmd_override: None,
-                port: 9000,
+                auth_token: None,
             },
         };
         save(&path, &cfg).unwrap();
@@ -252,6 +267,38 @@ mod tests {
         let cfg = AppConfig::default();
         assert_eq!(cfg.endpoint, "http://127.0.0.1:7821");
         assert_eq!(cfg.runtime.mode, RuntimeKind::Native);
-        assert_eq!(cfg.runtime.port, 7821);
+    }
+
+    #[test]
+    fn legacy_port_field_is_ignored_endpoint_wins() {
+        // Port convergence (unify-runtime-source-panel): a legacy config carrying
+        // `runtime.port` deserializes fine — the now-unknown field is dropped and
+        // the endpoint remains the single source of truth.
+        let path = temp_path("legacyport");
+        std::fs::write(
+            &path,
+            br#"{"endpoint":"http://127.0.0.1:7821","runtime":{"mode":"native","port":8000}}"#,
+        )
+        .unwrap();
+        let cfg = load(&path);
+        assert_eq!(cfg.endpoint, "http://127.0.0.1:7821");
+        assert_eq!(cfg.runtime.mode, RuntimeKind::Native);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn remote_mode_round_trips_and_is_unmanaged() {
+        let path = temp_path("remote");
+        std::fs::write(
+            &path,
+            br#"{"endpoint":"http://10.0.0.5:7821","runtime":{"mode":"remote"}}"#,
+        )
+        .unwrap();
+        let cfg = load(&path);
+        assert_eq!(cfg.runtime.mode, RuntimeKind::Remote);
+        assert!(!cfg.runtime.mode.is_managed());
+        assert!(RuntimeKind::Native.is_managed());
+        assert!(RuntimeKind::Wsl.is_managed());
+        let _ = std::fs::remove_file(&path);
     }
 }

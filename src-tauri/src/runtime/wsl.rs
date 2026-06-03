@@ -6,7 +6,7 @@
 use std::process::Command;
 use std::time::Duration;
 
-use super::core::{build_serve_command, is_workhorse, parse_port, PortProbe};
+use super::core::{build_serve_command, is_workhorse, parse_port, port_from_endpoint, PortProbe};
 use super::{probe_healthy, Backend, Spawned};
 
 #[cfg(windows)]
@@ -24,8 +24,11 @@ pub struct WslBackend {
 }
 
 impl WslBackend {
-    pub fn new(endpoint: String, distro: String, port: u16, serve_cmd_override: Option<String>) -> Self {
-        let command = build_serve_command(port, serve_cmd_override.as_deref());
+    /// Port convergence (unify-runtime-source-panel): the default serve command's
+    /// port is derived from `endpoint`; an advanced override is used verbatim and
+    /// its own `--port` re-parsed for in-distro owner discovery.
+    pub fn new(endpoint: String, distro: String, serve_cmd_override: Option<String>) -> Self {
+        let command = build_serve_command(port_from_endpoint(&endpoint), serve_cmd_override.as_deref());
         let port = parse_port(&command);
         Self { endpoint, distro, command, port }
     }
@@ -106,8 +109,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new_resolves_command_and_port() {
-        let b = WslBackend::new("http://127.0.0.1:9000".into(), "Ubuntu".into(), 9000, None);
+    fn new_derives_command_port_from_endpoint() {
+        let b = WslBackend::new("http://127.0.0.1:9000".into(), "Ubuntu".into(), None);
         assert_eq!(b.command, "workhorse-agent serve --host 127.0.0.1 --port 9000");
         assert_eq!(b.port, 9000);
         assert_eq!(b.label(), "wsl");
@@ -118,7 +121,6 @@ mod tests {
         let b = WslBackend::new(
             "http://127.0.0.1:7821".into(),
             "Ubuntu".into(),
-            7821,
             Some("/opt/wh serve --port 8000".into()),
         );
         assert_eq!(b.command, "/opt/wh serve --port 8000");

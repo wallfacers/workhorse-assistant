@@ -92,7 +92,7 @@
     "autoExpandDescription": "Auto-expand during streaming, auto-collapse when done",
     "language": "Language",
     "runtime": {
-      "title": "Runtime Mode",
+      "title": "Runtime source",
       "native": "Native",
       "nativeDescription": "Run workhorse-agent directly on this host (default)",
       "wsl": "WSL",
@@ -104,6 +104,11 @@
       "applyRestart": "Apply & Restart",
       "driftMismatch": "Configured for {{configured}}, but actually running {{actual}} — not aligned. Click \"Apply & Restart\" to restart per config.",
       "driftUnknown": "Cannot confirm the actual running distro. Click \"Apply & Restart\" to restart per config.",
+      "remote": "Remote",
+      "remoteDescription": "Connect to an agent already running elsewhere",
+      "remoteNotice": "The remote agent must allow this app's Origin in its config; agents with auth (Bearer token) enabled are not supported in this version.",
+      "port": "Port (advanced)",
+      "portHint": "Managed runtimes bind 127.0.0.1; only the port is adjustable — it is the single source of truth for the address.",
       "state": {
         "disabled": "Not managed",
         "probing": "Probing…",

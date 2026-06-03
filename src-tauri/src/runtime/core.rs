@@ -182,6 +182,31 @@ pub fn parse_port(command: &str) -> u16 {
         .unwrap_or(DEFAULT_PORT)
 }
 
+/// Extract the loopback port from an endpoint URL (`http(s)://host[:port]`), the
+/// single source of truth for the port a managed sidecar binds
+/// (unify-runtime-source-panel). Falls back to [`DEFAULT_PORT`] when the endpoint
+/// omits a port or is unparseable. Pure — unit-tested.
+pub fn port_from_endpoint(endpoint: &str) -> u16 {
+    let after_scheme = endpoint
+        .trim()
+        .strip_prefix("https://")
+        .or_else(|| endpoint.trim().strip_prefix("http://"))
+        .unwrap_or(endpoint.trim());
+    // Authority ends at the first '/' (path), '?' (query) or '#' (fragment).
+    let authority = after_scheme
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(after_scheme);
+    // IPv6 literals (`[::1]:7821`) keep the port after the closing bracket.
+    let port_part = match authority.rsplit_once(']') {
+        Some((_, rest)) => rest.strip_prefix(':'),
+        None => authority.rsplit_once(':').map(|(_, p)| p),
+    };
+    port_part
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(DEFAULT_PORT)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,5 +305,16 @@ mod tests {
         assert_eq!(parse_port("workhorse-agent serve --host 127.0.0.1 --port 7821"), 7821);
         assert_eq!(parse_port("workhorse-agent serve --host 127.0.0.1 --port 9000"), 9000);
         assert_eq!(parse_port("/opt/wh serve"), 7821); // no --port → default
+    }
+
+    #[test]
+    fn port_from_endpoint_extracts_or_defaults() {
+        assert_eq!(port_from_endpoint("http://127.0.0.1:7821"), 7821);
+        assert_eq!(port_from_endpoint("http://127.0.0.1:9000/"), 9000);
+        assert_eq!(port_from_endpoint("https://example.com:8443/health"), 8443);
+        assert_eq!(port_from_endpoint("http://localhost"), DEFAULT_PORT); // no port → default
+        assert_eq!(port_from_endpoint("http://[::1]:7821"), 7821); // IPv6 literal
+        assert_eq!(port_from_endpoint("http://[::1]"), DEFAULT_PORT); // IPv6, no port
+        assert_eq!(port_from_endpoint("garbage"), DEFAULT_PORT); // unparseable → default
     }
 }

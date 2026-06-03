@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use tauri::AppHandle;
 
-use super::core::{is_workhorse, parse_port, PortProbe};
+use super::core::{is_workhorse, parse_port, port_from_endpoint, PortProbe};
 use super::{probe_healthy, Backend, Spawned};
 
 /// Resolve the `workhorse-agent` program to spawn. Prefers the bundled sidecar
@@ -35,9 +35,12 @@ pub struct NativeBackend {
 }
 
 impl NativeBackend {
+    /// Port convergence (unify-runtime-source-panel): the loopback port is derived
+    /// from `endpoint` (the single source of truth), not a separate config field.
+    /// An advanced `serve_cmd_override` still re-parses its own `--port` for
+    /// owner discovery (the operator owns that command verbatim).
     pub fn new(
         endpoint: String,
-        port: u16,
         serve_cmd_override: Option<String>,
         default_program: String,
     ) -> Self {
@@ -50,6 +53,7 @@ impl NativeBackend {
                 Self { endpoint, program, args, port }
             }
             _ => {
+                let port = port_from_endpoint(&endpoint);
                 let args = vec![
                     "serve".into(),
                     "--host".into(),
@@ -211,24 +215,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_command_builds_serve_args() {
+    fn default_command_derives_port_from_endpoint() {
         let b = NativeBackend::new(
-            "http://127.0.0.1:7821".into(),
-            7821,
+            "http://127.0.0.1:9000".into(),
             None,
             "/opt/app/workhorse-agent".into(),
         );
         assert_eq!(b.program, "/opt/app/workhorse-agent");
-        assert_eq!(b.args, vec!["serve", "--host", "127.0.0.1", "--port", "7821"]);
-        assert_eq!(b.port, 7821);
+        // Port comes from the endpoint, not a separate field.
+        assert_eq!(b.args, vec!["serve", "--host", "127.0.0.1", "--port", "9000"]);
+        assert_eq!(b.port, 9000);
         assert_eq!(b.label(), "native");
     }
 
     #[test]
     fn override_splits_into_program_and_args() {
         let b = NativeBackend::new(
-            "http://127.0.0.1:8000".into(),
-            7821,
+            "http://127.0.0.1:9000".into(),
             Some("/usr/bin/wh serve --port 8000".into()),
             "ignored".into(),
         );

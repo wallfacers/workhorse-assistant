@@ -432,6 +432,22 @@ impl AgentBridge {
             .or_else(|| trimmed.strip_prefix("http://"));
         match host {
             Some(h) if !h.is_empty() => {
+                // Port convergence (unify-runtime-source-panel): the endpoint is
+                // the single source of truth for the sidecar port, so a present
+                // port must parse as a u16. A missing port is allowed (defaults
+                // downstream). IPv6 literals keep the port after the `]`.
+                let authority = h.split(['/', '?', '#']).next().unwrap_or(h);
+                let port_part = match authority.rsplit_once(']') {
+                    Some((_, rest)) => rest.strip_prefix(':'),
+                    None => authority.rsplit_once(':').map(|(_, p)| p),
+                };
+                if let Some(p) = port_part {
+                    if p.parse::<u16>().is_err() {
+                        return Err(AgentError::validation(
+                            "endpoint must be http(s)://host[:port] (port must be 1–65535)",
+                        ));
+                    }
+                }
                 self.inner.lock().unwrap().endpoint = trimmed;
                 Ok(())
             }
@@ -1096,6 +1112,18 @@ mod tests {
                 .expect_err("invalid endpoint must be rejected");
             assert!(matches!(err.kind, ErrorKind::Validation));
         }
+        assert_eq!(bridge.current_endpoint(), "https://agent.example.com");
+
+        // Port convergence: an unparseable port is rejected; the previous
+        // endpoint is left untouched.
+        let err = bridge
+            .set_endpoint("http://127.0.0.1:99999".to_string())
+            .expect_err("out-of-range port must be rejected");
+        assert!(matches!(err.kind, ErrorKind::Validation));
+        let err = bridge
+            .set_endpoint("http://127.0.0.1:abc".to_string())
+            .expect_err("non-numeric port must be rejected");
+        assert!(matches!(err.kind, ErrorKind::Validation));
         assert_eq!(bridge.current_endpoint(), "https://agent.example.com");
     }
 }
