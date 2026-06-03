@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine, drawSelection, rectangularSelection, highlightSpecialChars } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
@@ -6,6 +6,8 @@ import { syntaxHighlighting, defaultHighlightStyle, foldGutter, indentOnInput, b
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import type { Extension } from '@codemirror/state';
+import { Eye, Code } from 'lucide-react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
@@ -145,6 +147,97 @@ function createEditorTheme(isDark: boolean): Extension {
 }
 
 // ---------------------------------------------------------------------------
+// File type classification
+// ---------------------------------------------------------------------------
+
+type FileViewMode = 'code' | 'markdown' | 'image';
+
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico']);
+
+function classifyFile(fileName: string): FileViewMode {
+  const dotIndex = fileName.lastIndexOf('.');
+  if (dotIndex === -1) return 'code';
+  const ext = fileName.slice(dotIndex).toLowerCase();
+  if (ext === '.md' || ext === '.mdx' || ext === '.markdown') return 'markdown';
+  if (IMAGE_EXTENSIONS.has(ext)) return 'image';
+  return 'code';
+}
+
+// ---------------------------------------------------------------------------
+// Markdown preview component (uses marked + DOMPurify)
+// ---------------------------------------------------------------------------
+
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+function MarkdownPreview({ content, isDark }: { content: string; isDark: boolean }) {
+  const html = useMemo(() => {
+    const raw = marked.parse(content, { async: false, gfm: true, breaks: true }) as string;
+    return DOMPurify.sanitize(raw);
+  }, [content]);
+
+  return (
+    <div
+      className={`h-full w-full overflow-auto custom-scrollbar p-6 ${isDark ? 'prose-invert' : ''}`}
+      style={{
+        backgroundColor: isDark ? 'var(--color-surface-dark-elevated)' : 'var(--color-surface)',
+        color: isDark ? 'var(--color-on-surface-dark)' : 'var(--color-on-surface)',
+      }}
+    >
+      <div
+        className="markdown-preview max-w-none text-[13px] leading-relaxed"
+        style={{
+          fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
+        }}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      <style>{`
+        .markdown-preview h1 { font-size: 1.5rem; font-weight: 600; margin: 1.5rem 0 0.75rem; letter-spacing: -0.01em; color: ${isDark ? 'var(--color-on-surface-dark)' : 'var(--color-on-surface)'}; }
+        .markdown-preview h2 { font-size: 1.25rem; font-weight: 600; margin: 1.25rem 0 0.5rem; color: ${isDark ? 'var(--color-on-surface-dark)' : 'var(--color-on-surface)'}; }
+        .markdown-preview h3 { font-size: 1.1rem; font-weight: 600; margin: 1rem 0 0.5rem; color: ${isDark ? 'var(--color-on-surface-dark)' : 'var(--color-on-surface)'}; }
+        .markdown-preview p { margin: 0.5rem 0; }
+        .markdown-preview a { color: var(--color-accent-warm); text-decoration: underline; }
+        .markdown-preview code { font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace; font-size: 0.85em; background: ${isDark ? 'var(--color-surface-dark-muted)' : 'var(--color-surface-muted)'}; padding: 0.15em 0.4em; border-radius: 4px; }
+        .markdown-preview pre { background: ${isDark ? 'var(--color-surface-dark-muted)' : 'var(--color-surface-muted)'}; padding: 12px 16px; border-radius: var(--radius-lg, 16px); overflow-x: auto; margin: 0.75rem 0; border: 1px solid ${isDark ? 'var(--color-outline-dark)' : 'var(--color-outline)'}; }
+        .markdown-preview pre code { background: none; padding: 0; border-radius: 0; font-size: 13px; }
+        .markdown-preview blockquote { border-left: 3px solid var(--color-outline); padding-left: 12px; margin: 0.75rem 0; color: var(--color-on-surface-muted); }
+        .markdown-preview ul, .markdown-preview ol { padding-left: 1.5rem; margin: 0.5rem 0; }
+        .markdown-preview li { margin: 0.25rem 0; }
+        .markdown-preview table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
+        .markdown-preview th, .markdown-preview td { border: 1px solid ${isDark ? 'var(--color-outline-dark)' : 'var(--color-outline)'}; padding: 6px 12px; text-align: left; font-size: 13px; }
+        .markdown-preview th { background: ${isDark ? 'var(--color-surface-dark-muted)' : 'var(--color-surface-muted)'}; font-weight: 600; }
+        .markdown-preview img { max-width: 100%; border-radius: 8px; margin: 0.5rem 0; }
+        .markdown-preview hr { border: none; border-top: 1px solid ${isDark ? 'var(--color-outline-dark)' : 'var(--color-outline)'}; margin: 1rem 0; }
+      `}</style>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Image preview component
+// ---------------------------------------------------------------------------
+
+function ImagePreview({ filePath, fileName }: { filePath: string; fileName: string }) {
+  const src = convertFileSrc(filePath);
+  return (
+    <div
+      className="h-full w-full flex items-center justify-center p-6"
+      style={{ backgroundColor: 'var(--color-surface-muted)' }}
+    >
+      <div className="text-center space-y-3">
+        <img
+          src={src}
+          alt={fileName}
+          className="max-w-full max-h-[calc(100vh-200px)] object-contain rounded-lg border border-outline dark:border-outline-dark shadow-sm"
+          style={{ backgroundColor: 'var(--color-surface)' }}
+        />
+        <p className="text-[11px] text-on-surface-muted dark:text-on-surface-dark-muted font-mono">{fileName}</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // FileEditor component
 // ---------------------------------------------------------------------------
 
@@ -162,7 +255,13 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savedContent, setSavedContent] = useState<string>('');
+  const [content, setContent] = useState<string>('');
   const isDirtyRef = useRef(isDirty);
+
+  const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
+  const viewMode = useMemo(() => classifyFile(fileName), [fileName]);
+  // For markdown: toggle between source code and rendered preview.
+  const [showPreview, setShowPreview] = useState(viewMode === 'markdown');
 
   // Keep the ref in sync with the prop so the keymap callback sees current state.
   useEffect(() => { isDirtyRef.current = isDirty; }, [isDirty]);
@@ -191,6 +290,13 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
     (async () => {
       setLoading(true);
       setError(null);
+
+      // Image files don't need text content — skip the read entirely.
+      if (classifyFile(fileName) === 'image') {
+        setLoading(false);
+        return;
+      }
+
       const result = await fsReadFile(filePath);
       if (cancelled) return;
 
@@ -200,15 +306,15 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
         return;
       }
 
-      const content = result.value;
+      const fileContent = result.value;
       if (cancelled) return;
-      setSavedContent(content);
+      setSavedContent(fileContent);
+      setContent(fileContent);
 
-      const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
       const langExts = getLanguageExtensions(fileName);
 
       const state = EditorState.create({
-        doc: content,
+        doc: fileContent,
         extensions: [
           lineNumbers(),
           highlightActiveLineGutter(),
@@ -243,6 +349,7 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               const newContent = update.state.doc.toString();
+              setContent(newContent);
               const dirty = newContent !== savedContent;
               // Only notify on transitions to avoid redundant parent renders.
               if (dirty !== isDirtyRef.current) {
@@ -307,14 +414,74 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
     );
   }
 
+  // Image files — no editor, just preview.
+  if (viewMode === 'image') {
+    return (
+      <div className="h-full w-full relative">
+        {loading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-surface/80 dark:bg-surface-dark-elevated/80">
+            <p className="text-[12px] text-on-surface-muted dark:text-on-surface-dark-muted">{t('editor.loading')}</p>
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-full p-4">
+            <div className="text-center space-y-2">
+              <p className="text-[13px] text-danger font-medium">{t('editor.error')}</p>
+              <p className="text-[12px] text-on-surface-muted dark:text-on-surface-dark-muted">{error}</p>
+            </div>
+          </div>
+        ) : (
+          <ImagePreview filePath={filePath} fileName={fileName} />
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full w-full relative">
+    <div className="h-full w-full relative flex flex-col">
+      {/* Toolbar: markdown preview toggle */}
+      {viewMode === 'markdown' && !loading && !error && (
+        <div className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 border-b border-outline/40 dark:border-outline-dark/40 bg-surface dark:bg-surface-dark-elevated">
+          <button
+            type="button"
+            onClick={() => setShowPreview(false)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+              !showPreview
+                ? 'bg-surface-muted dark:bg-surface-dark text-on-surface dark:text-on-canvas-dark shadow-sm'
+                : 'text-on-surface-muted dark:text-on-canvas-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark'
+            }`}
+          >
+            <Code className="w-3 h-3" />
+            {t('editor.source')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPreview(true)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+              showPreview
+                ? 'bg-surface-muted dark:bg-surface-dark text-on-surface dark:text-on-canvas-dark shadow-sm'
+                : 'text-on-surface-muted dark:text-on-canvas-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark'
+            }`}
+          >
+            <Eye className="w-3 h-3" />
+            {t('editor.preview')}
+          </button>
+        </div>
+      )}
+
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface/80 dark:bg-surface-dark-elevated/80 z-10">
           <p className="text-[12px] text-on-surface-muted dark:text-on-surface-dark-muted">{t('editor.loading')}</p>
         </div>
       )}
-      <div ref={containerRef} className="h-full w-full overflow-hidden" />
+
+      {/* Markdown preview mode */}
+      {viewMode === 'markdown' && showPreview && !loading && !error ? (
+        <div className="flex-1 min-h-0">
+          <MarkdownPreview content={content} isDark={isDarkMode} />
+        </div>
+      ) : (
+        <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
+      )}
     </div>
   );
 }

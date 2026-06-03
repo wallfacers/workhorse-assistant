@@ -305,7 +305,9 @@
     "retry": "重试",
     "saveFailed": "保存失败：{{error}}",
     "unsavedTitle": "未保存的修改",
-    "unsavedBody": "文件 \"{{file}}\" 有未保存的修改，确定关闭吗？"
+    "unsavedBody": "文件 \"{{file}}\" 有未保存的修改，确定关闭吗？",
+    "source": "源码",
+    "preview": "预览"
   },
   "fileTree": {
     "loading": "加载中…",

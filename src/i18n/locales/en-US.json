@@ -305,7 +305,9 @@
     "retry": "Retry",
     "saveFailed": "Save failed: {{error}}",
     "unsavedTitle": "Unsaved changes",
-    "unsavedBody": "File \"{{file}}\" has unsaved changes. Close anyway?"
+    "unsavedBody": "File \"{{file}}\" has unsaved changes. Close anyway?",
+    "source": "Source",
+    "preview": "Preview"
   },
   "fileTree": {
     "loading": "Loading…",
