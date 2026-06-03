@@ -38,9 +38,9 @@ export default function ToolCallBlock({ tool }: { tool: ToolCallData }) {
     <details
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="my-1.5 rounded-md border border-outline/40 dark:border-outline-dark/50 bg-surface-muted/60 dark:bg-surface-dark-muted/40"
+      className="my-1.5 rounded-lg border border-outline/40 dark:border-outline-dark/50 bg-surface-muted/60 dark:bg-surface-dark-muted/40"
     >
-      <summary className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none text-[11.5px] hover:bg-surface-muted/60 dark:hover:bg-surface-dark-muted/60 rounded-md transition-colors">
+      <summary className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none text-[11.5px] hover:bg-surface-muted/60 dark:hover:bg-surface-dark-muted/60 rounded-lg transition-colors">
         {open ? (
           <ChevronDown className="w-3 h-3 text-on-surface-muted flex-shrink-0" />
         ) : (
@@ -60,7 +60,7 @@ export default function ToolCallBlock({ tool }: { tool: ToolCallData }) {
           {tool.input !== undefined && (
             <div>
               <p className="text-[10px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-0.5">{t('toolCall.input')}</p>
-              <pre className="text-[10.5px] font-mono bg-surface dark:bg-surface-dark rounded p-2 overflow-x-auto custom-scrollbar text-on-surface dark:text-on-canvas-dark-muted border border-outline/30 dark:border-outline-dark/40">
+              <pre className="text-[10.5px] font-mono bg-surface dark:bg-surface-dark rounded-lg p-2 overflow-x-auto custom-scrollbar text-on-surface dark:text-on-canvas-dark-muted border border-outline/30 dark:border-outline-dark/40">
                 {typeof tool.input === 'string' ? tool.input : JSON.stringify(tool.input, null, 2)}
               </pre>
             </div>
@@ -68,7 +68,7 @@ export default function ToolCallBlock({ tool }: { tool: ToolCallData }) {
           {tool.output !== undefined && (
             <div>
               <p className="text-[10px] text-on-surface-muted dark:text-on-canvas-dark-muted mb-0.5">{t('toolCall.output')}</p>
-              <pre className="text-[10.5px] font-mono bg-surface dark:bg-surface-dark rounded p-2 overflow-x-auto custom-scrollbar text-on-surface dark:text-on-canvas-dark-muted border border-outline/30 dark:border-outline-dark/40">
+              <pre className="text-[10.5px] font-mono bg-surface dark:bg-surface-dark rounded-lg p-2 overflow-x-auto custom-scrollbar text-on-surface dark:text-on-canvas-dark-muted border border-outline/30 dark:border-outline-dark/40">
                 {typeof tool.output === 'string' ? tool.output : JSON.stringify(tool.output, null, 2)}
               </pre>
             </div>

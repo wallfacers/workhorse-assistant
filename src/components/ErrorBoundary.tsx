@@ -55,7 +55,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           <button
             type="button"
             onClick={this.handleRetry}
-            className="px-3.5 py-1.5 rounded-lg bg-primary text-on-primary text-[12px] font-medium hover:bg-secondary hover:text-on-secondary transition-colors"
+            className="px-3.5 py-1.5 rounded-md bg-primary text-on-primary text-[12px] font-medium hover:bg-secondary hover:text-on-secondary transition-colors"
           >
             {i18n.t('common.retry')}
           </button>

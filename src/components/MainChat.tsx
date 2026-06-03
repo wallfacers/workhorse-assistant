@@ -28,18 +28,18 @@ export default function MainChat() {
 
           {/* User Message */}
           <div className="flex justify-end mb-8">
-            <div className="max-w-[80%] bg-primary/10 dark:bg-primary/20 rounded-xl px-5 py-3 text-on-surface dark:text-on-canvas-dark text-[13.5px] leading-relaxed shadow-sm">
+            <div className="max-w-[80%] bg-primary/10 dark:bg-primary/20 rounded-lg px-5 py-3 text-on-surface dark:text-on-canvas-dark text-[13.5px] leading-relaxed shadow-sm">
               请帮我深度分析一下这份 GPT-4o System Card，整理出核心发现、关键数据和可借鉴的内容，保存为 Markdown 报告。
             </div>
           </div>
 
           {/* Assistant Message (Logo + Bubble + Actions) */}
           <div className="flex gap-3 items-start">
-            <div className="w-8 h-8 flex-shrink-0 rounded-xl bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-[13px] flex items-center justify-center shadow-sm">
+            <div className="w-8 h-8 flex-shrink-0 rounded-md bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-[13px] flex items-center justify-center shadow-sm">
               M
             </div>
             <div className="flex-1 min-w-0">
-              <div className="bg-surface dark:bg-surface-dark-elevated rounded-xl p-7 text-on-surface dark:text-on-canvas-dark text-[13.5px] leading-relaxed border border-outline/50 dark:border-outline-dark/60 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+              <div className="bg-surface dark:bg-surface-dark-elevated rounded-lg p-7 text-on-surface dark:text-on-canvas-dark text-[13.5px] leading-relaxed border border-outline/50 dark:border-outline-dark/60 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
             <p className="mb-4 text-on-surface dark:text-on-canvas-dark-muted">
               我已经对提交的文件进行了系统性分析，并生成了<span className="text-secondary dark:text-secondary bg-secondary/10 dark:bg-secondary/20 font-medium px-2 py-0.5 rounded-lg underline decoration-2 decoration-secondary/30 underline-offset-2">详细</span> 的评估报告。
             </p>
@@ -68,8 +68,8 @@ export default function MainChat() {
             </ul>
 
             {/* Attachment Card */}
-            <div className="flex items-center gap-3 border border-outline dark:border-outline-dark bg-surface dark:bg-surface-dark rounded-md p-4.5 mb-4 shadow-[0_1px_3px_rgba(0,0,0,0.01)] transition-all hover:bg-surface-muted/50 dark:hover:bg-surface-dark-muted/30">
-              <div className="flex-shrink-0 p-2.5 bg-surface-muted dark:bg-surface-dark-muted rounded-xl border border-outline/60 dark:border-outline-dark">
+            <div className="flex items-center gap-3 border border-outline dark:border-outline-dark bg-surface dark:bg-surface-dark rounded-lg p-4.5 mb-4 shadow-[0_1px_3px_rgba(0,0,0,0.01)] transition-all hover:bg-surface-muted/50 dark:hover:bg-surface-dark-muted/30">
+              <div className="flex-shrink-0 p-2.5 bg-surface-muted dark:bg-surface-dark-muted rounded-md border border-outline/60 dark:border-outline-dark">
                 <FileText className="w-5 h-5 text-on-surface-muted dark:text-on-canvas-dark-muted" />
               </div>
               <div className="flex-1 min-w-0 text-[13px] font-semibold text-on-surface dark:text-on-canvas-dark truncate">
@@ -79,7 +79,7 @@ export default function MainChat() {
                 path="C:\\Users\\wushengzhou\\...\\conv_19e4f0..."
                 className="hidden md:block min-w-0 max-w-[220px] text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted"
               />
-              <span className="flex-shrink-0 text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted font-medium bg-surface-muted dark:bg-surface-dark-muted px-1.5 py-0.5 rounded">16KB</span>
+              <span className="flex-shrink-0 text-[11px] text-on-surface-muted dark:text-on-canvas-dark-muted font-medium bg-surface-muted dark:bg-surface-dark-muted px-1.5 py-0.5 rounded-md">16KB</span>
             </div>
 
             <p className="text-[13px] text-on-surface-muted dark:text-on-canvas-dark-muted mt-4 leading-relaxed">
@@ -100,7 +100,7 @@ export default function MainChat() {
 
       {/* Input Area */}
       <div className="px-4 sm:px-6 pt-0 pb-2 sm:pb-3 flex-shrink-0 mx-auto w-full max-w-full md:max-w-[720px] lg:max-w-[820px] xl:max-w-[940px] 2xl:max-w-[1040px]">
-        <div className="bg-surface dark:bg-surface-dark-elevated border border-outline dark:border-outline-dark shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-none rounded-xl p-4 pb-2.5 flex flex-col transition-all focus-within:ring-1 focus-within:ring-outline-strong dark:focus-within:ring-outline-dark">
+        <div className="bg-surface dark:bg-surface-dark-elevated border border-outline dark:border-outline-dark shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-none rounded-lg p-4 pb-2.5 flex flex-col transition-all focus-within:ring-1 focus-within:ring-outline-strong dark:focus-within:ring-outline-dark">
           <textarea
             placeholder={t('mainChat.placeholder')}
             className="w-full resize-none h-24 bg-transparent outline-none text-on-surface dark:text-on-canvas-dark placeholder-on-surface-muted dark:placeholder-on-canvas-dark-muted text-[13px] leading-relaxed"

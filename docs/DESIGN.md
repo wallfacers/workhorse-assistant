@@ -78,9 +78,10 @@ typography:
     lineHeight: 1.55
 rounded:
   none: 0px
+  xs: 6px
   sm: 8px
-  md: 16px
-  lg: 24px
+  md: 12px
+  lg: 16px
   xl: 28px
   full: 9999px
 spacing:
@@ -120,17 +121,17 @@ components:
   message-bubble-user:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.lg}"
     padding: 12px
   message-bubble-assistant:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.on-surface}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.lg}"
     padding: 12px
   button-primary:
     backgroundColor: "{colors.tertiary}"
     textColor: "{colors.on-tertiary}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.md}"
     padding: 10px
   button-primary-hover:
     backgroundColor: "{colors.primary-container}"
@@ -138,12 +139,12 @@ components:
   button-ghost:
     backgroundColor: "{colors.surface-muted}"
     textColor: "{colors.on-surface}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.md}"
     padding: 10px
   input-text:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.on-surface}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.md}"
     padding: 10px
   badge-accent:
     backgroundColor: "{colors.accent-warm}"
@@ -255,18 +256,29 @@ to separate surfaces of the same elevation.
 
 ## Shapes
 
-- **Window corners:** the floating window is rounded — the renderer rounds the
-  root (`rounded-xl`) over the transparent surface, with Windows 11 also
-  rounding the OS window region (DWM corner preference) so the corners are truly
-  clipped. Flush/square when maximized or fullscreen.
-- **Panes:** `{rounded.lg}` (24px).
-- **Cards / message bubbles:** `{rounded.md}` (16px).
-- **Inputs / buttons / chips:** `{rounded.sm}` (8px).
-- **Avatars / status dots / badges:** `{rounded.full}`.
+The radius language is a **flat, role-based scale** that replicates the Claude
+docs site (`code.claude.com/docs`), measured live from its computed
+`border-radius`: containers `16px`, controls `12px`, inline `6px`, small icon
+buttons `8px`, pills `full`. Containers all share **one** radius — there is no
+longer an outer-larger-than-inner tier for in-app surfaces.
 
-The radius scale is *monotonic and componential*: outer shapes are always
-larger than the shapes they contain. Never break this — concentric radii
-look like a different design system.
+- **Window corners (the one exception):** the floating window is rounded — the
+  renderer rounds the root (`rounded-xl`, `{rounded.xl}` = 28px) over the
+  transparent surface, with Windows 11 also rounding the OS window region (DWM
+  corner preference) so the corners are truly clipped. Flush/square when
+  maximized or fullscreen. The window keeps its larger radius because it is a
+  physical OS-linked window edge, not an in-app surface.
+- **Containers — panes, cards, message bubbles, code blocks, tables, modals,
+  popovers/menus, callouts, tooltips:** `{rounded.lg}` (16px).
+- **Controls — buttons, inputs, chips, list/menu rows, segmented tabs:**
+  `{rounded.md}` (12px).
+- **Inline code:** `{rounded.xs}` (6px).
+- **Small icon buttons (icon-only):** `{rounded.sm}` (8px).
+- **Avatars / status dots / badges / pills:** `{rounded.full}`.
+
+> The previous concentric rule (outer always larger than inner) is intentionally
+> retired. Containers now share one radius by design, matching Claude. The only
+> shape that sits outside the scale is the window root (above).
 
 ## Components
 
@@ -331,4 +343,7 @@ follow the warm paper/terracotta theme. Use this table; opacity variants
   bare `white`) for chrome — consume token utilities per the mapping table above.
 - Don't add a second display font.
 - Don't redefine colors for dark mode in components — consume role tokens.
-- Don't break the concentric-radius rule.
+- Don't introduce off-scale radii (e.g. `rounded-[12px]`, raw `4px`). Use the
+  role scale: containers `{rounded.lg}`, controls `{rounded.md}`, inline
+  `{rounded.xs}`, icon buttons `{rounded.sm}`, pills `{rounded.full}`. The window
+  root (`{rounded.xl}`) is the sole exception.

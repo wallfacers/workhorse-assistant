@@ -63,7 +63,7 @@ export default function ProjectBrowser({
 
   const parent = path ? parentOf(path) : null;
   const rowClass =
-    'flex w-full items-center gap-1.5 px-3 py-1 rounded-lg text-left text-[12.5px] text-on-surface dark:text-on-canvas-dark-muted transition-colors hover:bg-canvas/40 dark:hover:bg-surface-dark-muted/50';
+    'flex w-full items-center gap-1.5 px-3 py-1 rounded-md text-left text-[12.5px] text-on-surface dark:text-on-canvas-dark-muted transition-colors hover:bg-canvas/40 dark:hover:bg-surface-dark-muted/50';
 
   return (
     <div className="w-[320px]">
@@ -115,7 +115,7 @@ export default function ProjectBrowser({
           type="button"
           disabled={!path}
           onClick={() => path && onPick(path)}
-          className="flex w-full items-center justify-center gap-2 rounded-sm bg-primary px-3 py-1.5 text-[12.5px] font-medium text-on-primary transition-colors hover:bg-secondary hover:text-on-secondary disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-1.5 text-[12.5px] font-medium text-on-primary transition-colors hover:bg-secondary hover:text-on-secondary disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Folder className="h-3.5 w-3.5" />
           <span>{t('project.openThisFolder')}</span>

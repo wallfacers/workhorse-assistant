@@ -165,7 +165,7 @@ export default function SessionHeader() {
         )}
 
         {switcherOpen && (
-          <div className="absolute left-0 z-50 mt-1 max-h-[400px] w-[320px] overflow-y-auto overflow-x-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
+          <div className="absolute left-0 z-50 mt-1 max-h-[400px] w-[320px] overflow-y-auto overflow-x-hidden rounded-lg border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
             {/* New session — always at the top */}
             <button
               type="button"
@@ -227,12 +227,12 @@ export default function SessionHeader() {
             setMenuOpen((v) => !v);
             setConfirmingDelete(false);
           }}
-          className="rounded-md p-1.5 text-on-surface-muted transition-colors hover:bg-canvas/70 hover:text-on-surface disabled:opacity-40 dark:text-on-canvas-dark-muted dark:hover:bg-surface-dark-muted dark:hover:text-on-canvas-dark"
+          className="rounded-sm p-1.5 text-on-surface-muted transition-colors hover:bg-canvas/70 hover:text-on-surface disabled:opacity-40 dark:text-on-canvas-dark-muted dark:hover:bg-surface-dark-muted dark:hover:text-on-canvas-dark"
         >
           <MoreHorizontal className="h-4 w-4" />
         </button>
         {menuOpen && (
-          <div className="absolute right-0 z-50 mt-1 min-w-[160px] overflow-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
+          <div className="absolute right-0 z-50 mt-1 min-w-[160px] overflow-hidden rounded-lg border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
             <button
               type="button"
               onClick={openRename}

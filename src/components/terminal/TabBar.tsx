@@ -32,9 +32,9 @@ export default function TabBar({
   const { t } = useTranslation();
   return (
     <div className="flex flex-shrink-0 items-center gap-1.5 px-2 py-2">
-      {/* Outer frame: rounded-xl + overflow-hidden clips the scrollbar ends so
+      {/* Outer frame: rounded-lg + overflow-hidden clips the scrollbar ends so
            they don't protrude past the rounded corners. */}
-      <div className="min-w-0 rounded-xl bg-outline/50 overflow-hidden dark:bg-surface-dark-muted/70">
+      <div className="min-w-0 rounded-lg bg-outline/50 overflow-hidden dark:bg-surface-dark-muted/70">
         <div className="flex items-center gap-1 overflow-x-auto p-1 custom-scrollbar">
           {groups.map((g, i) => {
             const active = g.id === activeGroupId;
@@ -42,7 +42,7 @@ export default function TabBar({
               <div
                 key={g.id}
                 onClick={() => onActivate(g.id)}
-                className={`group/tab flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg py-1.5 pl-4 pr-2.5 text-xs font-semibold transition-all duration-150 ${
+                className={`group/tab flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-md py-1.5 pl-4 pr-2.5 text-xs font-semibold transition-all duration-150 ${
                   active
                     ? 'bg-surface text-on-surface shadow-sm dark:bg-surface-dark-muted dark:text-on-canvas-dark'
                     : 'text-on-surface-muted hover:text-on-surface dark:text-on-canvas-dark-muted dark:hover:text-on-canvas-dark'
@@ -57,7 +57,7 @@ export default function TabBar({
                     e.stopPropagation();
                     onClose(g.id);
                   }}
-                  className={`flex h-4 w-4 items-center justify-center rounded transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
+                  className={`flex h-4 w-4 items-center justify-center rounded-sm transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
                     active
                       ? 'opacity-60 hover:opacity-100'
                       : 'opacity-0 group-hover/tab:opacity-60 hover:!opacity-100'

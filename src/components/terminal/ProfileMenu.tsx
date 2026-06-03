@@ -60,7 +60,7 @@ export default function ProfileMenu({
         {label && <span>{label}</span>}
       </button>
       {open && (
-        <div className="absolute left-0 z-50 mt-1 min-w-[160px] overflow-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
+        <div className="absolute left-0 z-50 mt-1 min-w-[160px] overflow-hidden rounded-lg border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
           {PROFILE_ORDER.map((id) => (
             <button
               key={id}

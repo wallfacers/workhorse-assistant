@@ -22,7 +22,7 @@ export default function RightPanel({ onClose }: RightPanelProps) {
   ];
 
   return (
-    <div className="w-[340px] md:w-[400px] lg:w-[460px] xl:w-[540px] 2xl:w-[600px] bg-surface dark:bg-surface-dark-elevated flex flex-col h-full flex-shrink-0 rounded-2xl lg:rounded-lg border border-outline dark:border-outline-dark overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.015)]">
+    <div className="w-[340px] md:w-[400px] lg:w-[460px] xl:w-[540px] 2xl:w-[600px] bg-surface dark:bg-surface-dark-elevated flex flex-col h-full flex-shrink-0 rounded-lg lg:rounded-lg border border-outline dark:border-outline-dark overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.015)]">
       {/* Tab bar — no separate header above this */}
       <div className="px-3 pt-2.5 pb-2 flex items-center gap-2 flex-shrink-0">
         <button
@@ -30,17 +30,17 @@ export default function RightPanel({ onClose }: RightPanelProps) {
           onClick={onClose}
           aria-label="Collapse work panel"
           title={t('workspace.collapsePanel')}
-          className="flex-shrink-0 p-1.5 rounded-md text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
+          className="flex-shrink-0 p-1.5 rounded-sm text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
         >
           <PanelRightClose className="w-4 h-4" />
         </button>
-        <div className="flex-1 flex bg-outline/60 dark:bg-surface-dark-muted/80 p-1 rounded-xl">
+        <div className="flex-1 flex bg-outline/60 dark:bg-surface-dark-muted/80 p-1 rounded-lg">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 ${
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all duration-150 ${
                 activeTab === tab.key
                   ? 'bg-surface dark:bg-surface-dark-elevated text-on-surface dark:text-on-canvas-dark shadow-sm'
                   : 'text-on-surface-muted dark:text-on-canvas-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark'
@@ -112,7 +112,7 @@ export default function RightPanel({ onClose }: RightPanelProps) {
 
         {activeTab === 'preview' && (
           <div className="px-4 py-3">
-            <div className="bg-surface dark:bg-surface-dark-elevated p-4 pb-5 rounded-xl border border-outline/50 dark:border-outline-dark/60 shadow-[0_2px_8px_rgba(0,0,0,0.015)] text-on-surface dark:text-on-canvas-dark">
+            <div className="bg-surface dark:bg-surface-dark-elevated p-4 pb-5 rounded-lg border border-outline/50 dark:border-outline-dark/60 shadow-[0_2px_8px_rgba(0,0,0,0.015)] text-on-surface dark:text-on-canvas-dark">
               <h4 className="text-[14px] font-bold mb-3 text-on-surface dark:text-on-canvas-dark leading-tight">
                 GPT-4o 系统卡深度分析报告
               </h4>
@@ -147,14 +147,14 @@ export default function RightPanel({ onClose }: RightPanelProps) {
               <div className="mt-4 flex items-center justify-center space-x-3">
                 <button
                   disabled
-                  className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-surface dark:bg-surface-dark-muted border border-outline dark:border-outline-dark rounded-xl text-[12px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted cursor-not-allowed opacity-60"
+                  className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-surface dark:bg-surface-dark-muted border border-outline dark:border-outline-dark rounded-md text-[12px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted cursor-not-allowed opacity-60"
                 >
                   <FolderOpen className="w-4 h-4" />
                   <span>{t('workspace.actions.open')}</span>
                 </button>
                 <button
                   disabled
-                  className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-surface dark:bg-surface-dark-muted border border-outline dark:border-outline-dark rounded-xl text-[12px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted cursor-not-allowed opacity-60"
+                  className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-surface dark:bg-surface-dark-muted border border-outline dark:border-outline-dark rounded-md text-[12px] font-semibold text-on-surface-muted dark:text-on-canvas-dark-muted cursor-not-allowed opacity-60"
                 >
                   <MapPin className="w-4 h-4" />
                   <span>{t('workspace.actions.revealInFolder')}</span>

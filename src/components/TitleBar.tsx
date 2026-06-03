@@ -179,7 +179,7 @@ function ProjectSwitcher() {
         <ChevronDown className="h-3 w-3 flex-shrink-0 opacity-60" />
       </button>
       {menuOpen && (
-        <div className="absolute left-0 top-7 z-50 min-w-[240px] overflow-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
+        <div className="absolute left-0 top-7 z-50 min-w-[240px] overflow-hidden rounded-lg border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
           {browsing ? (
             <ProjectBrowser
               initialPath={pendingPickerRequest?.path}
@@ -247,7 +247,7 @@ function WindowButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`w-8 h-6 flex items-center justify-center rounded-md transition-colors ${hoverClass}`}
+      className={`w-8 h-6 flex items-center justify-center rounded-sm transition-colors ${hoverClass}`}
     >
       {children}
     </button>

@@ -32,7 +32,7 @@ export default function TaskListModal({ onClose, onSelect }: TaskListModalProps)
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-72 bg-surface dark:bg-surface-dark-elevated rounded-2xl border border-outline dark:border-outline-dark shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden">
+      <div className="w-72 bg-surface dark:bg-surface-dark-elevated rounded-lg border border-outline dark:border-outline-dark shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden">
         {/* Header */}
         <div className="px-4 pt-3.5 pb-2 flex items-center justify-between">
           <span className="text-[13px] font-semibold text-on-surface dark:text-on-canvas-dark">{t('tasks.title')}</span>
@@ -40,7 +40,7 @@ export default function TaskListModal({ onClose, onSelect }: TaskListModalProps)
             type="button"
             onClick={onClose}
             aria-label={t('tasks.closeTaskList')}
-            className="p-1 rounded-md text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
+            className="p-1 rounded-sm text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -56,7 +56,7 @@ export default function TaskListModal({ onClose, onSelect }: TaskListModalProps)
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('tasks.searchPlaceholder')}
-              className="w-full pl-8 pr-3 py-1.5 bg-surface-muted dark:bg-surface-dark border border-outline dark:border-outline-dark rounded-xl outline-none focus:ring-1 focus:ring-outline-strong dark:focus:ring-outline-dark transition-shadow text-on-surface dark:text-on-canvas-dark placeholder-on-surface-muted dark:placeholder-on-canvas-dark-muted text-[12.5px]"
+              className="w-full pl-8 pr-3 py-1.5 bg-surface-muted dark:bg-surface-dark border border-outline dark:border-outline-dark rounded-md outline-none focus:ring-1 focus:ring-outline-strong dark:focus:ring-outline-dark transition-shadow text-on-surface dark:text-on-canvas-dark placeholder-on-surface-muted dark:placeholder-on-canvas-dark-muted text-[12.5px]"
             />
           </div>
         </div>
@@ -71,7 +71,7 @@ export default function TaskListModal({ onClose, onSelect }: TaskListModalProps)
                 key={task.id}
                 type="button"
                 onClick={() => { onSelect(task); onClose(); }}
-                className={`w-full text-left px-3 py-2 rounded-xl text-[12.5px] truncate transition-all duration-150 ${
+                className={`w-full text-left px-3 py-2 rounded-md text-[12.5px] truncate transition-all duration-150 ${
                   task.active
                     ? 'bg-canvas/70 dark:bg-surface-dark-muted/90 text-on-surface dark:text-on-canvas-dark font-medium'
                     : 'text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/40 dark:hover:bg-surface-dark-muted/50 hover:text-on-surface dark:hover:text-on-canvas-dark'

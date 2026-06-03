@@ -34,7 +34,7 @@ function ControlButton({
         e.stopPropagation();
         onClick(e);
       }}
-      className={`flex h-5 w-5 items-center justify-center rounded text-on-canvas/55 transition-colors dark:text-on-canvas-dark/55 ${
+      className={`flex h-5 w-5 items-center justify-center rounded-sm text-on-canvas/55 transition-colors dark:text-on-canvas-dark/55 ${
         danger
           ? 'hover:bg-danger/10 hover:text-danger'
           : 'hover:bg-black/[0.06] hover:text-on-canvas dark:hover:bg-white/10 dark:hover:text-on-canvas-dark'

@@ -119,7 +119,7 @@ export default function App() {
               onClick={() => setRightPanelOpen(true)}
               aria-label={t('workspace.expandPanel')}
               title={t('workspace.expandPanel')}
-              className="p-1.5 rounded-md text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
+              className="p-1.5 rounded-sm text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
             >
               <PanelRightOpen className="w-4 h-4" />
             </button>

@@ -72,7 +72,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-[810px] h-[520px] bg-surface dark:bg-surface-dark-elevated rounded-2xl border border-outline dark:border-outline-dark shadow-[0_16px_48px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col">
+      <div className="w-[810px] h-[520px] bg-surface dark:bg-surface-dark-elevated rounded-lg border border-outline dark:border-outline-dark shadow-[0_16px_48px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col">
 
         {/* Header */}
         <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-outline/50 dark:border-outline-dark/60 flex-shrink-0">
@@ -81,7 +81,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             type="button"
             onClick={onClose}
             aria-label={t('settings.closeSettings')}
-            className="p-1 rounded-md text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
+            className="p-1 rounded-sm text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/70 dark:hover:bg-surface-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -97,7 +97,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 key={item}
                 type="button"
                 onClick={() => setActiveNav(item)}
-                className={`w-full text-left px-3 py-2 rounded-xl text-[13px] transition-all duration-150 ${
+                className={`w-full text-left px-3 py-2 rounded-md text-[13px] transition-all duration-150 ${
                   activeNav === item
                     ? 'bg-canvas/70 dark:bg-surface-dark-muted/90 text-on-surface dark:text-on-canvas-dark font-medium'
                     : 'text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-canvas/40 dark:hover:bg-surface-dark-muted/50'
@@ -213,13 +213,13 @@ function AgentSection({
               if (e.key === 'Enter') void saveEndpoint();
             }}
             placeholder="http://127.0.0.1:7821"
-            className="min-w-0 flex-1 rounded-lg border border-outline/40 bg-surface-muted px-3 py-2 font-mono text-[12.5px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
+            className="min-w-0 flex-1 rounded-md border border-outline/40 bg-surface-muted px-3 py-2 font-mono text-[12.5px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
           />
           <button
             type="button"
             onClick={() => void saveEndpoint()}
             disabled={!endpointDirty}
-            className="flex-shrink-0 rounded-lg bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex-shrink-0 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {justSaved ? t('settings.endpointSaved') : t('settings.endpointSave')}
           </button>
@@ -238,7 +238,7 @@ function AgentSection({
           <button
             type="button"
             onClick={() => agent.disconnect()}
-            className="px-4 py-1.5 rounded-lg border border-outline dark:border-outline-dark text-[12px] font-medium text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
+            className="px-4 py-1.5 rounded-md border border-outline dark:border-outline-dark text-[12px] font-medium text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
           >
             {t('settings.disconnect')}
           </button>
@@ -247,7 +247,7 @@ function AgentSection({
             type="button"
             onClick={() => agent.reconnect()}
             disabled={isConnecting}
-            className="px-4 py-1.5 rounded-lg bg-primary text-[12px] font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-1.5 rounded-md bg-primary text-[12px] font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isConnecting ? t('agent.status.connecting') : t('settings.reconnect')}
           </button>
@@ -481,13 +481,13 @@ function RuntimeModeSection({
               if (e.key === 'Enter') saveOverride();
             }}
             placeholder={placeholder}
-            className="min-w-0 flex-1 rounded-lg border border-outline/40 bg-surface-muted px-3 py-2 font-mono text-[12px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
+            className="min-w-0 flex-1 rounded-md border border-outline/40 bg-surface-muted px-3 py-2 font-mono text-[12px] text-on-surface outline-none focus:ring-1 focus:ring-outline-strong dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:focus:ring-outline-dark"
           />
           <button
             type="button"
             onClick={saveOverride}
             disabled={!overrideDirty}
-            className="flex-shrink-0 rounded-lg bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex-shrink-0 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {t('settings.endpointSave')}
           </button>
@@ -501,7 +501,7 @@ function RuntimeModeSection({
       <button
         type="button"
         onClick={() => void apply(config)}
-        className="mt-2 rounded-lg bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90"
+        className="mt-2 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90"
       >
         {t('settings.runtime.applyRestart')}
       </button>
@@ -606,7 +606,7 @@ function LanguageSelect() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-outline/40 bg-surface-muted px-3 py-2 text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:hover:bg-surface-dark-muted"
+        className="flex w-full items-center justify-between gap-2 rounded-md border border-outline/40 bg-surface-muted px-3 py-2 text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:hover:bg-surface-dark-muted"
       >
         <span>{current.label}</span>
         <ChevronDown
@@ -614,7 +614,7 @@ function LanguageSelect() {
         />
       </button>
       {open && (
-        <div className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
+        <div className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-lg border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
           {LANGUAGES.map((l) => (
             <button
               key={l.code}
@@ -668,7 +668,7 @@ function DistroSelect({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-outline/40 bg-surface-muted px-3 py-2 text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:hover:bg-surface-dark-muted"
+        className="flex w-full items-center justify-between gap-2 rounded-md border border-outline/40 bg-surface-muted px-3 py-2 text-[12.5px] text-on-surface transition-colors hover:bg-surface-muted dark:border-outline-dark/50 dark:bg-surface-dark-muted/60 dark:text-on-canvas-dark-muted dark:hover:bg-surface-dark-muted"
       >
         <span>{selected}</span>
         <ChevronDown
@@ -676,7 +676,7 @@ function DistroSelect({
         />
       </button>
       {open && (
-        <div className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-md border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
+        <div className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-lg border border-outline bg-surface py-1 shadow-lg dark:border-outline-dark dark:bg-surface-dark-elevated">
           {distros.map((d) => (
             <button
               key={d}
@@ -714,7 +714,7 @@ function ThemeOption({
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-col items-center gap-2.5 py-5 rounded-xl border-2 transition-all duration-150 ${
+      className={`flex flex-col items-center gap-2.5 py-5 rounded-lg border-2 transition-all duration-150 ${
         active
           ? 'border-primary dark:border-primary bg-surface-muted dark:bg-surface-dark-muted/80'
           : 'border-outline dark:border-outline-dark hover:border-outline-strong dark:hover:border-outline-dark hover:bg-surface-muted/60 dark:hover:bg-surface-dark-muted/30'
@@ -1002,7 +1002,7 @@ function SessionsSection() {
       )}
 
       {/* Table */}
-      <div className="rounded-[12px] border border-outline dark:border-outline-dark overflow-hidden">
+      <div className="rounded-lg border border-outline dark:border-outline-dark overflow-hidden">
         <div className="overflow-y-auto max-h-[310px] custom-scrollbar">
           <table className="w-full text-[11.5px]" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
             <thead className="sticky top-0 z-10">
@@ -1011,7 +1011,7 @@ function SessionsSection() {
                   <button
                     type="button"
                     onClick={toggleAll}
-                    className="p-0.5 rounded text-on-surface-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
+                    className="p-0.5 rounded-sm text-on-surface-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
                     aria-label={t('sessions.selectAll')}
                   >
                     {allSelected ? (
@@ -1062,7 +1062,7 @@ function SessionsSection() {
                       <button
                         type="button"
                         onClick={() => toggleOne(s.id)}
-                        className="p-0.5 rounded text-on-surface-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
+                        className="p-0.5 rounded-sm text-on-surface-muted hover:text-on-surface dark:hover:text-on-canvas-dark transition-colors"
                       >
                         {isSelected ? (
                           <CheckSquare className="w-3.5 h-3.5 text-on-surface dark:text-on-canvas-dark" />
@@ -1142,7 +1142,7 @@ function SessionsSection() {
                           aria-label={t('sessions.rename')}
                           disabled={deletingId !== null}
                           onClick={() => openRename(s.id, s.title)}
-                          className="p-1 rounded text-on-surface-muted hover:text-on-surface dark:hover:text-on-canvas-dark hover:bg-canvas/70 dark:hover:bg-surface-dark-muted transition-colors disabled:opacity-40"
+                          className="p-1 rounded-sm text-on-surface-muted hover:text-on-surface dark:hover:text-on-canvas-dark hover:bg-canvas/70 dark:hover:bg-surface-dark-muted transition-colors disabled:opacity-40"
                         >
                           <Pencil className="w-3 h-3" />
                         </button>
@@ -1151,7 +1151,7 @@ function SessionsSection() {
                           aria-label={t('sessions.delete')}
                           disabled={deletingId !== null}
                           onClick={() => void doDelete(s.id)}
-                          className={`p-1 rounded transition-colors disabled:opacity-40 ${
+                          className={`p-1 rounded-sm transition-colors disabled:opacity-40 ${
                             deletingId === s.id
                               ? 'text-danger cursor-wait'
                               : 'text-on-surface-muted hover:text-danger hover:bg-danger/10'

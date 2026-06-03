@@ -9,7 +9,7 @@ function TreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
   return (
     <div>
       <button
-        className="w-full flex items-center gap-1.5 py-1 px-1 rounded-lg hover:bg-canvas/40 dark:hover:bg-surface-dark-muted/50 text-on-surface dark:text-on-canvas-dark-muted transition-colors text-[12.5px]"
+        className="w-full flex items-center gap-1.5 py-1 px-1 rounded-md hover:bg-canvas/40 dark:hover:bg-surface-dark-muted/50 text-on-surface dark:text-on-canvas-dark-muted transition-colors text-[12.5px]"
         style={{ paddingLeft: `${depth * 16 + 4}px` }}
         onClick={() => isFolder && setExpanded(!expanded)}
         aria-expanded={isFolder ? expanded : undefined}

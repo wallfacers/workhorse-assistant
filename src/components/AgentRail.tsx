@@ -41,12 +41,12 @@ function PermissionCard({ part, onDecide }: {
     ? 'border-danger/30 bg-danger/10 dark:border-danger/30 dark:bg-danger/10'
     : 'border-warning/30 bg-warning/10 dark:border-warning/30 dark:bg-warning/10';
   return (
-    <div className={`my-1.5 rounded-md border px-3 py-2 text-[12px] leading-relaxed ${tone}`}>
+    <div className={`my-1.5 rounded-lg border px-3 py-2 text-[12px] leading-relaxed ${tone}`}>
       <div className="flex items-center gap-1.5 font-medium text-on-surface dark:text-on-canvas-dark">
         <ShieldAlert className={`w-3.5 h-3.5 ${dangerous ? 'text-danger' : 'text-warning'}`} />
         <span>{t('agent.permissionRequest')}{tool}</span>
         {dangerous && (
-          <span className="ml-1 rounded px-1 py-0.5 text-[10px] font-semibold bg-danger/10 text-danger dark:text-danger">{t('agent.sensitiveAction')}</span>
+          <span className="ml-1 rounded-md px-1 py-0.5 text-[10px] font-semibold bg-danger/10 text-danger dark:text-danger">{t('agent.sensitiveAction')}</span>
         )}
       </div>
       {resource && (
@@ -58,14 +58,14 @@ function PermissionCard({ part, onDecide }: {
           <button
             type="button"
             onClick={() => onDecide(requestId, 'allow_session')}
-            className="px-2.5 py-1 rounded text-[11.5px] font-semibold bg-tertiary text-on-tertiary hover:bg-primary-container transition-colors"
+            className="px-2.5 py-1 rounded-md text-[11.5px] font-semibold bg-tertiary text-on-tertiary hover:bg-primary-container transition-colors"
           >
             {t('common.allow')}
           </button>
           <button
             type="button"
             onClick={() => onDecide(requestId, 'deny')}
-            className="px-2.5 py-1 rounded text-[11.5px] font-semibold border border-outline dark:border-outline-dark text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
+            className="px-2.5 py-1 rounded-md text-[11.5px] font-semibold border border-outline dark:border-outline-dark text-on-surface-muted dark:text-on-canvas-dark-muted hover:bg-surface-muted dark:hover:bg-surface-dark-muted transition-colors"
           >
             {t('common.deny')}
           </button>
@@ -255,7 +255,7 @@ export default function AgentRail() {
                   </div>
                 ) : (
                   <div key={msg.id} className="flex gap-2 items-start">
-                    <div className="w-6 h-6 flex-shrink-0 rounded-lg bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-[10px] flex items-center justify-center shadow-sm">
+                    <div className="w-6 h-6 flex-shrink-0 rounded-md bg-gradient-to-br from-orange-400 via-pink-500 to-indigo-500 text-white font-bold text-[10px] flex items-center justify-center shadow-sm">
                       W
                     </div>
                     <div className="flex-1 min-w-0">
@@ -303,7 +303,7 @@ export default function AgentRail() {
                             return (
                               <div
                                 key={`error-${i}`}
-                                className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger dark:border-danger/30 dark:bg-danger/10 dark:text-danger"
+                                className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger dark:border-danger/30 dark:bg-danger/10 dark:text-danger"
                               >
                                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                                 <div>
@@ -365,7 +365,7 @@ export default function AgentRail() {
                   type="button"
                   onClick={() => void newSession()}
                   disabled={agent.status !== 'connected'}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-outline bg-surface px-3 py-2.5 text-[12.5px] font-semibold text-on-surface transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50 dark:border-outline-dark dark:bg-surface-dark dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
+                  className="flex w-full items-center justify-center gap-2 rounded-md border border-outline bg-surface px-3 py-2.5 text-[12.5px] font-semibold text-on-surface transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50 dark:border-outline-dark dark:bg-surface-dark dark:text-on-canvas-dark dark:hover:bg-surface-dark-muted"
                 >
                   <Plus className="h-4 w-4" />
                   <span>{t('agent.newSession')}</span>
@@ -384,8 +384,8 @@ export default function AgentRail() {
           <span className="text-[12.5px] font-semibold text-on-surface dark:text-on-canvas-dark truncate max-w-[120px]">wallfacers</span>
         </div>
         <div className="flex items-center gap-1">
-          <button type="button" onClick={() => setModalOpen(true)} className="p-1.5 rounded-lg hover:bg-canvas/80 dark:hover:bg-surface-dark-muted text-on-surface-muted dark:text-on-canvas-dark-muted transition-colors" title={t('tasks.title')} aria-label={t('agent.openTaskList')}><LayoutList className="w-4 h-4" /></button>
-          <button type="button" onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-lg hover:bg-canvas/80 dark:hover:bg-surface-dark-muted text-on-surface-muted dark:text-on-canvas-dark-muted transition-colors" title={t('settings.title')} aria-label={t('agent.openSettings')}><Settings className="w-4 h-4" /></button>
+          <button type="button" onClick={() => setModalOpen(true)} className="p-1.5 rounded-sm hover:bg-canvas/80 dark:hover:bg-surface-dark-muted text-on-surface-muted dark:text-on-canvas-dark-muted transition-colors" title={t('tasks.title')} aria-label={t('agent.openTaskList')}><LayoutList className="w-4 h-4" /></button>
+          <button type="button" onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-sm hover:bg-canvas/80 dark:hover:bg-surface-dark-muted text-on-surface-muted dark:text-on-canvas-dark-muted transition-colors" title={t('settings.title')} aria-label={t('agent.openSettings')}><Settings className="w-4 h-4" /></button>
         </div>
       </div>
 
