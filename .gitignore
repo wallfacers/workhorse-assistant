@@ -39,6 +39,8 @@ src-tauri/gen/schemas/
 # Claude Code — native worktrees and per-checkout local settings
 .claude/worktrees/
 .claude/settings.local.json
+.claude/scheduled_tasks.json
+.claude/scheduled_tasks.lock
 
 # Generated design tokens (when `npm run design:export:css` is wired in)
 src/design-tokens.generated.css
