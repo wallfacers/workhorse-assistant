@@ -14,6 +14,22 @@ export function isTauri(): boolean {
 }
 
 /**
+ * Whether the *webview* runs on Linux (webkit2gtk, incl. WSLg). Gates
+ * Linux-only window workarounds — most notably the transparent frameless
+ * window stranding opaque corner pixels after a fullscreen/maximize→restore,
+ * which Windows (WebView2) and macOS (WKWebView) do not exhibit. Reads the UA
+ * string, so it works without a Rust round-trip. The Android guard keeps a
+ * hypothetical mobile webview (also "Linux" in its UA) from matching.
+ */
+export function isLinux(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    /Linux/i.test(navigator.userAgent) &&
+    !/Android/i.test(navigator.userAgent)
+  );
+}
+
+/**
  * Whether the assistant's *host* process runs on Windows (mirrors the Rust
  * `host_is_windows` command, which returns `cfg!(windows)`). Gates the
  * `terminal`→`wsl` auto-promotion: `wsl.exe` only bridges into a distro from a
