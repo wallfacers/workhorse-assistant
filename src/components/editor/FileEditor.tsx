@@ -470,18 +470,31 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
 
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface/80 dark:bg-surface-dark-elevated/80 z-10">
-          <p className="text-[12px] text-on-surface-muted dark:text-on-surface-dark-muted">{t('editor.loading')}</p>
+          <div className="text-center space-y-1">
+            <p className="text-[12px] text-on-surface-muted dark:text-on-surface-dark-muted">{t('editor.loading')}</p>
+            <p className="text-[10px] font-mono text-on-surface-muted/60 dark:text-on-surface-dark-muted/60 max-w-[300px] truncate">{filePath}</p>
+          </div>
         </div>
       )}
 
-      {/* Markdown preview mode */}
-      {viewMode === 'markdown' && showPreview && !loading && !error ? (
+      {/* Markdown preview — hides the editor behind it */}
+      {viewMode === 'markdown' && showPreview && !loading && !error && (
         <div className="flex-1 min-h-0">
           <MarkdownPreview content={content} isDark={isDarkMode} />
         </div>
-      ) : (
-        <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
       )}
+
+      {/* Editor container — always in DOM so CodeMirror can mount */}
+      <div
+        ref={containerRef}
+        className="flex-1 min-h-0 overflow-hidden"
+        style={{
+          // Hide visually when showing markdown preview, but keep in DOM.
+          position: viewMode === 'markdown' && showPreview && !loading ? 'absolute' : undefined,
+          opacity: viewMode === 'markdown' && showPreview && !loading ? 0 : undefined,
+          pointerEvents: viewMode === 'markdown' && showPreview && !loading ? 'none' : undefined,
+        }}
+      />
     </div>
   );
 }
