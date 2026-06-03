@@ -30,8 +30,10 @@ export default function TabBar({
   onAddGroup,
 }: TabBarProps) {
   const { t } = useTranslation();
+  // px-1 aligns the tab capsule's left edge with the inset-1 content card below
+  // it (terminal PaneCard / file-editor card), so a tab sits flush above its panel.
   return (
-    <div className="flex flex-shrink-0 items-center gap-1.5 px-2 py-2">
+    <div className="flex flex-shrink-0 items-center gap-1.5 px-1 py-2">
       {/* Outer frame: rounded-lg + overflow-hidden clips the scrollbar ends so
            they don't protrude past the rounded corners. */}
       <div className="min-w-0 rounded-lg bg-outline/50 overflow-hidden dark:bg-surface-dark-muted/70">

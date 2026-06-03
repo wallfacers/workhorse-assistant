@@ -100,26 +100,6 @@ export default function App() {
     >
       <TitleBar maximized={maximized} />
 
-      {/* TEMP DEBUG OVERLAY — corner-rounding diagnosis. Remove after. */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 4,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 99999,
-          background: 'rgba(0,0,0,0.85)',
-          color: '#39ff14',
-          font: '11px monospace',
-          padding: '2px 10px',
-          borderRadius: 4,
-          pointerEvents: 'none',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {`tauri=${String(tauri)}  max=${String(maximized)}  fs=${String(fullscreen)}  floating=${String(floating)}`}
-      </div>
-
       <div className="flex-1 min-h-0 w-full flex p-3.5 overflow-hidden">
         <Group
           id="main-layout"
@@ -154,18 +134,24 @@ export default function App() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 40 }}
               transition={{ duration: PANEL.duration, ease: PANEL.ease }}
-              className="flex-shrink-0"
+              // pl-2.5 opens a gap to the terminal card that matches the
+              // chat↔terminal separator gap, so the panel does not butt flush
+              // against the workspace.
+              className="flex-shrink-0 pl-2.5"
             >
               <RightPanel onClose={() => setRightPanelOpen(false)} onOpenFile={handleOpenFile} />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Open button — always mounted, opacity-toggled (design D4) */}
+        {/* Open button — always mounted, opacity-toggled (design D4). While the
+            panel is open it collapses to zero width (clipped, still mounted) so
+            it stops reserving ~36px of layout on the right; the panel then sits
+            the same 14px from the window edge as the chat card does on the left. */}
         <motion.div
           animate={{ opacity: rightPanelOpen ? 0 : 1 }}
           transition={{ duration: FADE.duration, ease: FADE.ease }}
-          className="flex-shrink-0 flex items-start pt-4 px-1"
+          className={`flex-shrink-0 flex items-start pt-4 ${rightPanelOpen ? 'w-0 overflow-hidden px-0' : 'px-1'}`}
           style={{ pointerEvents: rightPanelOpen ? 'none' : 'auto' }}
         >
           <button

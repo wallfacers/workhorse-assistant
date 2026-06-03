@@ -150,11 +150,16 @@ export default function TerminalWorkspace({ pendingFile, onFileConsumed }: Termi
               }}
             >
               {g.kind === 'editor' ? (
-                <FileEditor
-                  filePath={g.filePath ?? ''}
-                  isDirty={g.isDirty ?? false}
-                  onDirtyChange={(dirty) => dispatch({ type: 'setGroupDirty', groupId: g.id, isDirty: dirty })}
-                />
+                // Wrap the editor in the same inset rounded card as the terminal
+                // panes (PaneCard: inset-1 + rounded-lg + border) so the file
+                // editor reads as a panel with a matching corner radius.
+                <div className="absolute inset-1 flex flex-col overflow-hidden rounded-lg border border-outline bg-surface dark:border-outline-dark dark:bg-surface-dark-elevated">
+                  <FileEditor
+                    filePath={g.filePath ?? ''}
+                    isDirty={g.isDirty ?? false}
+                    onDirtyChange={(dirty) => dispatch({ type: 'setGroupDirty', groupId: g.id, isDirty: dirty })}
+                  />
+                </div>
               ) : (
                 <TerminalGroup
                   group={g}

@@ -257,6 +257,12 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
   const [savedContent, setSavedContent] = useState<string>('');
   const [content, setContent] = useState<string>('');
   const isDirtyRef = useRef(isDirty);
+  // Track when the container div is actually in the DOM.
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
+  const containerRefCallback = useCallback((el: HTMLDivElement | null) => {
+    containerRef.current = el;
+    setContainerEl(el);
+  }, []);
 
   const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
   const viewMode = useMemo(() => classifyFile(fileName), [fileName]);
@@ -265,6 +271,17 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
 
   // Keep the ref in sync with the prop so the keymap callback sees current state.
   useEffect(() => { isDirtyRef.current = isDirty; }, [isDirty]);
+
+  // Image files don't render the CodeMirror container, so the mount effect
+  // below (gated on `containerEl`) never runs for them and never clears the
+  // initial `loading` state. Without this, an image preview stays hidden behind
+  // a perpetual "loading…" overlay.
+  useEffect(() => {
+    if (viewMode === 'image') {
+      setError(null);
+      setLoading(false);
+    }
+  }, [viewMode, filePath]);
 
   // Save handler — called from Ctrl+S keymap
   const handleSave = useCallback(async () => {
@@ -280,101 +297,105 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
     }
   }, [filePath, onDirtyChange, t]);
 
-  // Mount / re-create editor when filePath or theme changes
+  // Mount / re-create editor when filePath, theme, or container changes
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    if (!containerEl) return;
 
     let cancelled = false;
 
     (async () => {
-      setLoading(true);
-      setError(null);
+      try {
+        setLoading(true);
+        setError(null);
 
-      // Image files don't need text content — skip the read entirely.
-      if (classifyFile(fileName) === 'image') {
-        setLoading(false);
-        return;
-      }
+        // Image files don't need text content — skip the read entirely.
+        if (classifyFile(fileName) === 'image') {
+          return;
+        }
 
-      const result = await fsReadFile(filePath);
-      if (cancelled) return;
+        const result = await fsReadFile(filePath);
+        if (cancelled) return;
 
-      if (!result.ok) {
-        setError(result.error.message);
-        setLoading(false);
-        return;
-      }
+        if (!result.ok) {
+          setError(result.error.message);
+          return;
+        }
 
-      const fileContent = result.value;
-      if (cancelled) return;
-      setSavedContent(fileContent);
-      setContent(fileContent);
+        const fileContent = result.value;
+        setSavedContent(fileContent);
+        setContent(fileContent);
 
-      const langExts = getLanguageExtensions(fileName);
+        const langExts = getLanguageExtensions(fileName);
 
-      const state = EditorState.create({
-        doc: fileContent,
-        extensions: [
-          lineNumbers(),
-          highlightActiveLineGutter(),
-          highlightSpecialChars(),
-          history(),
-          foldGutter(),
-          drawSelection(),
-          indentOnInput(),
-          bracketMatching(),
-          closeBrackets(),
-          rectangularSelection(),
-          highlightActiveLine(),
-          highlightSelectionMatches(),
-          syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-          autocompletion(),
-          ...langExts,
-          createEditorTheme(isDarkMode),
-          keymap.of([
-            ...closeBracketsKeymap,
-            ...defaultKeymap,
-            ...searchKeymap,
-            ...historyKeymap,
-            ...foldKeymap,
-            ...completionKeymap,
-            indentWithTab,
-            {
-              key: 'Mod-s',
-              run: () => { void handleSave(); return true; },
-              preventDefault: true,
-            },
-          ]),
-          EditorView.updateListener.of((update) => {
-            if (update.docChanged) {
-              const newContent = update.state.doc.toString();
-              setContent(newContent);
-              const dirty = newContent !== savedContent;
-              // Only notify on transitions to avoid redundant parent renders.
-              if (dirty !== isDirtyRef.current) {
-                onDirtyChange(dirty);
+        const state = EditorState.create({
+          doc: fileContent,
+          extensions: [
+            lineNumbers(),
+            highlightActiveLineGutter(),
+            highlightSpecialChars(),
+            history(),
+            foldGutter(),
+            drawSelection(),
+            indentOnInput(),
+            bracketMatching(),
+            closeBrackets(),
+            rectangularSelection(),
+            highlightActiveLine(),
+            highlightSelectionMatches(),
+            syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+            autocompletion(),
+            ...langExts,
+            createEditorTheme(isDarkMode),
+            keymap.of([
+              ...closeBracketsKeymap,
+              ...defaultKeymap,
+              ...searchKeymap,
+              ...historyKeymap,
+              ...foldKeymap,
+              ...completionKeymap,
+              indentWithTab,
+              {
+                key: 'Mod-s',
+                run: () => { void handleSave(); return true; },
+                preventDefault: true,
+              },
+            ]),
+            EditorView.updateListener.of((update) => {
+              if (update.docChanged) {
+                const newContent = update.state.doc.toString();
+                setContent(newContent);
+                const dirty = newContent !== savedContent;
+                // Only notify on transitions to avoid redundant parent renders.
+                if (dirty !== isDirtyRef.current) {
+                  onDirtyChange(dirty);
+                }
               }
-            }
-          }),
-          // Use the same font as DESIGN.md mono token
-          EditorView.baseTheme({
-            '.cm-content': {
-              fontFamily: "ui-monospace, SFMono-Regular, 'JetBrains Mono', Consolas, monospace",
-            },
-          }),
-        ],
-      });
+            }),
+            // Use the same font as DESIGN.md mono token
+            EditorView.baseTheme({
+              '.cm-content': {
+                fontFamily: "ui-monospace, SFMono-Regular, 'JetBrains Mono', Consolas, monospace",
+              },
+            }),
+          ],
+        });
 
-      // Destroy previous view if any
-      if (viewRef.current) viewRef.current.destroy();
+        // Destroy previous view if any
+        if (viewRef.current) viewRef.current.destroy();
 
-      const view = new EditorView({
-        state,
-        parent: container,
-      });
-      viewRef.current = view;
-      setLoading(false);
+        viewRef.current = new EditorView({
+          state,
+          parent: containerEl,
+        });
+      } catch (err) {
+        // A failure anywhere in the mount path — the file read, or CodeMirror
+        // construction (which can throw on the webkit2gtk webview where jsdom
+        // and Chromium don't) — must surface as an error, never a silent
+        // infinite "loading…" spinner.
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
 
     return () => {
@@ -384,7 +405,7 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
     // savedContent and handleSave are captured via closure but should not
     // trigger re-creation. handleSave is stable due to useCallback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filePath, isDarkMode]);
+  }, [filePath, isDarkMode, containerEl]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -470,9 +491,9 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
 
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface/80 dark:bg-surface-dark-elevated/80 z-10">
-          <div className="text-center space-y-1">
+          <div className="text-center space-y-1 p-4 max-w-[360px]">
             <p className="text-[12px] text-on-surface-muted dark:text-on-surface-dark-muted">{t('editor.loading')}</p>
-            <p className="text-[10px] font-mono text-on-surface-muted/60 dark:text-on-surface-dark-muted/60 max-w-[300px] truncate">{filePath}</p>
+            <p className="text-[10px] font-mono text-on-surface-muted/60 dark:text-on-surface-dark-muted/60 break-all">{filePath}</p>
           </div>
         </div>
       )}
@@ -486,7 +507,7 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
 
       {/* Editor container — always in DOM so CodeMirror can mount */}
       <div
-        ref={containerRef}
+        ref={containerRefCallback}
         className="flex-1 min-h-0 overflow-hidden"
         style={{
           // Hide visually when showing markdown preview, but keep in DOM.
