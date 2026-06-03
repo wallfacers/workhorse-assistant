@@ -1,19 +1,26 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MapPin, FolderOpen, PanelRightClose, Tag, GitBranch, Hash, Calendar } from 'lucide-react';
 import MonoPath from './MonoPath';
-import FileTree from './FileTree';
-import { MOCK_TASK_DETAILS, MOCK_FILE_TREE } from './right-panel.mock';
+import FileTree from './file-tree/FileTree';
+import type { RealFileNode } from './file-tree/types';
+import { MOCK_TASK_DETAILS } from './right-panel.mock';
+import { fsList } from '../ipc';
+import { useSession } from '../session/SessionProvider';
 
 type Tab = 'directory' | 'info' | 'preview';
 
 interface RightPanelProps {
   onClose: () => void;
+  onOpenFile: (filePath: string) => void;
 }
 
-export default function RightPanel({ onClose }: RightPanelProps) {
+export default function RightPanel({ onClose, onOpenFile }: RightPanelProps) {
   const { t } = useTranslation();
+  const { currentProject } = useSession();
   const [activeTab, setActiveTab] = useState<Tab>('directory');
+  const [treeNodes, setTreeNodes] = useState<RealFileNode[]>([]);
+  const [treeLoading, setTreeLoading] = useState(false);
   const details = MOCK_TASK_DETAILS;
   const tabs: { key: Tab; label: string }[] = [
     { key: 'directory', label: t('workspace.tabs.directory') },
@@ -21,9 +28,34 @@ export default function RightPanel({ onClose }: RightPanelProps) {
     { key: 'preview', label: t('workspace.tabs.preview') },
   ];
 
+  // Load root directory when project changes or tab becomes active.
+  const loadRoot = useCallback(async () => {
+    if (!currentProject) { setTreeNodes([]); return; }
+    setTreeLoading(true);
+    const result = await fsList(currentProject);
+    if (result.ok) {
+      const nodes: RealFileNode[] = result.value.entries.map((e) => ({
+        name: e.name,
+        path: e.path,
+        kind: e.isDir ? 'folder' as const : 'file' as const,
+        loaded: false,
+        loading: false,
+        children: [],
+      }));
+      nodes.sort((a, b) => {
+        if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      setTreeNodes(nodes);
+    }
+    setTreeLoading(false);
+  }, [currentProject]);
+
+  useEffect(() => { loadRoot(); }, [loadRoot]);
+
   return (
     <div className="w-[340px] md:w-[400px] lg:w-[460px] xl:w-[540px] 2xl:w-[600px] bg-surface dark:bg-surface-dark-elevated flex flex-col h-full flex-shrink-0 rounded-lg lg:rounded-lg border border-outline dark:border-outline-dark overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.015)]">
-      {/* Tab bar — no separate header above this */}
+      {/* Tab bar */}
       <div className="px-3 pt-2.5 pb-2 flex items-center gap-2 flex-shrink-0">
         <button
           type="button"
@@ -52,11 +84,21 @@ export default function RightPanel({ onClose }: RightPanelProps) {
         </div>
       </div>
 
-      {/* Tab content — full remaining height */}
+      {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar text-[13px]">
         {activeTab === 'directory' && (
           <div className="px-4 py-3">
-            <FileTree nodes={MOCK_FILE_TREE} />
+            {!currentProject ? (
+              <p className="text-[12px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t('fileTree.noProject')}</p>
+            ) : treeLoading ? (
+              <p className="text-[12px] text-on-surface-muted dark:text-on-canvas-dark-muted">{t('fileTree.loading')}</p>
+            ) : (
+              <FileTree
+                nodes={treeNodes}
+                onOpenFile={onOpenFile}
+                onRefresh={loadRoot}
+              />
+            )}
           </div>
         )}
 

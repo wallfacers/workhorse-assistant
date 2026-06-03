@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { X, File } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ProfileId } from '../../ipc';
 import type { Group } from './workspaceReducer';
@@ -48,7 +48,13 @@ export default function TabBar({
                     : 'text-on-surface-muted hover:text-on-surface dark:text-on-canvas-dark-muted dark:hover:text-on-canvas-dark'
                 }`}
               >
+                {g.kind === 'editor' && (
+                  <File className="w-3.5 h-3.5 flex-shrink-0 text-on-surface-muted dark:text-on-canvas-dark-muted" />
+                )}
                 <span className="max-w-[200px] truncate">{groupTitles[i]}</span>
+                {g.isDirty && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary dark:bg-primary flex-shrink-0" />
+                )}
                 <button
                   type="button"
                   aria-label={t('terminal.closeGroup')}

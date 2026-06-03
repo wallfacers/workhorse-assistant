@@ -450,6 +450,43 @@ export async function fsList(path?: string, root?: string): Promise<Result<FsLis
   }
 }
 
+// ---------------------------------------------------------------------------
+// Local filesystem operations (std::fs via Tauri commands — no sidecar hop)
+// ---------------------------------------------------------------------------
+
+/** Read a file's content as UTF-8 text. Rejects files >2 MB for performance. */
+export async function fsReadFile(path: string): Promise<Result<string>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    const content = await invoke<string>('agent_fs_read', { path });
+    return ok(content);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
+/** Write `content` to `path`, creating or overwriting the file. */
+export async function fsWriteFile(path: string, content: string): Promise<Result<void>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    await invoke('agent_fs_write', { path, content });
+    return ok(undefined);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
+/** Rename a file or directory from `oldPath` to `newPath`. */
+export async function fsRename(oldPath: string, newPath: string): Promise<Result<void>> {
+  if (!isTauri()) return notInTauri();
+  try {
+    await invoke('agent_fs_rename', { oldPath, newPath });
+    return ok(undefined);
+  } catch (e) {
+    return { ok: false, error: toIpcError(e) };
+  }
+}
+
 /** Fetch a session's full transcript for UI rehydration
  *  (`GET /v1/sessions/{id}/history`). Shape is sidecar-defined; the store parses. */
 export async function agentSessionHistory(sessionId: string): Promise<Result<unknown>> {

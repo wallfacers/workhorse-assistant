@@ -90,6 +90,15 @@
     "lightTheme": "浅色",
     "darkTheme": "深色",
     "keyboardShortcuts": "键盘快捷键",
+    "shortcuts": {
+      "recordPrompt": "按下按键...",
+      "resetToDefaults": "恢复默认",
+      "resetConfirmTitle": "恢复默认快捷键",
+      "resetConfirmBody": "将所有快捷键恢复为默认设置？",
+      "conflictWarning": "与「{{action}}」冲突",
+      "invalidBinding": "快捷键需包含修饰键 (Cmd/Ctrl、Alt 或 Shift)",
+      "editHint": "点击修改快捷键"
+    },
     "connection": "连接",
     "endpoint": "服务地址",
     "defaultValue": "默认值",
@@ -289,6 +298,20 @@
     "projectDeleteFailed": "删除项目失败",
     "feedbackThanks": "感谢反馈",
     "batchDeletePartial": "{{count}} 个失败"
+  },
+  "editor": {
+    "loading": "加载中…",
+    "error": "无法打开文件",
+    "retry": "重试",
+    "saveFailed": "保存失败：{{error}}",
+    "unsavedTitle": "未保存的修改",
+    "unsavedBody": "文件 \"{{file}}\" 有未保存的修改，确定关闭吗？"
+  },
+  "fileTree": {
+    "loading": "加载中…",
+    "noProject": "未打开项目",
+    "rename": "重命名",
+    "renameFailed": "重命名失败：{{error}}"
   },
   "relativeTime": {
     "justNow": "刚刚",

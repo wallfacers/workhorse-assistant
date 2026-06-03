@@ -26,6 +26,12 @@ export interface Group {
   label: string;
   layout: LayoutNode;
   activePaneId: string;
+  /** Discriminator: terminal groups render TerminalGroup, editor groups render FileEditor. */
+  kind: 'terminal' | 'editor';
+  /** Absolute path of the file opened in this editor group (only when kind === 'editor'). */
+  filePath?: string;
+  /** Whether the editor content has unsaved modifications. */
+  isDirty?: boolean;
 }
 
 export interface Workspace {
@@ -147,7 +153,9 @@ export type WorkspaceAction =
   | { type: 'activateGroup'; groupId: string }
   | { type: 'splitPane'; groupId: string; paneId: string; direction: 'row' | 'column' }
   | { type: 'closePane'; groupId: string; paneId: string }
-  | { type: 'activatePane'; groupId: string; paneId: string };
+  | { type: 'activatePane'; groupId: string; paneId: string }
+  | { type: 'addEditorGroup'; filePath: string }
+  | { type: 'setGroupDirty'; groupId: string; isDirty: boolean };
 
 function createPane(profileId: ProfileId): PaneNode {
   return { kind: 'pane', id: crypto.randomUUID(), profileId };
@@ -160,6 +168,7 @@ function createGroup(profileId: ProfileId): Group {
     label: PROFILE_LABELS[profileId],
     layout: pane,
     activePaneId: pane.id,
+    kind: 'terminal',
   };
 }
 
@@ -197,6 +206,9 @@ export function workspaceReducer(
     }
 
     case 'splitPane': {
+      // Editor groups do not support split-pane operations.
+      const group = state.groups.find((g) => g.id === action.groupId);
+      if (!group || group.kind === 'editor') return state;
       return {
         ...state,
         groups: state.groups.map((g) => {
@@ -251,6 +263,37 @@ export function workspaceReducer(
         ...state,
         groups: state.groups.map((g) =>
           g.id === action.groupId ? { ...g, activePaneId: action.paneId } : g,
+        ),
+      };
+    }
+
+    case 'addEditorGroup': {
+      // If the file is already open, just activate that tab.
+      const existing = state.groups.find(
+        (g) => g.kind === 'editor' && g.filePath === action.filePath,
+      );
+      if (existing) {
+        return { ...state, activeGroupId: existing.id };
+      }
+      const id = crypto.randomUUID();
+      const fileName = action.filePath.split(/[/\\]/).pop() ?? action.filePath;
+      const group: Group = {
+        id,
+        label: fileName,
+        layout: { kind: 'pane', id: crypto.randomUUID(), profileId: 'terminal' },
+        activePaneId: '',
+        kind: 'editor',
+        filePath: action.filePath,
+        isDirty: false,
+      };
+      return { groups: [...state.groups, group], activeGroupId: id };
+    }
+
+    case 'setGroupDirty': {
+      return {
+        ...state,
+        groups: state.groups.map((g) =>
+          g.id === action.groupId ? { ...g, isDirty: action.isDirty } : g,
         ),
       };
     }

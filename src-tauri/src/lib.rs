@@ -277,6 +277,35 @@ fn agent_cancel(
     bridge.cancel(&session_id)
 }
 
+// --- Local filesystem operations (std::fs, no sidecar) ----------------------
+// Direct disk I/O for file read/write/rename — no network hop.
+
+#[tauri::command(async)]
+fn agent_fs_read(
+    bridge: State<'_, AgentBridge>,
+    path: String,
+) -> Result<String, AgentError> {
+    bridge.fs_read(&path)
+}
+
+#[tauri::command(async)]
+fn agent_fs_write(
+    bridge: State<'_, AgentBridge>,
+    path: String,
+    content: String,
+) -> Result<(), AgentError> {
+    bridge.fs_write(&path, &content)
+}
+
+#[tauri::command(async)]
+fn agent_fs_rename(
+    bridge: State<'_, AgentBridge>,
+    old_path: String,
+    new_path: String,
+) -> Result<(), AgentError> {
+    bridge.fs_rename(&old_path, &new_path)
+}
+
 #[tauri::command(async)]
 fn agent_permission_decision(
     bridge: State<'_, AgentBridge>,
@@ -333,6 +362,9 @@ pub fn run() {
             agent_list_projects,
             agent_delete_project,
             agent_fs_list,
+            agent_fs_read,
+            agent_fs_write,
+            agent_fs_rename,
             agent_list_permissions,
             agent_get_permission_config,
             agent_set_permission_config,

@@ -684,6 +684,64 @@ impl AgentBridge {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Local filesystem operations (std::fs, no sidecar hop)
+    // -----------------------------------------------------------------------
+
+    /// Read a file's content as UTF-8 text. Validates the path exists and is a
+    /// regular file. Returns the full string content.
+    pub fn fs_read(&self, path: &str) -> Result<String, AgentError> {
+        let p = std::path::Path::new(path);
+        if !p.exists() {
+            return Err(AgentError::not_found(format!("file not found: {path}")));
+        }
+        if !p.is_file() {
+            return Err(AgentError::validation(format!("not a file: {path}")));
+        }
+        let metadata = p.metadata().map_err(|e| {
+            AgentError::internal(format!("cannot read metadata for {path}: {e}"))
+        })?;
+        // Large-file guard: >2 MB → reject so the editor stays responsive.
+        const MAX_FILE_SIZE: u64 = 2 * 1024 * 1024;
+        if metadata.len() > MAX_FILE_SIZE {
+            return Err(AgentError::validation(format!(
+                "file too large ({} bytes, max {MAX_FILE_SIZE}): {path}",
+                metadata.len()
+            )));
+        }
+        std::fs::read_to_string(p).map_err(|e| {
+            AgentError::internal(format!("failed to read {path}: {e}"))
+        })
+    }
+
+    /// Write `content` to `path`, creating or overwriting the file.
+    pub fn fs_write(&self, path: &str, content: &str) -> Result<(), AgentError> {
+        let p = std::path::Path::new(path);
+        // Ensure the parent directory exists.
+        if let Some(parent) = p.parent() {
+            if !parent.exists() {
+                return Err(AgentError::not_found(format!(
+                    "parent directory does not exist: {}",
+                    parent.display()
+                )));
+            }
+        }
+        std::fs::write(p, content).map_err(|e| {
+            AgentError::internal(format!("failed to write {path}: {e}"))
+        })
+    }
+
+    /// Rename a file or directory from `old_path` to `new_path`.
+    pub fn fs_rename(&self, old_path: &str, new_path: &str) -> Result<(), AgentError> {
+        let src = std::path::Path::new(old_path);
+        if !src.exists() {
+            return Err(AgentError::not_found(format!("source not found: {old_path}")));
+        }
+        std::fs::rename(src, new_path).map_err(|e| {
+            AgentError::internal(format!("failed to rename {old_path} → {new_path}: {e}"))
+        })
+    }
+
     /// List the permanent permission rules currently enforced by the sidecar
     /// (`GET /v1/permissions`). Body returned verbatim (`{ "rules": [...] }`),
     /// each rule carrying its `source` (`preset` / `manual`).

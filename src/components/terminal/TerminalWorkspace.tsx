@@ -7,9 +7,12 @@ import {
 } from './workspaceReducer';
 import TabBar from './TabBar';
 import TerminalGroup from './TerminalGroup';
+import FileEditor from '../editor/FileEditor';
 import ProfileMenu from './ProfileMenu';
 import { useAgentTabTools } from './useAgentTabTools';
 import { useAgentProjectTools } from './useAgentProjectTools';
+import { useShortcut } from '../../shortcuts';
+import { useConfirm } from '../ConfirmProvider';
 
 /**
  * The center-pane workspace (design D1/D3). Holds the whole reducer tree and
@@ -19,8 +22,16 @@ import { useAgentProjectTools } from './useAgentProjectTools';
  * (create/close) ever ends a PTY — never a tab switch.
  * Adds no Rust and no IPC.
  */
-export default function TerminalWorkspace() {
+interface TerminalWorkspaceProps {
+  /** A file path pushed by the parent (RightPanel file click). Consumed once. */
+  pendingFile?: string | null;
+  /** Called after pendingFile has been dispatched to the reducer. */
+  onFileConsumed?: () => void;
+}
+
+export default function TerminalWorkspace({ pendingFile, onFileConsumed }: TerminalWorkspaceProps) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const [state, dispatch] = useReducer(workspaceReducer, undefined, initWorkspace);
   const [titles, setTitles] = useState<Record<string, string>>({});
 
@@ -31,51 +42,54 @@ export default function TerminalWorkspace() {
   const addGroup = (profileId: ProfileId) =>
     dispatch({ type: 'addGroup', profileId });
 
-  // Keyboard shortcuts: Alt+Shift++ split, Alt+Shift+- close (design D4).
+  // Centralized keyboard shortcuts (replaces Alt+Shift+= / Alt+Shift+-).
+  useShortcut('newTerminal', () => addGroup('terminal'), [addGroup]);
+
+  useShortcut(
+    'splitTerminal',
+    () => {
+      const group = state.groups.find((g) => g.id === state.activeGroupId);
+      if (!group) return;
+      // Auto-pick direction from the active pane's longer edge.
+      const el = document.querySelector(
+        `[data-pane-id="${group.activePaneId}"]`,
+      );
+      let direction: 'row' | 'column' = 'row';
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        direction = rect.width >= rect.height ? 'row' : 'column';
+      }
+      dispatch({
+        type: 'splitPane',
+        groupId: group.id,
+        paneId: group.activePaneId,
+        direction,
+      });
+    },
+    [state.groups, state.activeGroupId],
+  );
+
+  useShortcut(
+    'closePanel',
+    () => {
+      const group = state.groups.find((g) => g.id === state.activeGroupId);
+      if (!group) return;
+      dispatch({
+        type: 'closePane',
+        groupId: group.id,
+        paneId: group.activePaneId,
+      });
+    },
+    [state.groups, state.activeGroupId],
+  );
+
+  // Consume external file-open requests (from RightPanel file tree).
   useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (!e.altKey || !e.shiftKey) return;
-
-      if (e.code === 'Equal') {
-        e.preventDefault();
-        // Find the active group and pane.
-        const group = state.groups.find((g) => g.id === state.activeGroupId);
-        if (!group) return;
-
-        // Auto-pick direction from the active pane's longer edge.
-        const el = document.querySelector(
-          `[data-pane-id="${group.activePaneId}"]`,
-        );
-        let direction: 'row' | 'column' = 'row';
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          direction = rect.width >= rect.height ? 'row' : 'column';
-        }
-
-        dispatch({
-          type: 'splitPane',
-          groupId: group.id,
-          paneId: group.activePaneId,
-          direction,
-        });
-        return;
-      }
-
-      if (e.code === 'Minus') {
-        e.preventDefault();
-        const group = state.groups.find((g) => g.id === state.activeGroupId);
-        if (!group) return;
-        dispatch({
-          type: 'closePane',
-          groupId: group.id,
-          paneId: group.activePaneId,
-        });
-      }
+    if (pendingFile) {
+      dispatch({ type: 'addEditorGroup', filePath: pendingFile });
+      onFileConsumed?.();
     }
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [state.groups, state.activeGroupId]);
+  }, [pendingFile, onFileConsumed]);
 
   const handlePaneTitle = useCallback(
     (paneId: string, title: string) => {
@@ -85,6 +99,9 @@ export default function TerminalWorkspace() {
   );
 
   const groupTitles = state.groups.map((g) => {
+    if (g.kind === 'editor' && g.filePath) {
+      return g.filePath.split(/[/\\]/).pop() ?? g.filePath;
+    }
     const activeTitle = titles[g.activePaneId];
     return activeTitle ?? g.label;
   });
@@ -96,7 +113,21 @@ export default function TerminalWorkspace() {
         groupTitles={groupTitles}
         activeGroupId={state.activeGroupId}
         onActivate={(id) => dispatch({ type: 'activateGroup', groupId: id })}
-        onClose={(id) => dispatch({ type: 'closeGroup', groupId: id })}
+        onClose={(id) => {
+          // Guard: if the group is an editor with unsaved changes, confirm first.
+          const g = state.groups.find((g) => g.id === id);
+          if (g?.kind === 'editor' && g.isDirty) {
+            void confirm({
+              title: t('editor.unsavedTitle'),
+              body: t('editor.unsavedBody', { file: g.filePath?.split(/[/\\]/).pop() ?? '' }),
+              danger: true,
+            }).then((ok) => {
+              if (ok) dispatch({ type: 'closeGroup', groupId: id });
+            });
+            return;
+          }
+          dispatch({ type: 'closeGroup', groupId: id });
+        }}
         onAddGroup={addGroup}
       />
 
@@ -118,19 +149,27 @@ export default function TerminalWorkspace() {
                 pointerEvents: isActive ? 'auto' : 'none',
               }}
             >
-              <TerminalGroup
-                group={g}
-                onSplitPane={(paneId, direction) =>
-                  dispatch({ type: 'splitPane', groupId: g.id, paneId, direction })
-                }
-                onClosePane={(paneId) =>
-                  dispatch({ type: 'closePane', groupId: g.id, paneId })
-                }
-                onActivatePane={(paneId) =>
-                  dispatch({ type: 'activatePane', groupId: g.id, paneId })
-                }
-                onPaneTitle={handlePaneTitle}
-              />
+              {g.kind === 'editor' ? (
+                <FileEditor
+                  filePath={g.filePath ?? ''}
+                  isDirty={g.isDirty ?? false}
+                  onDirtyChange={(dirty) => dispatch({ type: 'setGroupDirty', groupId: g.id, isDirty: dirty })}
+                />
+              ) : (
+                <TerminalGroup
+                  group={g}
+                  onSplitPane={(paneId, direction) =>
+                    dispatch({ type: 'splitPane', groupId: g.id, paneId, direction })
+                  }
+                  onClosePane={(paneId) =>
+                    dispatch({ type: 'closePane', groupId: g.id, paneId })
+                  }
+                  onActivatePane={(paneId) =>
+                    dispatch({ type: 'activatePane', groupId: g.id, paneId })
+                  }
+                  onPaneTitle={handlePaneTitle}
+                />
+              )}
             </div>
             );
           })

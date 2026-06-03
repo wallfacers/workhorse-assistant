@@ -90,6 +90,15 @@
     "lightTheme": "Light",
     "darkTheme": "Dark",
     "keyboardShortcuts": "Keyboard Shortcuts",
+    "shortcuts": {
+      "recordPrompt": "Press keys...",
+      "resetToDefaults": "Reset to defaults",
+      "resetConfirmTitle": "Reset shortcuts",
+      "resetConfirmBody": "Reset all shortcuts to their default values?",
+      "conflictWarning": "Conflicts with \"{{action}}\"",
+      "invalidBinding": "Shortcut must include a modifier key (Cmd/Ctrl, Alt, or Shift)",
+      "editHint": "Click to change shortcut"
+    },
     "connection": "Connection",
     "endpoint": "Endpoint",
     "defaultValue": "Default",
@@ -289,6 +298,20 @@
     "projectDeleteFailed": "Failed to delete project",
     "feedbackThanks": "Thanks for your feedback",
     "batchDeletePartial": "{{count}} failed"
+  },
+  "editor": {
+    "loading": "Loading…",
+    "error": "Unable to open file",
+    "retry": "Retry",
+    "saveFailed": "Save failed: {{error}}",
+    "unsavedTitle": "Unsaved changes",
+    "unsavedBody": "File \"{{file}}\" has unsaved changes. Close anyway?"
+  },
+  "fileTree": {
+    "loading": "Loading…",
+    "noProject": "No project open",
+    "rename": "Rename",
+    "renameFailed": "Rename failed: {{error}}"
   },
   "relativeTime": {
     "justNow": "just now",

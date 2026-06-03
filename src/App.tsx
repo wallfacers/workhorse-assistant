@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PanelRightOpen } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -15,6 +15,7 @@ import { AppContext } from './context';
 import { ConfirmProvider } from './components/ConfirmProvider';
 import { ToastProvider } from './components/ToastProvider';
 import { SessionProvider } from './session/SessionProvider';
+import { ShortcutProvider, useShortcut } from './shortcuts';
 import { PANEL, FADE } from './motion';
 
 export default function App() {
@@ -31,6 +32,9 @@ export default function App() {
     }
   });
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  // File-open queue: RightPanel pushes a path, TerminalWorkspace consumes it.
+  const [pendingFile, setPendingFile] = useState<string | null>(null);
+  const handleOpenFile = useCallback((filePath: string) => setPendingFile(filePath), []);
   const tauri = isTauri();
   const { maximized, fullscreen } = useWindowState();
   const agent = useAgentConnection();
@@ -83,13 +87,38 @@ export default function App() {
 
   return (
     <AppContext value={appContextValue}>
+    <ShortcutProvider>
     <SessionProvider agent={agent}>
     <ToastProvider>
     <ConfirmProvider>
+    <AppShortcuts
+      rightPanelOpen={rightPanelOpen}
+      setRightPanelOpen={setRightPanelOpen}
+    />
     <div
       className={`${isDarkMode ? 'dark' : ''} ${floating ? 'rounded-xl border border-outline dark:border-outline-dark' : ''} relative h-screen w-screen flex flex-col overflow-hidden bg-surface-muted dark:bg-surface-dark text-on-canvas dark:text-on-canvas-dark font-sans`}
     >
       <TitleBar maximized={maximized} />
+
+      {/* TEMP DEBUG OVERLAY — corner-rounding diagnosis. Remove after. */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 4,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 99999,
+          background: 'rgba(0,0,0,0.85)',
+          color: '#39ff14',
+          font: '11px monospace',
+          padding: '2px 10px',
+          borderRadius: 4,
+          pointerEvents: 'none',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {`tauri=${String(tauri)}  max=${String(maximized)}  fs=${String(fullscreen)}  floating=${String(floating)}`}
+      </div>
 
       <div className="flex-1 min-h-0 w-full flex p-3.5 overflow-hidden">
         <Group
@@ -108,7 +137,7 @@ export default function App() {
           <Panel id="terminal-panel" minSize="30%">
             <div className="h-full pl-1">
               <ErrorBoundary name="Terminal">
-                <TerminalWorkspace />
+                <TerminalWorkspace pendingFile={pendingFile} onFileConsumed={() => setPendingFile(null)} />
               </ErrorBoundary>
             </div>
           </Panel>
@@ -127,7 +156,7 @@ export default function App() {
               transition={{ duration: PANEL.duration, ease: PANEL.ease }}
               className="flex-shrink-0"
             >
-              <RightPanel onClose={() => setRightPanelOpen(false)} />
+              <RightPanel onClose={() => setRightPanelOpen(false)} onOpenFile={handleOpenFile} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -158,6 +187,22 @@ export default function App() {
     </ConfirmProvider>
     </ToastProvider>
     </SessionProvider>
+    </ShortcutProvider>
     </AppContext>
   );
+}
+
+/** Small inner component that wires App-level shortcuts. Lives inside ShortcutProvider. */
+function AppShortcuts({
+  rightPanelOpen,
+  setRightPanelOpen,
+}: {
+  rightPanelOpen: boolean;
+  setRightPanelOpen: (v: boolean) => void;
+}) {
+  useShortcut('toggleSidebar', () => setRightPanelOpen(!rightPanelOpen), [
+    rightPanelOpen,
+    setRightPanelOpen,
+  ]);
+  return null;
 }
