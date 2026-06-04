@@ -341,8 +341,51 @@ function MarkdownPreview({ content, isDark }: { content: string; isDark: boolean
 // Image preview component
 // ---------------------------------------------------------------------------
 
+// Two display modes:
+//  - 'fit'    : scale to fit the viewport (overview). Default.
+//  - 'actual' : native pixel dimensions (100%); scrollable when larger than the
+//               viewport. At 100% the browser applies no scaling, so the image
+//               is pixel-exact — this is the lossless view and it sidesteps the
+//               software-renderer's downscale quality on WSLg/webkit2gtk.
+// Click the image to toggle. See design.md (D1–D5).
+type ImageViewMode = 'fit' | 'actual';
+
 function ImagePreview({ filePath, fileName }: { filePath: string; fileName: string }) {
   const src = convertFileSrc(filePath);
+  const [mode, setMode] = useState<ImageViewMode>('fit');
+
+  // Reset to the fit overview whenever a different image is opened. Toggling to
+  // 'actual' remounts the scroll container, so scroll position resets too.
+  useEffect(() => {
+    setMode('fit');
+  }, [filePath]);
+
+  const toggle = useCallback(() => {
+    setMode((m) => (m === 'fit' ? 'actual' : 'fit'));
+  }, []);
+
+  if (mode === 'actual') {
+    return (
+      // Native-size view. The inner wrapper is at least the viewport size, so a
+      // small image stays centered; a larger image grows the wrapper past the
+      // viewport and the outer container scrolls (origin top-left, no clipping).
+      <div
+        className="h-full w-full overflow-auto custom-scrollbar"
+        style={{ backgroundColor: 'var(--color-surface-muted)' }}
+      >
+        <div className="min-h-full min-w-full flex items-center justify-center">
+          <img
+            src={src}
+            alt={fileName}
+            onClick={toggle}
+            className="block max-w-none"
+            style={{ backgroundColor: 'var(--color-surface)', cursor: 'zoom-out' }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="h-full w-full flex items-center justify-center p-6"
@@ -352,8 +395,9 @@ function ImagePreview({ filePath, fileName }: { filePath: string; fileName: stri
         <img
           src={src}
           alt={fileName}
+          onClick={toggle}
           className="max-w-full max-h-[calc(100vh-200px)] object-contain rounded-lg border border-outline dark:border-outline-dark shadow-sm"
-          style={{ backgroundColor: 'var(--color-surface)' }}
+          style={{ backgroundColor: 'var(--color-surface)', cursor: 'zoom-in' }}
         />
         <p className="text-[11px] text-on-surface-muted dark:text-on-surface-dark-muted font-mono">{fileName}</p>
       </div>
