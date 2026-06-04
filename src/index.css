@@ -123,33 +123,21 @@
     border-radius: 9999px !important;
   }
 
-  /* CodeMirror 6 scroller — the editor's own scroll container (`.cm-scroller`)
-   * uses the native browser scrollbar, so on webkit2gtk (WSLg) it renders the
-   * chunky default chrome instead of the project's slim one. Mirror the
-   * `.custom-scrollbar` token (6px track, stone thumb, theme-aware) so the
-   * source-code mode's vertical and horizontal bars match the rest of the app.
-   * The rounded editor card's `overflow-hidden` then clips the horizontal bar
-   * so it can no longer protrude past the line-number gutter. */
-  .cm-scroller::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  /* CodeMirror 6 scroller — slim, theme-aware scrollbars that match the app.
+   *
+   * Use the *standard* CSS Scrollbars properties (`scrollbar-width` /
+   * `scrollbar-color`) rather than an explicitly-sized `::-webkit-scrollbar`.
+   * On WebKitGTK (the WSLg webview) sizing `::-webkit-scrollbar` switches the
+   * element to a custom scrollbar that GTK renders *permanently* — which made a
+   * short file like package.json show a horizontal bar it does not need. The
+   * standard properties stay `auto`: the bar only appears when a line actually
+   * overflows, so fitting content shows none and nothing sits under the gutter. */
+  .cm-scroller {
+    scrollbar-width: thin;
+    scrollbar-color: #d6d3d1 transparent; /* stone-300 thumb, transparent track */
   }
-  .cm-scroller::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .cm-scroller::-webkit-scrollbar-thumb {
-    @apply bg-stone-300 dark:bg-stone-600 rounded-full;
-  }
-  .cm-scroller::-webkit-scrollbar-thumb:hover {
-    @apply bg-stone-400 dark:bg-stone-500;
-  }
-  .cm-scroller::-webkit-scrollbar-button {
-    display: none;
-  }
-  /* Keep the gutter opaque to the bottom edge so the horizontal bar reads as
-   * sitting under the content, not under the line numbers. */
-  .cm-scroller::-webkit-scrollbar-corner {
-    background: transparent;
+  .dark .cm-scroller {
+    scrollbar-color: #57534e transparent; /* stone-600 */
   }
 
   /* Resize handle (react-resizable-panels Separator).
