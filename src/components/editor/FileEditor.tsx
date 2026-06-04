@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorState } from '@codemirror/state';
-import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine, drawSelection, rectangularSelection, highlightSpecialChars } from '@codemirror/view';
+import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine, drawSelection, rectangularSelection, highlightSpecialChars, ViewPlugin } from '@codemirror/view';
+import type { ViewUpdate } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { syntaxHighlighting, defaultHighlightStyle, foldGutter, indentOnInput, bracketMatching, foldKeymap } from '@codemirror/language';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
@@ -98,6 +99,8 @@ function createEditorTheme(isDark: boolean): Extension {
       color: onSurface,
       height: '100%',
       fontSize: '13px',
+      // Anchor the custom horizontal scrollbar overlay (appended to .cm-editor).
+      position: 'relative',
     },
     '.cm-content': {
       fontFamily: "ui-monospace, SFMono-Regular, 'JetBrains Mono', Consolas, monospace",
@@ -144,6 +147,128 @@ function createEditorTheme(isDark: boolean): Extension {
     },
   }, { dark: isDark });
 }
+
+// ---------------------------------------------------------------------------
+// Custom horizontal scrollbar (Task: VSCode-like gutter)
+//
+// CodeMirror's native horizontal scrollbar lives on `.cm-scroller`, which also
+// contains the (sticky) line-number gutter — so the native bar spans the full
+// width and sits *under* the gutter. VSCode insets it to start after the
+// gutter. We hide the native horizontal bar in CSS
+// (`.cm-scroller::-webkit-scrollbar:horizontal { height: 0 }`) and draw this
+// overlay thumb, positioned from the gutter's right edge to the viewport edge.
+// ---------------------------------------------------------------------------
+
+const MIN_THUMB = 24;
+
+const horizontalScrollbar = ViewPlugin.fromClass(
+  class {
+    private overlay: HTMLDivElement;
+    private thumb: HTMLDivElement;
+    private scroller: HTMLElement;
+    private ro: ResizeObserver;
+    private raf = 0;
+    private dragging = false;
+    private startX = 0;
+    private startScroll = 0;
+    private maxScroll = 0;
+    private trackWidth = 0;
+    private thumbWidth = 0;
+
+    constructor(view: EditorView) {
+      this.scroller = view.scrollDOM;
+      this.overlay = document.createElement('div');
+      this.overlay.className = 'cm-hscroll';
+      this.thumb = document.createElement('div');
+      this.thumb.className = 'cm-hscroll-thumb';
+      this.overlay.appendChild(this.thumb);
+      view.dom.appendChild(this.overlay);
+
+      this.scroller.addEventListener('scroll', this.onScroll, { passive: true });
+      this.thumb.addEventListener('pointerdown', this.onPointerDown);
+      this.ro = new ResizeObserver(() => this.schedule());
+      this.ro.observe(this.scroller);
+
+      this.schedule();
+    }
+
+    private onScroll = () => this.schedule();
+
+    private schedule() {
+      if (this.raf) return;
+      this.raf = requestAnimationFrame(() => {
+        this.raf = 0;
+        this.layout();
+      });
+    }
+
+    private layout() {
+      const sc = this.scroller;
+      const gutters = sc.querySelector('.cm-gutters') as HTMLElement | null;
+      const gutterWidth = gutters ? gutters.offsetWidth : 0;
+      const clientWidth = sc.clientWidth;
+      const scrollWidth = sc.scrollWidth;
+      const maxScroll = scrollWidth - clientWidth;
+      if (maxScroll <= 1) {
+        this.overlay.style.display = 'none';
+        return;
+      }
+      const trackWidth = Math.max(0, clientWidth - gutterWidth);
+      let thumbWidth = Math.max(MIN_THUMB, (trackWidth * clientWidth) / scrollWidth);
+      thumbWidth = Math.min(thumbWidth, trackWidth);
+      const denom = trackWidth - thumbWidth;
+      const thumbLeft = denom > 0 ? denom * (sc.scrollLeft / maxScroll) : 0;
+
+      this.overlay.style.display = 'block';
+      this.overlay.style.left = `${gutterWidth}px`;
+      this.overlay.style.width = `${trackWidth}px`;
+      this.thumb.style.width = `${thumbWidth}px`;
+      this.thumb.style.transform = `translateX(${thumbLeft}px)`;
+
+      this.maxScroll = maxScroll;
+      this.trackWidth = trackWidth;
+      this.thumbWidth = thumbWidth;
+    }
+
+    private onPointerDown = (e: PointerEvent) => {
+      e.preventDefault();
+      this.dragging = true;
+      this.startX = e.clientX;
+      this.startScroll = this.scroller.scrollLeft;
+      this.thumb.setPointerCapture(e.pointerId);
+      this.thumb.classList.add('cm-hscroll-thumb-active');
+      this.thumb.addEventListener('pointermove', this.onPointerMove);
+      this.thumb.addEventListener('pointerup', this.onPointerUp);
+    };
+
+    private onPointerMove = (e: PointerEvent) => {
+      if (!this.dragging) return;
+      const denom = this.trackWidth - this.thumbWidth;
+      if (denom <= 0) return;
+      const dx = e.clientX - this.startX;
+      this.scroller.scrollLeft = this.startScroll + dx * (this.maxScroll / denom);
+    };
+
+    private onPointerUp = (e: PointerEvent) => {
+      this.dragging = false;
+      this.thumb.releasePointerCapture(e.pointerId);
+      this.thumb.classList.remove('cm-hscroll-thumb-active');
+      this.thumb.removeEventListener('pointermove', this.onPointerMove);
+      this.thumb.removeEventListener('pointerup', this.onPointerUp);
+    };
+
+    update(u: ViewUpdate) {
+      if (u.geometryChanged || u.docChanged) this.schedule();
+    }
+
+    destroy() {
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.scroller.removeEventListener('scroll', this.onScroll);
+      this.ro.disconnect();
+      this.overlay.remove();
+    }
+  },
+);
 
 // ---------------------------------------------------------------------------
 // File type classification
@@ -345,6 +470,7 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
             autocompletion(),
             ...langExts,
             createEditorTheme(isDarkMode),
+            horizontalScrollbar,
             keymap.of([
               ...closeBracketsKeymap,
               ...defaultKeymap,

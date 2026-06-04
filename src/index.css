@@ -123,6 +123,35 @@
     background: transparent;
   }
 
+  /* Hide CodeMirror's native *horizontal* scrollbar — it spans the full scroller
+   * width and sits under the line-number gutter. We replace it with a custom
+   * overlay thumb (`.cm-hscroll`, FileEditor.tsx) that starts after the gutter,
+   * VSCode-style. The vertical scrollbar above stays native (6px). */
+  .cm-scroller::-webkit-scrollbar:horizontal {
+    height: 0;
+  }
+  .cm-hscroll {
+    position: absolute;
+    bottom: 0;
+    height: 6px;
+    pointer-events: none;
+    z-index: 4;
+  }
+  .cm-hscroll-thumb {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 6px;
+    border-radius: 9999px;
+    pointer-events: auto;
+    will-change: transform;
+    @apply bg-stone-300 dark:bg-stone-600;
+  }
+  .cm-hscroll-thumb:hover,
+  .cm-hscroll-thumb-active {
+    @apply bg-stone-400 dark:bg-stone-500;
+  }
+
   /* xterm v6 ships a Monaco-style DOM scrollbar (plain divs), not a native one,
    * so it ignores `::-webkit-scrollbar`. Slim its 14px default to the project's
    * 6px and round the slider; colours come from the xterm theme `scrollbarSlider*`

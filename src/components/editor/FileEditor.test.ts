@@ -46,6 +46,7 @@ vi.mock('@codemirror/view', () => {
     drawSelection: () => [],
     rectangularSelection: () => [],
     highlightSpecialChars: () => [],
+    ViewPlugin: { fromClass: () => [] },
   };
 });
 
