@@ -152,6 +152,14 @@
     @apply bg-stone-400 dark:bg-stone-500;
   }
 
+  /* Promote the sticky line-number gutter to its own compositor layer so it is
+   * repositioned during scroll by the compositor instead of being repainted
+   * every frame. This is the standard mitigation for the line-number/content
+   * flicker that shows up on slow or software-rendered webviews (e.g. WSLg). */
+  .cm-gutters {
+    transform: translateZ(0);
+  }
+
   /* xterm v6 ships a Monaco-style DOM scrollbar (plain divs), not a native one,
    * so it ignores `::-webkit-scrollbar`. Slim its 14px default to the project's
    * 6px and round the slider; colours come from the xterm theme `scrollbarSlider*`
