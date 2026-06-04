@@ -6,7 +6,6 @@ import { syntaxHighlighting, defaultHighlightStyle, foldGutter, indentOnInput, b
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import type { Extension } from '@codemirror/state';
-import { Eye, Code } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
 import { javascript } from '@codemirror/lang-javascript';
@@ -459,35 +458,48 @@ export default function FileEditor({ filePath, isDirty, onDirtyChange }: FileEdi
 
   return (
     <div className="h-full w-full relative flex flex-col">
-      {/* Toolbar: markdown preview toggle */}
-      {viewMode === 'markdown' && !loading && !error && (
-        <div className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 border-b border-outline/40 dark:border-outline-dark/40 bg-surface dark:bg-surface-dark-elevated">
-          <button
-            type="button"
-            onClick={() => setShowPreview(false)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-              !showPreview
-                ? 'bg-surface-muted dark:bg-surface-dark text-on-surface dark:text-on-canvas-dark shadow-sm'
-                : 'text-on-surface-muted dark:text-on-canvas-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark'
-            }`}
-          >
-            <Code className="w-3 h-3" />
-            {t('editor.source')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowPreview(true)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-              showPreview
-                ? 'bg-surface-muted dark:bg-surface-dark text-on-surface dark:text-on-canvas-dark shadow-sm'
-                : 'text-on-surface-muted dark:text-on-canvas-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark'
-            }`}
-          >
-            <Eye className="w-3 h-3" />
-            {t('editor.preview')}
-          </button>
-        </div>
-      )}
+      {/* VSCode-like header: file path on the left, markdown mode toggle on the
+          right. Intentionally borderless so it reads as one surface with the
+          editor below it (no separator line). */}
+      <div className="flex-shrink-0 flex items-center justify-between gap-3 px-3 h-7 bg-surface dark:bg-surface-dark-elevated">
+        {/* `direction: rtl` truncates the path from the *left* so the filename
+            (the meaningful tail) stays visible; the inner bdi restores normal
+            left-to-right reading order for the path itself. */}
+        <span
+          className="min-w-0 flex-1 truncate text-[11px] font-mono text-on-surface-muted dark:text-on-canvas-dark-muted"
+          style={{ direction: 'rtl', textAlign: 'left' }}
+          title={filePath}
+        >
+          <bdi style={{ direction: 'ltr' }}>{filePath}</bdi>
+        </span>
+
+        {viewMode === 'markdown' && (
+          <div className="flex-shrink-0 flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => setShowPreview(true)}
+              className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                showPreview
+                  ? 'bg-surface-muted dark:bg-surface-dark text-on-surface dark:text-on-canvas-dark'
+                  : 'text-on-surface-muted dark:text-on-canvas-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark'
+              }`}
+            >
+              {t('editor.preview')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPreview(false)}
+              className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                !showPreview
+                  ? 'bg-surface-muted dark:bg-surface-dark text-on-surface dark:text-on-canvas-dark'
+                  : 'text-on-surface-muted dark:text-on-canvas-dark-muted hover:text-on-surface dark:hover:text-on-canvas-dark'
+              }`}
+            >
+              {t('editor.markdown')}
+            </button>
+          </div>
+        )}
+      </div>
 
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface/80 dark:bg-surface-dark-elevated/80 z-10">

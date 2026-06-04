@@ -89,21 +89,38 @@
  * is generally useful, prefer adding it to the design system above.
  * ---------------------------------------------------------------- */
 @layer utilities {
-  .custom-scrollbar::-webkit-scrollbar {
+  /* Single source of truth for the app's slim 6px scrollbar. `.custom-scrollbar`
+   * is the opt-in class (file tree / directory, markdown preview, panels, …);
+   * `.cm-scroller` is CodeMirror's internal scroll element, which we cannot add
+   * a class to, so it shares these exact rules to stay identical to the rest of
+   * the app. `:active` is pinned to the same hover colour so WebKitGTK doesn't
+   * paint its native black/wide thumb while dragging. */
+  .custom-scrollbar::-webkit-scrollbar,
+  .cm-scroller::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-  .custom-scrollbar::-webkit-scrollbar-track {
+  .custom-scrollbar::-webkit-scrollbar-track,
+  .cm-scroller::-webkit-scrollbar-track {
     background: transparent;
   }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
+  .custom-scrollbar::-webkit-scrollbar-thumb,
+  .cm-scroller::-webkit-scrollbar-thumb {
     @apply bg-stone-300 dark:bg-stone-600 rounded-full;
   }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover,
+  .custom-scrollbar::-webkit-scrollbar-thumb:active,
+  .cm-scroller::-webkit-scrollbar-thumb:hover,
+  .cm-scroller::-webkit-scrollbar-thumb:active {
     @apply bg-stone-400 dark:bg-stone-500;
   }
-  .custom-scrollbar::-webkit-scrollbar-button {
+  .custom-scrollbar::-webkit-scrollbar-button,
+  .cm-scroller::-webkit-scrollbar-button {
     display: none;
+  }
+  .custom-scrollbar::-webkit-scrollbar-corner,
+  .cm-scroller::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
   /* xterm v6 ships a Monaco-style DOM scrollbar (plain divs), not a native one,
@@ -123,22 +140,6 @@
     border-radius: 9999px !important;
   }
 
-  /* CodeMirror 6 scroller — slim, theme-aware scrollbars that match the app.
-   *
-   * Use the *standard* CSS Scrollbars properties (`scrollbar-width` /
-   * `scrollbar-color`) rather than an explicitly-sized `::-webkit-scrollbar`.
-   * On WebKitGTK (the WSLg webview) sizing `::-webkit-scrollbar` switches the
-   * element to a custom scrollbar that GTK renders *permanently* — which made a
-   * short file like package.json show a horizontal bar it does not need. The
-   * standard properties stay `auto`: the bar only appears when a line actually
-   * overflows, so fitting content shows none and nothing sits under the gutter. */
-  .cm-scroller {
-    scrollbar-width: thin;
-    scrollbar-color: #d6d3d1 transparent; /* stone-300 thumb, transparent track */
-  }
-  .dark .cm-scroller {
-    scrollbar-color: #57534e transparent; /* stone-600 */
-  }
 
   /* Resize handle (react-resizable-panels Separator).
    * Rest: faint outline hairline (theme-aware).

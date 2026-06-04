@@ -307,7 +307,8 @@
     "unsavedTitle": "Unsaved changes",
     "unsavedBody": "File \"{{file}}\" has unsaved changes. Close anyway?",
     "source": "Source",
-    "preview": "Preview"
+    "preview": "Preview",
+    "markdown": "Markdown"
   },
   "fileTree": {
     "loading": "Loading…",
