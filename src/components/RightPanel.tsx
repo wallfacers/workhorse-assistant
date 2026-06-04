@@ -32,7 +32,10 @@ export default function RightPanel({ onClose, onOpenFile }: RightPanelProps) {
   const loadRoot = useCallback(async () => {
     if (!currentProject) { setTreeNodes([]); return; }
     setTreeLoading(true);
-    const result = await fsList(currentProject);
+    // Anchor confinement to the project root itself, not the sidecar's default
+    // workdir (home). Otherwise a project outside home — common on Windows where
+    // it may live on another drive — is rejected by the workdir guard.
+    const result = await fsList(currentProject, currentProject);
     if (result.ok) {
       const nodes: RealFileNode[] = result.value.entries.map((e) => ({
         name: e.name,
@@ -95,6 +98,7 @@ export default function RightPanel({ onClose, onOpenFile }: RightPanelProps) {
             ) : (
               <FileTree
                 nodes={treeNodes}
+                projectRoot={currentProject}
                 onOpenFile={onOpenFile}
                 onRefresh={loadRoot}
               />

@@ -9,6 +9,8 @@ import { useTranslation } from 'react-i18next';
 
 interface FileTreeProps {
   nodes: RealFileNode[];
+  /** Project root — passed as the confinement `root` for every fs listing. */
+  projectRoot: string;
   onOpenFile: (filePath: string) => void;
   onRefresh: () => void;
 }
@@ -19,11 +21,13 @@ interface FileTreeProps {
 function TreeNode({
   node,
   depth,
+  projectRoot,
   onOpenFile,
   onNodeUpdated,
 }: {
   node: RealFileNode;
   depth: number;
+  projectRoot: string;
   onOpenFile: (filePath: string) => void;
   onNodeUpdated: () => void;
 }) {
@@ -43,7 +47,7 @@ function TreeNode({
     if (!isFolder) return;
     if (!expanded && !loaded) {
       setLoading(true);
-      const result = await fsList(node.path);
+      const result = await fsList(node.path, projectRoot);
       if (result.ok) {
         const childNodes: RealFileNode[] = result.value.entries.map((e) => ({
           name: e.name,
@@ -64,7 +68,7 @@ function TreeNode({
       setLoading(false);
     }
     setExpanded(!expanded);
-  }, [expanded, loaded, isFolder, node.path]);
+  }, [expanded, loaded, isFolder, node.path, projectRoot]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -155,6 +159,7 @@ function TreeNode({
               key={child.path}
               node={child}
               depth={depth + 1}
+              projectRoot={projectRoot}
               onOpenFile={onOpenFile}
               onNodeUpdated={onNodeUpdated}
             />
@@ -172,7 +177,7 @@ function TreeNode({
   );
 }
 
-export default function FileTree({ nodes, onOpenFile, onRefresh }: FileTreeProps) {
+export default function FileTree({ nodes, projectRoot, onOpenFile, onRefresh }: FileTreeProps) {
   // Trigger a re-render when nodes change (rename updates node.name in place).
   const [, setTick] = useState(0);
   const handleNodeUpdated = useCallback(() => {
@@ -187,6 +192,7 @@ export default function FileTree({ nodes, onOpenFile, onRefresh }: FileTreeProps
           key={node.path}
           node={node}
           depth={0}
+          projectRoot={projectRoot}
           onOpenFile={onOpenFile}
           onNodeUpdated={handleNodeUpdated}
         />
